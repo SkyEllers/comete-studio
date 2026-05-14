@@ -1,0 +1,26 @@
+{
+  "name": "Comète Studio",
+  "short_name": "Comète",
+  "description": "Product studio vertical pour thérapeutes-entrepreneuses. L'écosystème logiciel qui exécute ta stratégie marketing à ta place. Calibré sur ta voix.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#0A0A0A",
+  "background_color": "#0A0A0A",
+  "display": "standalone",
+  "start_url": "/"
+}

@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:\\\\Users\\\\mabic\\\\Projets\\\\comete studio\\\\assets\\\\images\" \"C:\\\\Users\\\\mabic\\\\Projets\\\\comete studio\\\\assets\\\\cas\" \"C:\\\\Users\\\\mabic\\\\Projets\\\\comete studio\\\\mentions-legales\" \"C:\\\\Users\\\\mabic\\\\Projets\\\\comete studio\\\\confidentialite\" \"C:\\\\Users\\\\mabic\\\\Projets\\\\comete studio\\\\og\")",
+      "Bash(cp \"C:\\\\Users\\\\mabic\\\\OneDrive\\\\Bureau\\\\Bureau\\\\cv_site\\\\assets\\\\images\\\\comete-studio-logo-slash.svg\" \"C:\\\\Users\\\\mabic\\\\Projets\\\\comete studio\\\\assets\\\\images\\\\\" && cp \"C:\\\\Users\\\\mabic\\\\OneDrive\\\\Bureau\\\\Bureau\\\\cv_site\\\\assets\\\\images\\\\wordmark-comete-studio.svg\" \"C:\\\\Users\\\\mabic\\\\Projets\\\\comete studio\\\\assets\\\\images\\\\\")",
+      "Bash(mkdir -p \"/c/Users/mabic/Projets/comete studio/assets/images\" \"/c/Users/mabic/Projets/comete studio/assets/cas\" \"/c/Users/mabic/Projets/comete studio/mentions-legales\" \"/c/Users/mabic/Projets/comete studio/confidentialite\" \"/c/Users/mabic/Projets/comete studio/og\")",
+      "Bash(cp \"/c/Users/mabic/OneDrive/Bureau/Bureau/cv_site/assets/images/comete-studio-logo-slash.svg\" \"/c/Users/mabic/Projets/comete studio/assets/images/\")",
+      "Bash(cp \"/c/Users/mabic/OneDrive/Bureau/Bureau/cv_site/assets/images/wordmark-comete-studio.svg\" \"/c/Users/mabic/Projets/comete studio/assets/images/\")",
+      "Bash(npx --yes serve@14 -p 3000 -L)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "PowerShell(npx serve . -p 3000)",
+      "PowerShell(Start-Sleep -Seconds 3; try { $r = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000/\" -TimeoutSec 5; \"STATUS: $\\($r.StatusCode\\)\"; \\($r.Content -split \"`n\" | Select-String -Pattern \"cal\\\\.eu/cometestudio/discovery\" -SimpleMatch\\) } catch { \"FAIL: $\\($_.Exception.Message\\)\" })",
+      "PowerShell($r = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000/\" -TimeoutSec 5; [regex]::Matches\\($r.Content, \"cal\\\\.eu/cometestudio/discovery\"\\).Count; [regex]::Matches\\($r.Content, \"calendly\\\\.com/cometestudio\"\\).Count)",
+      "PowerShell(Start-Sleep -Seconds 3; $w = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000/assets/images/peggy-girault.webp\" -TimeoutSec 5; $j = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000/assets/images/peggy-girault.jpg\" -TimeoutSec 5; \"WebP: $\\($w.StatusCode\\) $\\($w.Headers.'Content-Type'\\) $\\([math]::Round\\($w.RawContentLength/1KB,1\\)\\)KB\"; \"JPG : $\\($j.StatusCode\\) $\\($j.Headers.'Content-Type'\\) $\\([math]::Round\\($j.RawContentLength/1KB,1\\)\\)KB\"; $h = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000/\" -TimeoutSec 5; \"Picture tags: $\\([regex]::Matches\\($h.Content,'peggy-girault\\\\.webp'\\).Count\\) webp ref, $\\([regex]::Matches\\($h.Content,'peggy-girault\\\\.jpg'\\).Count\\) jpg ref, $\\([regex]::Matches\\($h.Content,'peggy-placeholder'\\).Count\\) old placeholder leftover\")",
+      "PowerShell($ua = \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\"; $url = \"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700;900&display=swap\"; $r = Invoke-WebRequest -Uri $url -UserAgent $ua -UseBasicParsing; $r.Content)",
+      "PowerShell(Start-Sleep -Seconds 3; $pages = @\\(\"/\", \"/confidentialite/\", \"/mentions-legales/\", \"/404.html\"\\); foreach \\($p in $pages\\) { $r = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000$p\" -TimeoutSec 5; $gf = [regex]::Matches\\($r.Content, \"fonts\\\\.googleapis\\\\.com\"\\).Count; $gs = [regex]::Matches\\($r.Content, \"fonts\\\\.gstatic\\\\.com\"\\).Count; $sh = [regex]::Matches\\($r.Content, \"/assets/fonts/\"\\).Count; \"$p`: status=$\\($r.StatusCode\\) google-fonts-leaks=$\\($gf+$gs\\) self-hosted-refs=$sh\" }; $fonts = @\\(\"inter-latin.woff2\",\"inter-latin-ext.woff2\",\"jetbrains-mono-latin.woff2\",\"jetbrains-mono-latin-ext.woff2\",\"space-grotesk-latin.woff2\",\"space-grotesk-latin-ext.woff2\"\\); foreach \\($f in $fonts\\) { try { $h = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000/assets/fonts/$f\" -Method Head -TimeoutSec 5; \"FONT $f`: $\\($h.StatusCode\\) $\\($h.Headers.'Content-Type'\\)\" } catch { \"FONT $f FAIL: $\\($_.Exception.Message\\)\" } })",
+      "PowerShell(pip install *)",
+      "PowerShell(Start-Sleep -Seconds 3; $r = Invoke-WebRequest -UseBasicParsing -Uri \"http://localhost:3000/\" -TimeoutSec 5; \"STATUS: $\\($r.StatusCode\\) \\($\\([math]::Round\\($r.RawContentLength/1KB,1\\)\\) KB\\)\"; \"/ count in HTML \\(section-anchors expected: 9\\): $\\([regex]::Matches\\($r.Content, '<p class=\\\\\"section-anchor\\\\\">/'\\).Count\\)\"; \"╱ residuel: $\\([regex]::Matches\\($r.Content, [char]0x2571\\).Count\\)\")",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(node scripts/build-favicons.js)",
+      "Bash(node scripts/build-og-image.js)"
+    ]
+  }
+}

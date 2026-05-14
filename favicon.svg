@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="favicon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200">
+  <defs>
+    <style>
+      .cls-1, .cls-2 {
+        fill: #FF6B35;
+      }
+      .cls-2 {
+        stroke: #FF6B35;
+        stroke-miterlimit: 10;
+        stroke-width: 6px;
+      }
+    </style>
+  </defs>
+  <path class="cls-1" d="M9.81,192.85V7.38h42.59v12.8h-26.76v159.87h26.76v12.8H9.81Z"/>
+  <path class="cls-2" d="M77.56,188.98L145.89,11.43h16.65l-68.57,177.55h-16.41Z"/>
+  <path class="cls-1" d="M230.19,7.15v185.7h-42.59v-12.8h26.76V19.95h-26.76V7.15h42.59Z"/>
+</svg>

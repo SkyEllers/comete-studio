@@ -1,0 +1,14 @@
+{
+  "name": "cometestudio-fr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site vitrine Comète Studio — cometestudio.fr",
+  "scripts": {
+    "dev": "npx serve . -p 3000",
+    "preview": "npx serve . -p 3000"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.43.1",
+    "sharp": "^0.34.5"
+  }
+}
