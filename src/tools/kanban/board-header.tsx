@@ -27,13 +27,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
+import { initiales } from "./initials";
 import { BOARD_COLORS, PALETTE, colorHex, type BoardColor } from "./palette";
 import type { BoardMember, BoardSelf } from "./types";
-
-function initiales(nom: string) {
-  const morceaux = nom.split(/[\s@._-]+/).filter(Boolean);
-  return ((morceaux[0]?.[0] ?? "?") + (morceaux[1]?.[0] ?? "")).toUpperCase();
-}
 
 export function BoardHeader({
   board,

@@ -2,7 +2,7 @@
 
 import { useReducer } from "react";
 
-import type { BoardCard, BoardData, BoardList } from "./types";
+import type { BoardCard, BoardData, BoardLabel, BoardList } from "./types";
 
 /**
  * État d'un tableau ouvert.
@@ -28,7 +28,10 @@ export type BoardAction =
       id: string;
       listId: string;
       position: number;
-    };
+    }
+  | { type: "label/added"; label: BoardLabel }
+  | { type: "label/patched"; id: string; patch: Partial<BoardLabel> }
+  | { type: "label/removed"; id: string };
 
 const parPosition = <T extends { position: number }>(a: T, b: T) =>
   a.position - b.position;
@@ -111,6 +114,30 @@ export function boardReducer(state: BoardData, action: BoardAction): BoardData {
               : c,
           )
           .sort(parPosition),
+      };
+
+    case "label/added":
+      return state.labels.some((l) => l.id === action.label.id)
+        ? state
+        : { ...state, labels: [...state.labels, action.label] };
+
+    case "label/patched":
+      return {
+        ...state,
+        labels: state.labels.map((l) =>
+          l.id === action.id ? { ...l, ...action.patch } : l,
+        ),
+      };
+
+    case "label/removed":
+      return {
+        ...state,
+        labels: state.labels.filter((l) => l.id !== action.id),
+        cards: state.cards.map((c) =>
+          c.labelIds.includes(action.id)
+            ? { ...c, labelIds: c.labelIds.filter((id) => id !== action.id) }
+            : c,
+        ),
       };
 
     default:

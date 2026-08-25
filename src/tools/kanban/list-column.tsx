@@ -32,6 +32,7 @@ function ColonneBrute({
   onRename,
   onArchive,
   onAddCard,
+  onOpenCard,
 }: {
   list: BoardList;
   cards: BoardCard[];
@@ -42,6 +43,7 @@ function ColonneBrute({
   onRename: (name: string) => void;
   onArchive: () => void;
   onAddCard: (title: string) => Promise<boolean>;
+  onOpenCard: (cardId: string) => void;
 }) {
   const [edition, setEdition] = useState(false);
   const [nom, setNom] = useState(list.name);
@@ -167,6 +169,7 @@ function ColonneBrute({
                 labels={labels}
                 members={members}
                 disabled={dragDisabled}
+                onOpen={onOpenCard}
               />
             ))}
           </ul>

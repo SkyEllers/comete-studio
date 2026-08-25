@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { renormalizeBoardLists, renormalizeList } from "./actions";
 import { BoardHeader } from "./board-header";
 import { CardFace } from "./card-item";
+import { CardPanel } from "./card-panel";
 import { Composer } from "./composers";
 import { ListColumn } from "./list-column";
 import {
@@ -59,15 +60,19 @@ export function BoardView({
   initial,
   orgSlug,
   userId,
+  initialCardId = null,
 }: {
   initial: BoardData;
   orgSlug: string;
   userId: string;
+  /** Carte à ouvrir au chargement, venue de `?card=` (validée côté serveur). */
+  initialCardId?: string | null;
 }) {
   const [state, dispatch] = useBoardStore(initial);
   const [carteEnMain, setCarteEnMain] = useState<string | null>(null);
   const [listeEnMain, setListeEnMain] = useState<string | null>(null);
   const [recherche, setRecherche] = useState("");
+  const [carteOuverte, setCarteOuverte] = useState<string | null>(initialCardId);
   const origine = useRef<string | null>(null);
   const router = useRouter();
 
@@ -76,7 +81,12 @@ export function BoardView({
     useSensor(TouchSensor, {
       activationConstraint: { delay: 200, tolerance: 6 },
     }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    // Espace saisit et dépose, Échap annule : Entrée reste libre pour ouvrir
+    // la fiche de la carte au clavier.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space"] },
+    }),
   );
 
   const filtre = recherche.trim().toLowerCase();
@@ -366,6 +376,22 @@ export function BoardView({
     router.push(`/app/${orgSlug}/kanban`);
   };
 
+  /**
+   * L'URL suit la fiche ouverte sans navigation : `replaceState` garde le lien
+   * partageable (« Copier le lien ») sans rejouer la page ni vider le store.
+   */
+  const ouvrirCarte = (cardId: string) => {
+    setCarteOuverte(cardId);
+    window.history.replaceState(null, "", `?card=${cardId}`);
+  };
+
+  const fermerCarte = () => {
+    setCarteOuverte(null);
+    window.history.replaceState(null, "", window.location.pathname);
+  };
+
+  const carteEnFiche = state.cards.find((c) => c.id === carteOuverte);
+
   const carteAffichee = state.cards.find((c) => c.id === carteEnMain);
   const listeAffichee = state.lists.find((l) => l.id === listeEnMain);
 
@@ -415,6 +441,7 @@ export function BoardView({
                 onRename={(name) => void renommerListe(list.id, name)}
                 onArchive={() => void archiverListe(list.id)}
                 onAddCard={(title) => ajouterCarte(list.id, title)}
+                onOpenCard={ouvrirCarte}
               />
             ))}
           </SortableContext>
@@ -444,6 +471,24 @@ export function BoardView({
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {carteEnFiche ? (
+        <CardPanel
+          key={carteEnFiche.id}
+          card={carteEnFiche}
+          lists={state.lists}
+          labels={state.labels}
+          members={state.members}
+          cardsOfTargetList={(listId) =>
+            cardsOfList(state, listId).at(-1)?.position ?? 0
+          }
+          boardId={state.board.id}
+          userId={userId}
+          canDelete={state.canDelete}
+          dispatch={dispatch}
+          onClose={fermerCarte}
+        />
+      ) : null}
     </div>
   );
 }

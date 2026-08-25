@@ -1,12 +1,13 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { CSS } from "@dnd-kit/utilities";
 import { AlignLeft, CalendarDays, CheckSquare, MessageSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+import { initiales } from "./initials";
 import { colorHex } from "./palette";
 import type { BoardCard, BoardLabel, BoardMember } from "./types";
 
@@ -14,11 +15,6 @@ const jourMois = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
   month: "short",
 });
-
-function initiales(nom: string) {
-  const morceaux = nom.split(/[\s@._-]+/).filter(Boolean);
-  return ((morceaux[0]?.[0] ?? "?") + (morceaux[1]?.[0] ?? "")).toUpperCase();
-}
 
 /** Aujourd'hui à minuit : une échéance du jour n'est pas encore dépassée. */
 function estDepassee(dueDate: string) {
@@ -150,11 +146,13 @@ function ItemBrut({
   labels,
   members,
   disabled = false,
+  onOpen,
 }: {
   card: BoardCard;
   labels: BoardLabel[];
   members: BoardMember[];
   disabled?: boolean;
+  onOpen: (cardId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -163,14 +161,32 @@ function ItemBrut({
       disabled,
     });
 
+  // La même touche sert à saisir et à ouvrir : on ouvre la fiche seulement si
+  // le pointeur n'a pas bougé, sinon la fin d'un déplacement l'ouvrirait aussi.
+  const depart = useRef<{ x: number; y: number } | null>(null);
+
+  const ouvrirSiClic = (event: React.MouseEvent) => {
+    const point = depart.current;
+    depart.current = null;
+    if (point && Math.hypot(event.clientX - point.x, event.clientY - point.y) > 6) {
+      return;
+    }
+    onOpen(card.id);
+  };
+
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
+      onPointerDown={(event) => {
+        depart.current = { x: event.clientX, y: event.clientY };
+      }}
       className={cn("touch-none", isDragging && "opacity-40")}
     >
       <button
         type="button"
+        onClick={ouvrirSiClic}
+        aria-label={`Ouvrir la carte ${card.title}`}
         className="focus-visible:ring-ring block w-full cursor-grab rounded-md focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
         {...attributes}
         {...listeners}
