@@ -39,6 +39,462 @@ export type Database = {
   }
   public: {
     Tables: {
+      boards: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          is_archived: boolean
+          name: string
+          organization_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_archived?: boolean
+          name: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_archived?: boolean
+          name?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boards_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_activities: {
+        Row: {
+          board_id: string
+          card_id: string
+          created_at: string
+          id: string
+          payload: Json
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          board_id: string
+          card_id: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          board_id?: string
+          card_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_activities_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_activities_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_activities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_assignees: {
+        Row: {
+          board_id: string
+          card_id: string
+          user_id: string
+        }
+        Insert: {
+          board_id: string
+          card_id: string
+          user_id: string
+        }
+        Update: {
+          board_id?: string
+          card_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_assignees_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_assignees_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_labels: {
+        Row: {
+          board_id: string
+          card_id: string
+          label_id: string
+        }
+        Insert: {
+          board_id: string
+          card_id: string
+          label_id: string
+        }
+        Update: {
+          board_id?: string
+          card_id?: string
+          label_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_labels_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_labels_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cards: {
+        Row: {
+          board_id: string
+          cover_color: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          due_date: string | null
+          id: string
+          is_archived: boolean
+          is_completed: boolean
+          list_id: string
+          position: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          cover_color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          due_date?: string | null
+          id?: string
+          is_archived?: boolean
+          is_completed?: boolean
+          list_id: string
+          position?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          cover_color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          due_date?: string | null
+          id?: string
+          is_archived?: boolean
+          is_completed?: boolean
+          list_id?: string
+          position?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cards_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_items: {
+        Row: {
+          board_id: string
+          checklist_id: string
+          id: string
+          is_done: boolean
+          position: number
+          text: string
+        }
+        Insert: {
+          board_id: string
+          checklist_id: string
+          id?: string
+          is_done?: boolean
+          position?: number
+          text: string
+        }
+        Update: {
+          board_id?: string
+          checklist_id?: string
+          id?: string
+          is_done?: boolean
+          position?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_items_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_items_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "checklists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklists: {
+        Row: {
+          board_id: string
+          card_id: string
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          board_id: string
+          card_id: string
+          id?: string
+          position?: number
+          title?: string
+        }
+        Update: {
+          board_id?: string
+          card_id?: string
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklists_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklists_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comments: {
+        Row: {
+          board_id: string
+          body: string
+          card_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          board_id: string
+          body: string
+          card_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          board_id?: string
+          body?: string
+          card_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labels: {
+        Row: {
+          board_id: string
+          color: string
+          id: string
+          name: string
+        }
+        Insert: {
+          board_id: string
+          color: string
+          id?: string
+          name?: string
+        }
+        Update: {
+          board_id?: string
+          color?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labels_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lists: {
+        Row: {
+          board_id: string
+          created_at: string
+          id: string
+          is_archived: boolean
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lists_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           created_at: string
@@ -217,9 +673,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_board: { Args: { b: string }; Returns: boolean }
       has_tool: { Args: { org: string; tool_slug: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_member: { Args: { org: string }; Returns: boolean }
+      is_org_owner: { Args: { org: string }; Returns: boolean }
       shares_org_with: { Args: { other: string }; Returns: boolean }
     }
     Enums: {
