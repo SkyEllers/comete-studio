@@ -24,7 +24,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { renormalizeBoardLists, renormalizeList } from "./actions";
+import { refreshBoard, renormalizeBoardLists, renormalizeList } from "./actions";
 import { BoardHeader } from "./board-header";
 import { CardFace } from "./card-item";
 import { CardPanel } from "./card-panel";
@@ -45,6 +45,7 @@ import type { BoardColor } from "./palette";
 import { PAS_POSITION, ecartTropPetit, positionEntre } from "./positions";
 import { cardsOfList, useBoardStore } from "./store";
 import type { BoardData } from "./types";
+import { useBoardRealtime } from "./use-board-realtime";
 
 /** Liste visée par un survol, quel que soit l'élément survolé. */
 function listeSurvolee(over: Over | null): string | null {
@@ -73,8 +74,52 @@ export function BoardView({
   const [listeEnMain, setListeEnMain] = useState<string | null>(null);
   const [recherche, setRecherche] = useState("");
   const [carteOuverte, setCarteOuverte] = useState<string | null>(initialCardId);
+  // Incrémenté quand quelqu'un d'autre touche la carte ouverte : la fiche
+  // recharge alors son fil (commentaires, checklists, activité).
+  const [filVersion, setFilVersion] = useState(0);
   const origine = useRef<string | null>(null);
   const router = useRouter();
+
+  /**
+   * Rechargement complet, demandé par le canal temps réel après une
+   * reconnexion. `board/reset` remplace l'état d'un bloc : rien à réconcilier.
+   */
+  const resynchroniser = async () => {
+    const result = await refreshBoard(orgSlug, initial.board.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      router.push(`/app/${orgSlug}/kanban`);
+      return;
+    }
+    dispatch({ type: "board/reset", data: result.data });
+  };
+
+  const tempsReel = useBoardRealtime({
+    boardId: initial.board.id,
+    userId,
+    dispatch,
+    carteDeChecklist: (checklistId) => state.checklistOwners[checklistId],
+    carteConnue: (cardId) => state.cards.some((c) => c.id === cardId),
+    onCarteTouchee: (cardId) => {
+      if (cardId === carteOuverte) setFilVersion((v) => v + 1);
+    },
+    onCartePartie: (cardId) => {
+      // La fiche ouverte ne peut pas se contenter de disparaître : on la
+      // ferme en disant pourquoi.
+      if (cardId !== carteOuverte) return;
+      fermerCarte();
+      toast.info("Cette carte vient de quitter le tableau.");
+    },
+    onResync: () => void resynchroniser(),
+    onTableauParti: (raison) => {
+      toast.info(
+        raison === "archive"
+          ? `« ${state.board.name} » vient d'être archivé.`
+          : `« ${state.board.name} » vient d'être supprimé.`,
+      );
+      router.push(`/app/${orgSlug}/kanban`);
+    },
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -404,6 +449,7 @@ export function BoardView({
         members={state.members}
         orgSlug={orgSlug}
         canDelete={state.canDelete}
+        tempsReel={tempsReel}
         recherche={recherche}
         onRecherche={setRecherche}
         onRename={renommerTableau}
@@ -476,6 +522,7 @@ export function BoardView({
         <CardPanel
           key={carteEnFiche.id}
           card={carteEnFiche}
+          version={filVersion}
           lists={state.lists}
           labels={state.labels}
           members={state.members}

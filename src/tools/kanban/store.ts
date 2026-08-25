@@ -31,7 +31,17 @@ export type BoardAction =
     }
   | { type: "label/added"; label: BoardLabel }
   | { type: "label/patched"; id: string; patch: Partial<BoardLabel> }
-  | { type: "label/removed"; id: string };
+  | { type: "label/removed"; id: string }
+  | { type: "card/labelToggled"; cardId: string; labelId: string; actif: boolean }
+  | { type: "card/assigneeToggled"; cardId: string; userId: string; actif: boolean }
+  | { type: "card/commentDelta"; cardId: string; delta: number }
+  | { type: "checklist/registered"; checklistId: string; cardId: string }
+  | {
+      type: "checklistItem/changed";
+      checklistId: string;
+      deltaDone: number;
+      deltaTotal: number;
+    };
 
 const parPosition = <T extends { position: number }>(a: T, b: T) =>
   a.position - b.position;
@@ -139,6 +149,84 @@ export function boardReducer(state: BoardData, action: BoardAction): BoardData {
             : c,
         ),
       };
+
+    // ------------------------- venu du temps réel -------------------------
+
+    case "card/labelToggled":
+      return {
+        ...state,
+        cards: state.cards.map((c) => {
+          if (c.id !== action.cardId) return c;
+          const present = c.labelIds.includes(action.labelId);
+          if (present === action.actif) return c;
+          return {
+            ...c,
+            labelIds: action.actif
+              ? [...c.labelIds, action.labelId]
+              : c.labelIds.filter((id) => id !== action.labelId),
+          };
+        }),
+      };
+
+    case "card/assigneeToggled":
+      return {
+        ...state,
+        cards: state.cards.map((c) => {
+          if (c.id !== action.cardId) return c;
+          const present = c.assigneeIds.includes(action.userId);
+          if (present === action.actif) return c;
+          return {
+            ...c,
+            assigneeIds: action.actif
+              ? [...c.assigneeIds, action.userId]
+              : c.assigneeIds.filter((id) => id !== action.userId),
+          };
+        }),
+      };
+
+    case "card/commentDelta":
+      return {
+        ...state,
+        cards: state.cards.map((c) =>
+          c.id === action.cardId
+            ? { ...c, commentCount: Math.max(0, c.commentCount + action.delta) }
+            : c,
+        ),
+      };
+
+    case "checklist/registered":
+      return state.checklistOwners[action.checklistId] === action.cardId
+        ? state
+        : {
+            ...state,
+            checklistOwners: {
+              ...state.checklistOwners,
+              [action.checklistId]: action.cardId,
+            },
+          };
+
+    /**
+     * Un item de checklist ne dit pas à quelle carte il appartient : on passe
+     * par `checklistOwners`. Une checklist créée à l'instant par quelqu'un
+     * d'autre y est déjà, son événement arrive avant celui de ses items.
+     */
+    case "checklistItem/changed": {
+      const cardId = state.checklistOwners[action.checklistId];
+      if (!cardId) return state;
+
+      return {
+        ...state,
+        cards: state.cards.map((c) =>
+          c.id === cardId
+            ? {
+                ...c,
+                checklistDone: Math.max(0, c.checklistDone + action.deltaDone),
+                checklistTotal: Math.max(0, c.checklistTotal + action.deltaTotal),
+              }
+            : c,
+        ),
+      };
+    }
 
     default:
       return state;

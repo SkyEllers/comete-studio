@@ -64,22 +64,34 @@ const checkTool = cache(
 );
 
 /**
- * Garde d'entrée d'un espace client. Toujours `notFound()` en cas de refus :
- * on ne confirme jamais l'existence d'un client à quelqu'un qui n'y est pas.
- * Louis passe partout, avec le rôle `admin`.
+ * Accès d'un utilisateur à un espace client, ou `null`.
+ *
+ * Version qui ne coupe pas la page : une Server Action doit pouvoir répondre
+ * « ce n'est plus accessible » proprement plutôt que de lever un 404.
  */
-export async function requireMembership(slug: string): Promise<Access> {
+export async function getMembership(slug: string): Promise<Access | null> {
   const session = await requireUser();
 
   const org = await getOrgBySlug(slug);
-  if (!org) notFound();
+  if (!org) return null;
 
   const role = await getMembershipRole(org.id, session.userId);
 
   if (role) return { ...session, org, role };
   if (session.profile.is_admin) return { ...session, org, role: "admin" };
 
-  notFound();
+  return null;
+}
+
+/**
+ * Garde d'entrée d'un espace client. Toujours `notFound()` en cas de refus :
+ * on ne confirme jamais l'existence d'un client à quelqu'un qui n'y est pas.
+ * Louis passe partout, avec le rôle `admin`.
+ */
+export async function requireMembership(slug: string): Promise<Access> {
+  const access = await getMembership(slug);
+  if (!access) notFound();
+  return access;
 }
 
 /**

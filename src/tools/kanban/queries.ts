@@ -110,7 +110,7 @@ export async function getBoardData(
     supabase.from("labels").select("id, name, color").eq("board_id", boardId),
     supabase
       .from("checklists")
-      .select("card_id, checklist_items (is_done)")
+      .select("id, card_id, checklist_items (is_done)")
       .eq("board_id", boardId),
     supabase.from("comments").select("card_id").eq("board_id", boardId),
     supabase
@@ -119,9 +119,12 @@ export async function getBoardData(
       .eq("organization_id", organizationId),
   ]);
 
-  // Checklists : on ne garde que le fait / total par carte.
+  // Checklists : on ne garde que le fait / total par carte, plus le lien
+  // checklist → carte dont le temps réel a besoin.
   const checklistStats = new Map<string, { done: number; total: number }>();
+  const checklistOwners: Record<string, string> = {};
   for (const checklist of checklists ?? []) {
+    checklistOwners[checklist.id] = checklist.card_id;
     const stat = checklistStats.get(checklist.card_id) ?? { done: 0, total: 0 };
     for (const item of checklist.checklist_items ?? []) {
       stat.total += 1;
@@ -168,6 +171,7 @@ export async function getBoardData(
       name: m.profiles?.full_name || m.profiles?.email || "—",
       email: m.profiles?.email ?? "",
     })),
+    checklistOwners,
     canDelete,
   };
 }

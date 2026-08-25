@@ -49,6 +49,12 @@ export type BoardData = {
   cards: BoardCard[];
   labels: BoardLabel[];
   members: BoardMember[];
+  /**
+   * Checklist → carte. Les événements temps réel d'un item ne portent que
+   * `checklist_id` : sans cette table de correspondance, on ne saurait pas
+   * quelle carte remettre à jour.
+   */
+  checklistOwners: Record<string, string>;
   /** L'utilisateur peut-il supprimer ce tableau (rôle owner, ou Louis) ? */
   canDelete: boolean;
 };

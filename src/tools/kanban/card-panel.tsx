@@ -89,6 +89,7 @@ function Puce({
 
 export function CardPanel({
   card,
+  version,
   lists,
   labels,
   members,
@@ -101,6 +102,8 @@ export function CardPanel({
   onClose,
 }: {
   card: BoardCard;
+  /** Change quand quelqu'un d'autre touche cette carte : on relit le fil. */
+  version: number;
   lists: BoardList[];
   labels: BoardLabel[];
   members: BoardMember[];
@@ -124,7 +127,8 @@ export function CardPanel({
   const cardId = card.id;
 
   // Le composant est monté avec la fiche (`key` sur l'identifiant côté
-  // tableau) : un seul chargement par ouverture, sans setState synchrone.
+  // tableau) : un seul chargement par ouverture, sans setState synchrone. Une
+  // nouvelle `version` — quelqu'un d'autre a écrit ici — relit le fil.
   useEffect(() => {
     let vivant = true;
 
@@ -145,7 +149,7 @@ export function CardPanel({
     return () => {
       vivant = false;
     };
-  }, [cardId]);
+  }, [cardId, version]);
 
   /**
    * Les activités sont écrites par la base au fil des actions : plutôt que de

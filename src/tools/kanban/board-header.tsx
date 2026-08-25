@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowLeft, MoreHorizontal, Palette, Pencil, Search, Trash2 } from "lucide-react";
+import { Archive, ArrowLeft, MoreHorizontal, Palette, Pencil, Search, Trash2, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -30,12 +30,14 @@ import { cn } from "@/lib/utils";
 import { initiales } from "./initials";
 import { BOARD_COLORS, PALETTE, colorHex, type BoardColor } from "./palette";
 import type { BoardMember, BoardSelf } from "./types";
+import type { EtatTempsReel } from "./use-board-realtime";
 
 export function BoardHeader({
   board,
   members,
   orgSlug,
   canDelete,
+  tempsReel,
   recherche,
   onRecherche,
   onRename,
@@ -47,6 +49,7 @@ export function BoardHeader({
   members: BoardMember[];
   orgSlug: string;
   canDelete: boolean;
+  tempsReel: EtatTempsReel;
   recherche: string;
   onRecherche: (valeur: string) => void;
   onRename: (name: string) => void;
@@ -143,6 +146,16 @@ export function BoardHeader({
       ) : null}
 
       <div className="ml-auto flex items-center gap-2">
+        {tempsReel === "hors-ligne" ? (
+          <span
+            role="status"
+            className="text-warning bg-warning/10 hidden items-center gap-1.5 rounded-md px-2 py-1 text-xs sm:inline-flex"
+          >
+            <WifiOff aria-hidden="true" className="size-3.5" />
+            Hors ligne, reconnexion…
+          </span>
+        ) : null}
+
         <div className="relative">
           <Search
             aria-hidden="true"

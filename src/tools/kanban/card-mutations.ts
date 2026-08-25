@@ -3,6 +3,7 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
 
+import { marquerEcriture } from "./echo";
 import { BOARD_COLORS, type BoardColor } from "./palette";
 import type { BoardLabel } from "./types";
 
@@ -59,6 +60,8 @@ export async function updateCardTitle(
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+  marquerEcriture("cards", parsed.data.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ title: parsed.data.title })
@@ -83,6 +86,8 @@ export async function updateCardDescription(
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+  marquerEcriture("cards", parsed.data.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ description: parsed.data.description })
@@ -99,6 +104,8 @@ export async function toggleCardCompleted(input: {
   isCompleted: boolean;
 }): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("cards", input.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ is_completed: input.isCompleted })
@@ -120,6 +127,8 @@ export async function setCardDueDate(input: {
   dueDate: string | null;
 }): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("cards", input.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ due_date: input.dueDate })
@@ -142,6 +151,8 @@ export async function setCardCover(
   }
 
   const supabase = createClient();
+  marquerEcriture("cards", cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ cover_color: coverColor })
@@ -161,6 +172,8 @@ export async function moveCardToList(input: {
   toListName: string;
 }): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("cards", input.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ list_id: input.listId, position: input.position })
@@ -183,6 +196,8 @@ export async function archiveCardById(input: {
   userId: string;
 }): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("cards", input.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ is_archived: true })
@@ -196,6 +211,8 @@ export async function archiveCardById(input: {
 
 export async function restoreCard(cardId: string): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("cards", cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ is_archived: false })
@@ -208,6 +225,8 @@ export async function restoreCard(cardId: string): Promise<ActionResult> {
 /** Suppression définitive : réservée aux propriétaires par la RLS de `boards`. */
 export async function deleteCard(cardId: string): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("cards", cardId);
+
   const { data, error } = await supabase
     .from("cards")
     .delete()
@@ -255,6 +274,8 @@ export async function renameLabel(
   name: string,
 ): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("labels", labelId);
+
   const { error } = await supabase
     .from("labels")
     .update({ name: name.trim().slice(0, 40) })
@@ -272,6 +293,7 @@ export async function toggleCardLabel(input: {
   actif: boolean;
 }): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("card_labels", `${input.cardId}:${input.labelId}`);
 
   const { error } = input.actif
     ? await supabase
@@ -303,6 +325,7 @@ export async function toggleCardAssignee(input: {
   actif: boolean;
 }): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("card_assignees", `${input.cardId}:${input.memberId}`);
 
   const { error } = input.actif
     ? await supabase
@@ -366,6 +389,8 @@ export async function renameChecklist(
   title: string,
 ): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("checklists", checklistId);
+
   const { error } = await supabase
     .from("checklists")
     .update({ title: title.trim() || "Checklist" })
@@ -377,6 +402,8 @@ export async function renameChecklist(
 
 export async function deleteChecklist(checklistId: string): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("checklists", checklistId);
+
   const { error } = await supabase.from("checklists").delete().eq("id", checklistId);
   if (error) return fail("Impossible de supprimer cette checklist.");
   return ok();
@@ -424,6 +451,8 @@ export async function updateChecklistItem(input: {
   isDone?: boolean;
 }): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("checklist_items", input.itemId);
+
   const { error } = await supabase
     .from("checklist_items")
     .update({
@@ -438,6 +467,8 @@ export async function updateChecklistItem(input: {
 
 export async function deleteChecklistItem(itemId: string): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("checklist_items", itemId);
+
   const { error } = await supabase.from("checklist_items").delete().eq("id", itemId);
   if (error) return fail("Impossible de supprimer cette ligne.");
   return ok();
@@ -511,6 +542,8 @@ export async function updateComment(
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+  marquerEcriture("comments", parsed.data.commentId);
+
   const { data, error } = await supabase
     .from("comments")
     .update({ body: parsed.data.body })
@@ -526,6 +559,8 @@ export async function updateComment(
 
 export async function deleteComment(commentId: string): Promise<ActionResult> {
   const supabase = createClient();
+  marquerEcriture("comments", commentId);
+
   const { data, error } = await supabase
     .from("comments")
     .delete()

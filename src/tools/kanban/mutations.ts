@@ -3,6 +3,8 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
 
+import { marquerEcriture } from "./echo";
+
 import { PAS_POSITION } from "./positions";
 import { BOARD_COLORS, DEFAULT_BOARD_COLOR, type BoardColor } from "./palette";
 import type { BoardCard, BoardList } from "./types";
@@ -113,6 +115,7 @@ export async function updateBoard(input: {
 
   const { boardId, ...champs } = parsed.data;
   const supabase = createClient();
+  marquerEcriture("boards", boardId);
 
   const { error } = await supabase
     .from("boards")
@@ -136,6 +139,8 @@ async function basculerArchive(
   if (!identifiant.safeParse(boardId).success) return fail("Tableau introuvable.");
 
   const supabase = createClient();
+  marquerEcriture("boards", boardId);
+
   const { error } = await supabase
     .from("boards")
     .update({ is_archived: isArchived })
@@ -161,6 +166,8 @@ export async function deleteBoard(boardId: string): Promise<ActionResult> {
   if (!identifiant.safeParse(boardId).success) return fail("Tableau introuvable.");
 
   const supabase = createClient();
+  marquerEcriture("boards", boardId);
+
   const { data, error } = await supabase
     .from("boards")
     .delete()
@@ -209,6 +216,8 @@ export async function renameList(
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+  marquerEcriture("lists", parsed.data.listId);
+
   const { error } = await supabase
     .from("lists")
     .update({ name: parsed.data.name })
@@ -223,6 +232,8 @@ export async function archiveList(listId: string): Promise<ActionResult> {
   if (!identifiant.safeParse(listId).success) return fail("Liste introuvable.");
 
   const supabase = createClient();
+  marquerEcriture("lists", listId);
+
   const { error } = await supabase
     .from("lists")
     .update({ is_archived: true })
@@ -244,6 +255,8 @@ export async function moveList(
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+  marquerEcriture("lists", parsed.data.listId);
+
   const { error } = await supabase
     .from("lists")
     .update({ position: parsed.data.position })
@@ -325,6 +338,8 @@ export async function renameCard(
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+  marquerEcriture("cards", parsed.data.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ title: parsed.data.title })
@@ -338,6 +353,8 @@ export async function archiveCard(cardId: string): Promise<ActionResult> {
   if (!identifiant.safeParse(cardId).success) return fail("Carte introuvable.");
 
   const supabase = createClient();
+  marquerEcriture("cards", cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ is_archived: true })
@@ -374,6 +391,8 @@ export async function moveCard(input: {
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+  marquerEcriture("cards", parsed.data.cardId);
+
   const { error } = await supabase
     .from("cards")
     .update({ list_id: parsed.data.listId, position: parsed.data.position })

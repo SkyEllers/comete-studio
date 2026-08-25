@@ -3,10 +3,13 @@
 import { z } from "zod";
 
 import { fail, ok, type ActionResult } from "@/lib/actions";
+import { getMembership } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 import { renumerote } from "./positions";
+import { getBoardData } from "./queries";
+import type { BoardData } from "./types";
 
 /**
  * Renumérotation des positions.
@@ -72,4 +75,33 @@ export async function renormalizeBoardLists(
   }
 
   return ok(positions);
+}
+
+/**
+ * Rechargement complet d'un tableau, après une reconnexion du canal temps réel.
+ *
+ * Pendant une coupure, les événements ne sont envoyés à personne : au retour,
+ * seul un état frais garantit qu'on regarde la même chose que les autres.
+ *
+ * Les mêmes gardes que la page : l'organisation est relue à travers la RLS, et
+ * si l'outil a été coupé ou l'accès retiré entre-temps, la lecture ne renvoie
+ * rien et l'action échoue proprement.
+ */
+export async function refreshBoard(
+  orgSlug: string,
+  boardId: string,
+): Promise<ActionResult<BoardData>> {
+  if (!identifiant.safeParse(boardId).success) return fail("Tableau introuvable.");
+
+  const access = await getMembership(orgSlug);
+  if (!access) return fail("Cet espace n'est plus accessible.");
+
+  const data = await getBoardData(
+    access.org.id,
+    boardId,
+    access.role === "owner" || access.role === "admin",
+  );
+
+  if (!data) return fail("Ce tableau n'est plus accessible.");
+  return ok(data);
 }
