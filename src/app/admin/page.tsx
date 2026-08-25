@@ -1,28 +1,11 @@
 import { Building2, SquareStack, UsersRound } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { PageHeader } from "@/components/app/page-header";
+import { CountersSkeleton } from "@/components/app/skeletons";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
-
-async function counts() {
-  const supabase = await createClient();
-
-  const [clients, membres, outils] = await Promise.all([
-    supabase.from("organizations").select("*", { count: "exact", head: true }),
-    supabase.from("memberships").select("*", { count: "exact", head: true }),
-    supabase
-      .from("tools")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true),
-  ]);
-
-  return {
-    clients: clients.count ?? 0,
-    membres: membres.count ?? 0,
-    outils: outils.count ?? 0,
-  };
-}
 
 function Counter({
   icon: Icon,
@@ -46,9 +29,29 @@ function Counter({
   );
 }
 
-export default async function AdminPage() {
-  const { clients, membres, outils } = await counts();
+/** Sous la garde du layout : peut être mis en flux sans risque pour le statut. */
+async function Counters() {
+  const supabase = await createClient();
 
+  const [clients, membres, outils] = await Promise.all([
+    supabase.from("organizations").select("*", { count: "exact", head: true }),
+    supabase.from("memberships").select("*", { count: "exact", head: true }),
+    supabase
+      .from("tools")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true),
+  ]);
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <Counter icon={Building2} label="Clients" value={clients.count ?? 0} />
+      <Counter icon={UsersRound} label="Membres" value={membres.count ?? 0} />
+      <Counter icon={SquareStack} label="Outils actifs" value={outils.count ?? 0} />
+    </div>
+  );
+}
+
+export default function AdminPage() {
   return (
     <>
       <PageHeader
@@ -56,16 +59,16 @@ export default async function AdminPage() {
         description="Les clients, leurs membres, et les outils que tu leur ouvres."
         action={
           <Button asChild>
-            <Link href="/admin/clients">Nouveau client</Link>
+            <Link href="/admin/clients" prefetch>
+              Nouveau client
+            </Link>
           </Button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Counter icon={Building2} label="Clients" value={clients} />
-        <Counter icon={UsersRound} label="Membres" value={membres} />
-        <Counter icon={SquareStack} label="Outils actifs" value={outils} />
-      </div>
+      <Suspense fallback={<CountersSkeleton />}>
+        <Counters />
+      </Suspense>
     </>
   );
 }

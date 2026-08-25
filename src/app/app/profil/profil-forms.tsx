@@ -76,7 +76,7 @@ export function PasswordForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="new-confirmation">Confirmation</Label>
+        <Label htmlFor="new-confirmation">Confirmation du mot de passe</Label>
         <Input
           id="new-confirmation"
           name="confirmation"

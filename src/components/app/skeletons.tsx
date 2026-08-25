@@ -3,24 +3,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 /**
  * Squelettes des écrans connectés.
  *
- * Ils ne servent pas qu'à occuper l'écran : sur une route dynamique, Next ne
- * préchargue que jusqu'à la frontière `loading` la plus proche. Sans eux, le
- * `prefetch` des liens ne ramène rien.
+ * Ils vivent toujours **sous** les gardes, dans un `<Suspense>` posé à
+ * l'intérieur d'une page — jamais dans un `loading.tsx` au-dessus d'un layout
+ * qui appelle `notFound()` ou `redirect()`. Sinon la réponse part en flux avec
+ * un 200 avant que la garde ne se prononce, et le statut ne peut plus changer.
  */
-
-/** Barre haute : logo, nom du client, menu. */
-export function ShellHeaderSkeleton() {
-  return (
-    <header className="border-line border-b">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <Skeleton className="h-5 w-28" />
-        <span aria-hidden="true" className="bg-line hidden h-5 w-px sm:block" />
-        <Skeleton className="hidden h-4 w-36 sm:block" />
-        <Skeleton className="ml-auto h-8 w-28" />
-      </div>
-    </header>
-  );
-}
 
 /** Titre de page et sa phrase d'explication. */
 export function PageHeaderSkeleton({ action = false }: { action?: boolean }) {
@@ -54,6 +41,23 @@ export function CardGridSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
+/** Compteurs du tableau de bord. */
+export function CountersSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      {Array.from({ length: 3 }, (_, index) => (
+        <div
+          key={index}
+          className="border-line bg-surface-1 rounded-lg border p-5"
+        >
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="mt-3 h-9 w-12" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Tableau : une ligne d'en-tête, des lignes de contenu. */
 export function TableSkeleton({ rows = 3 }: { rows?: number }) {
   return (
@@ -68,6 +72,26 @@ export function TableSkeleton({ rows = 3 }: { rows?: number }) {
           <Skeleton className="h-4 w-48" />
           <Skeleton className="h-4 w-40" />
           <Skeleton className="ml-auto h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Liste d'outils avec leur interrupteur. */
+export function ToolListSkeleton({ rows = 2 }: { rows?: number }) {
+  return (
+    <div className="border-line divide-line divide-y rounded-lg border">
+      {Array.from({ length: rows }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-start justify-between gap-4 p-4"
+        >
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-5 w-9 rounded-full" />
         </div>
       ))}
     </div>
