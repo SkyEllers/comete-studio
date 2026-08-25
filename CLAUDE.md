@@ -1,5 +1,7 @@
 # CLAUDE.md — cometestudio.fr (hub client Comète Studio)
 
+AGENTS.md est généré par Next ; en cas de conflit, CLAUDE.md prime.
+
 Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventions et les interdits. Les briefs détaillés par phase sont dans `docs/` : on exécute un chantier à la fois, dans l'ordre, et on ne passe au suivant qu'après le « go » de Louis.
 
 ## 1. Le projet en 5 lignes
