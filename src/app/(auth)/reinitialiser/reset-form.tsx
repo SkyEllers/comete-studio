@@ -40,7 +40,7 @@ export function ResetForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="confirmation">Confirmation</Label>
+        <Label htmlFor="confirmation">Confirmation du mot de passe</Label>
         <Input
           id="confirmation"
           name="confirmation"

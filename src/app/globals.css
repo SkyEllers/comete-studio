@@ -180,19 +180,6 @@
     @apply font-mono;
   }
 
-  /* Chrome repeint les champs remplis automatiquement en bleu pâle, ce qui
-     troue le thème sombre. On lui reprend la main : l'ombre interne fait
-     office de fond, et la transition interminable l'empêche de revenir. */
-  input:-webkit-autofill,
-  input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus,
-  input:-webkit-autofill:active {
-    -webkit-text-fill-color: var(--foreground);
-    -webkit-box-shadow: 0 0 0 1000px var(--surface-1) inset;
-    caret-color: var(--foreground);
-    transition: background-color 100000s ease-in-out 0s;
-  }
-
   /* Aucune animation décorative : les transitions sont courtes, et elles
      s'effacent si la personne a demandé moins de mouvement. */
   @media (prefers-reduced-motion: reduce) {
@@ -205,4 +192,39 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Remplissage automatique de Chrome.
+
+   Le navigateur repeint les champs préremplis en bleu pâle, ce qui troue le
+   thème sombre. La première version passait par une ombre interne : les
+   utilitaires `ring-*` de Tailwind écrivent eux aussi dans `box-shadow`, donc
+   l'anneau de focus effaçait le correctif — visible dès qu'un champ était
+   focalisé, notamment dans les dialogs de l'administration.
+
+   On découpe plutôt le fond du navigateur sur le texte : il devient invisible,
+   le fond du champ reste celui du thème, et `box-shadow` est laissé tranquille.
+   Le bloc est volontairement hors `@layer` : un style non calqué l'emporte sur
+   tout style calqué, donc aucun utilitaire ne peut le reprendre.
+--------------------------------------------------------------------------- */
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  /* Chrome rejoue sa couleur après un délai : une transition interminable la
+     retient. */
+  transition: background-color 100000s ease-in-out 0s;
 }

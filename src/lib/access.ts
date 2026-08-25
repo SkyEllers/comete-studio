@@ -29,6 +29,41 @@ export const getOrgBySlug = cache(async (slug: string): Promise<Organization | n
 });
 
 /**
+ * Rôle d'un membre dans une organisation, ou `null`.
+ *
+ * Mémoïsé par requête : un layout et sa page appellent tous deux la garde, et
+ * sans ça la même lecture partait deux fois.
+ */
+const getMembershipRole = cache(
+  async (organizationId: string, userId: string): Promise<MembershipRole | null> => {
+    const supabase = await createClient();
+
+    const { data } = await supabase
+      .from("memberships")
+      .select("role")
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    return data?.role ?? null;
+  },
+);
+
+/** Outil activé pour cette organisation ? Mémoïsé pour la même raison. */
+const checkTool = cache(
+  async (organizationId: string, toolSlug: string): Promise<boolean> => {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase.rpc("has_tool", {
+      org: organizationId,
+      tool_slug: toolSlug,
+    });
+
+    return !error && Boolean(data);
+  },
+);
+
+/**
  * Garde d'entrée d'un espace client. Toujours `notFound()` en cas de refus :
  * on ne confirme jamais l'existence d'un client à quelqu'un qui n'y est pas.
  * Louis passe partout, avec le rôle `admin`.
@@ -39,15 +74,9 @@ export async function requireMembership(slug: string): Promise<Access> {
   const org = await getOrgBySlug(slug);
   if (!org) notFound();
 
-  const supabase = await createClient();
-  const { data: membership } = await supabase
-    .from("memberships")
-    .select("role")
-    .eq("organization_id", org.id)
-    .eq("user_id", session.user.id)
-    .maybeSingle();
+  const role = await getMembershipRole(org.id, session.user.id);
 
-  if (membership) return { ...session, org, role: membership.role };
+  if (role) return { ...session, org, role };
   if (session.profile.is_admin) return { ...session, org, role: "admin" };
 
   notFound();
@@ -64,13 +93,7 @@ export async function requireToolAccess(
 ): Promise<Access> {
   const access = await requireMembership(slug);
 
-  const supabase = await createClient();
-  const { data: hasTool, error } = await supabase.rpc("has_tool", {
-    org: access.org.id,
-    tool_slug: toolSlug,
-  });
-
-  if (error || !hasTool) notFound();
+  if (!(await checkTool(access.org.id, toolSlug))) notFound();
 
   return access;
 }
