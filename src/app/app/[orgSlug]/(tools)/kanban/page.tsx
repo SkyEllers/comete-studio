@@ -17,7 +17,7 @@ export default async function KanbanPage({
         description="Tableaux, listes et cartes pour piloter un projet à plusieurs."
         action={
           <Button asChild variant="outline">
-            <Link href={`/app/${orgSlug}`}>
+            <Link href={`/app/${orgSlug}`} prefetch>
               <ArrowLeft aria-hidden="true" />
               Tes outils
             </Link>

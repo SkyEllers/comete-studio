@@ -74,7 +74,7 @@ export async function requireMembership(slug: string): Promise<Access> {
   const org = await getOrgBySlug(slug);
   if (!org) notFound();
 
-  const role = await getMembershipRole(org.id, session.user.id);
+  const role = await getMembershipRole(org.id, session.userId);
 
   if (role) return { ...session, org, role };
   if (session.profile.is_admin) return { ...session, org, role: "admin" };

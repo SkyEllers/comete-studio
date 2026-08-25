@@ -28,6 +28,7 @@ export function AppShell({
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
           <Link
             href="/app"
+            prefetch
             className="focus-visible:ring-ring rounded-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             aria-label="Retour à ton espace"
           >

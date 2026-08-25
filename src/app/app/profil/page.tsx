@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ProfilPage() {
-  const { user, profile } = await requireUser();
+  const { profile } = await requireUser();
 
   return (
     <AppShell
@@ -41,7 +41,7 @@ export default async function ProfilPage() {
             <CardTitle>Identité</CardTitle>
             <CardDescription>
               Ton adresse de connexion est{" "}
-              <span className="font-mono text-xs">{user.email}</span>. Pour en
+              <span className="font-mono text-xs">{profile.email}</span>. Pour en
               changer, écris à Louis.
             </CardDescription>
           </CardHeader>

@@ -26,7 +26,7 @@ export async function createOrganization(
     .insert({
       name: parsed.data.name,
       slug: parsed.data.slug,
-      created_by: session.user.id,
+      created_by: session.userId,
     })
     .select("id")
     .single();

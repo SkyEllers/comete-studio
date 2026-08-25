@@ -81,6 +81,7 @@ export default async function AppPage() {
           <Link
             key={org.id}
             href={`/app/${org.slug}`}
+            prefetch
             className="group border-line bg-surface-1 hover:bg-surface-2 focus-visible:ring-ring block rounded-lg border p-5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             <div className="flex items-start justify-between gap-3">

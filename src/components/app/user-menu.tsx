@@ -59,7 +59,7 @@ export function UserMenu({ name, email, isAdmin }: UserMenuProps) {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem asChild>
-          <Link href="/app/profil">
+          <Link href="/app/profil" prefetch>
             <UserRound aria-hidden="true" />
             Profil
           </Link>
@@ -67,7 +67,7 @@ export function UserMenu({ name, email, isAdmin }: UserMenuProps) {
 
         {isAdmin ? (
           <DropdownMenuItem asChild>
-            <Link href="/admin">
+            <Link href="/admin" prefetch>
               <ShieldCheck aria-hidden="true" />
               Administration
             </Link>

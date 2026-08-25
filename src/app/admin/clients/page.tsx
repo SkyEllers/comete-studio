@@ -91,6 +91,7 @@ export default async function AdminClientsPage({
                   <TableCell>
                     <Link
                       href={`/admin/clients/${org.id}`}
+                      prefetch
                       className="hover:text-ember font-medium transition-colors"
                     >
                       {org.name}

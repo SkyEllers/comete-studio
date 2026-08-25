@@ -86,6 +86,7 @@ export default async function ClientDetailPage({
       <div className="mb-8 space-y-4">
         <Link
           href="/admin/clients"
+          prefetch
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm transition-colors"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />

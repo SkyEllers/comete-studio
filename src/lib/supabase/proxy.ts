@@ -18,9 +18,14 @@ function isProtected(pathname: string) {
 /**
  * Rafraîchit la session à chaque requête et arbitre l'accès.
  *
+ * `getClaims()` plutôt que `getUser()` : la signature du jeton est vérifiée
+ * localement (le projet signe en ES256 et publie ses clés), ce qui supprime un
+ * aller-retour réseau à chaque requête. Le rafraîchissement du jeton continue
+ * de passer par là, donc les cookies sont bien réécrits.
+ *
  * Deux précautions :
- * - rien ne s'exécute entre `createServerClient` et `auth.getUser()`, sinon la
- *   session peut être perdue au milieu d'un rafraîchissement ;
+ * - rien ne s'exécute entre `createServerClient` et la lecture du jeton, sinon
+ *   la session peut être perdue au milieu d'un rafraîchissement ;
  * - les cookies rafraîchis sont recopiés sur les redirections. Un refresh token
  *   ne sert qu'une fois : le jeton perdu ici déconnecterait à la requête suivante.
  */
@@ -60,9 +65,8 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: claims } = await supabase.auth.getClaims();
+  const connecte = Boolean(claims?.claims?.sub);
 
   const redirectTo = (destination: URL) => {
     const response = NextResponse.redirect(destination);
@@ -77,7 +81,7 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname, search } = request.nextUrl;
 
-  if (!user && isProtected(pathname)) {
+  if (!connecte && isProtected(pathname)) {
     const destination = request.nextUrl.clone();
     destination.pathname = "/";
     destination.search = "";
@@ -85,7 +89,7 @@ export async function updateSession(request: NextRequest) {
     return redirectTo(destination);
   }
 
-  if (user && pathname === "/") {
+  if (connecte && pathname === "/") {
     const destination = request.nextUrl.clone();
     destination.pathname = "/app";
     destination.search = "";

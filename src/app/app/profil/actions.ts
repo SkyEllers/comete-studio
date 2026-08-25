@@ -23,7 +23,7 @@ export async function updateFullName(
   const { error } = await supabase
     .from("profiles")
     .update({ full_name: parsed.data.fullName })
-    .eq("id", session.user.id);
+    .eq("id", session.userId);
 
   if (error) return fail("Impossible d'enregistrer ton nom pour le moment.");
 

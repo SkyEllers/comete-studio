@@ -21,6 +21,7 @@ export function AdminNav({ className }: { className?: string }) {
           <Link
             key={link.href}
             href={link.href}
+            prefetch
             aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-md px-2.5 py-1.5 text-sm transition-colors",
