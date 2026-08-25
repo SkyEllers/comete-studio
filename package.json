@@ -1,14 +1,39 @@
 {
-  "name": "cometestudio-fr",
-  "version": "1.0.0",
+  "name": "cometestudio-hub",
+  "version": "0.1.0",
   "private": true,
-  "description": "Site vitrine Comète Studio — cometestudio.fr",
   "scripts": {
-    "dev": "npx serve . -p 3000",
-    "preview": "npx serve . -p 3000"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.34.0",
+    "next": "16.3.2",
+    "radix-ui": "^1.6.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "shadcn": "^4.19.0",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.6.0",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "puppeteer": "^24.43.1",
-    "sharp": "^0.34.5"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.2",
+    "supabase": "^2.115.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
