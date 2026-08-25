@@ -63,8 +63,8 @@ export default function MentionsLegalesPage() {
           <strong className="text-foreground font-medium">
             Base de données, comptes et fichiers :
           </strong>{" "}
-          Supabase, hébergement dans l&apos;Union européenne, région{" "}
-          <span className="font-mono text-xs">eu-west-1</span> (Irlande) —{" "}
+          Supabase, hébergement des données en Irlande (Union européenne),
+          région <span className="font-mono text-xs">eu-west-1</span> —{" "}
           <span className="font-mono text-xs">supabase.com</span>. C&apos;est là
           que vivent les comptes, les organisations et les contenus créés dans
           les outils.

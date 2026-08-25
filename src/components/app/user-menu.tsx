@@ -76,14 +76,17 @@ export function UserMenu({ name, email, isAdmin }: UserMenuProps) {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem asChild>
-          <form action={signOut}>
+        {/* `display: contents` sur le formulaire : c'est le bouton qui reçoit
+            la mise en page de l'item, donc l'icône et le libellé s'alignent
+            comme les autres entrées du menu. */}
+        <form action={signOut} className="contents">
+          <DropdownMenuItem asChild>
             <button type="submit" className="w-full">
               <LogOut aria-hidden="true" />
               Déconnexion
             </button>
-          </form>
-        </DropdownMenuItem>
+          </DropdownMenuItem>
+        </form>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -24,6 +24,7 @@
   --surface-1: #121212;
   --surface-2: #1a1a1a;
   --line: #262626;
+  --field-line: #5e5e5e;
   --muted-text: #9a9a96;
 
   /* Sémantique */
@@ -63,7 +64,10 @@
   --accent-foreground: var(--bone);
   --destructive: var(--danger);
   --border: var(--line);
-  --input: var(--line);
+  /* Les champs ont besoin d'un contour visible : #5e5e5e tient le 3:1 que
+     le WCAG demande pour un élément d'interface (1,31:1 pour --line, qui
+     reste le bon choix pour les traits et les cartes). */
+  --input: var(--field-line);
   --ring: var(--ember);
 
   --chart-1: var(--ember);
@@ -91,6 +95,7 @@
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-line: var(--line);
+  --color-field-line: var(--field-line);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
@@ -172,6 +177,19 @@
   samp,
   pre {
     @apply font-mono;
+  }
+
+  /* Chrome repeint les champs remplis automatiquement en bleu pâle, ce qui
+     troue le thème sombre. On lui reprend la main : l'ombre interne fait
+     office de fond, et la transition interminable l'empêche de revenir. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--surface-1) inset;
+    caret-color: var(--foreground);
+    transition: background-color 100000s ease-in-out 0s;
   }
 
   /* Aucune animation décorative : les transitions sont courtes, et elles

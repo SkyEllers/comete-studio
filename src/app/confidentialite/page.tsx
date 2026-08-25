@@ -151,9 +151,9 @@ export default function ConfidentialitePage() {
           </li>
           <li>
             <strong className="text-foreground font-medium">Supabase</strong> —
-            base de données, comptes et fichiers, hébergés dans l&apos;Union
-            européenne, région{" "}
-            <span className="font-mono text-xs">eu-west-1</span> (Irlande).
+            base de données, comptes et fichiers, hébergés en Irlande (Union
+            européenne), région{" "}
+            <span className="font-mono text-xs">eu-west-1</span>.
           </li>
           <li>
             <strong className="text-foreground font-medium">
