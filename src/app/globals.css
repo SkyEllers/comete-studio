@@ -24,7 +24,7 @@
   --surface-1: #121212;
   --surface-2: #1a1a1a;
   --line: #262626;
-  --field-line: #5e5e5e;
+  --field-line: #616161;
   --muted-text: #9a9a96;
 
   /* Sémantique */
@@ -64,9 +64,10 @@
   --accent-foreground: var(--bone);
   --destructive: var(--danger);
   --border: var(--line);
-  /* Les champs ont besoin d'un contour visible : #5e5e5e tient le 3:1 que
-     le WCAG demande pour un élément d'interface (1,31:1 pour --line, qui
-     reste le bon choix pour les traits et les cartes). */
+  /* Les champs ont besoin d'un contour visible : #616161 tient le 3:1 que le
+     WCAG demande pour un élément d'interface, aussi bien sur le fond (3,20:1)
+     que dans une carte (3,02:1). --line, à 1,31:1, reste le bon choix pour les
+     traits et les contours de cartes. */
   --input: var(--field-line);
   --ring: var(--ember);
 
