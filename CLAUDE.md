@@ -96,6 +96,8 @@ docs/                                 # briefs par phase + docs/legacy/ (textes 
 - Mutations : Server Actions (`actions.ts` à côté de la page) validées par zod, qui renvoient `{ ok: true, data } | { ok: false, error: string }` avec un message en français. Jamais d'exception non gérée côté client.
 - Exception : les outils temps réel (kanban) lisent et écrivent via `supabase-js` côté navigateur, la RLS protège. Toute opération d'administration (créer un client, inviter, activer un outil) passe par une Server Action avec le client `admin.ts`, après `requireAdmin()`.
 - Toute nouvelle table : RLS activée + policies + index + test manuel avec deux comptes (membre / non-membre). Sans ça, le chantier n'est pas terminé.
+- Toute nouvelle fonction SQL : `revoke execute … from public, anon` puis `grant execute … to authenticated`, sinon elle est appelable sans session.
+- `has_tool()` renvoie `false` avec la clé service role : les Server Actions d'administration lisent `organization_tools` directement.
 - Pas de `any`. Types de la base régénérés (`npm run types`) après chaque migration.
 - Nommage : fichiers en kebab-case, composants en PascalCase, tables et colonnes en snake_case, routes en français (`/mot-de-passe-oublie`, `/admin/clients`).
 - Commits conventionnels (`feat:`, `fix:`, `chore:`, `db:`), au moins un commit par chantier.
