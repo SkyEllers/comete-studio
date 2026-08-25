@@ -30,9 +30,11 @@ import {
 export function NewBoardDialog({
   organizationId,
   createdBy,
+  orgSlug,
 }: {
   organizationId: string;
   createdBy: string;
+  orgSlug: string;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -62,8 +64,7 @@ export function NewBoardDialog({
       setOpen(false);
       setName("");
       setColor(DEFAULT_BOARD_COLOR);
-      // On reste sur la liste : la vue du tableau arrive au chantier suivant.
-      router.refresh();
+      router.push(`/app/${orgSlug}/kanban/${result.data.id}`);
     });
   };
 

@@ -74,7 +74,11 @@ export default async function KanbanPage({
                 Tes outils
               </Link>
             </Button>
-            <NewBoardDialog organizationId={org.id} createdBy={userId} />
+            <NewBoardDialog
+              organizationId={org.id}
+              createdBy={userId}
+              orgSlug={orgSlug}
+            />
           </div>
         }
       />

@@ -3,7 +3,9 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
 
+import { PAS_POSITION } from "./positions";
 import { BOARD_COLORS, DEFAULT_BOARD_COLOR, type BoardColor } from "./palette";
+import type { BoardCard, BoardList } from "./types";
 
 /**
  * Écritures du kanban, côté navigateur.
@@ -13,24 +15,30 @@ import { BOARD_COLORS, DEFAULT_BOARD_COLOR, type BoardColor } from "./palette";
  * entrées sont quand même validées avant d'atteindre la base.
  */
 
-/** Écart entre deux positions voisines : laisse la place aux insertions. */
-export const PAS_POSITION = 1024;
-
 const LISTES_PAR_DEFAUT = ["À faire", "En cours", "Terminé"];
 
-const nomTableau = z
-  .string({ error: "Donne un nom à ce tableau." })
+const nom80 = z
+  .string({ error: "Donne un nom." })
   .trim()
-  .min(1, { error: "Donne un nom à ce tableau." })
+  .min(1, { error: "Donne un nom." })
   .max(80, { error: "Le nom ne peut pas dépasser 80 caractères." });
 
-const couleur = z.enum(BOARD_COLORS, { error: "Cette couleur n'existe pas." });
+const titre200 = z
+  .string({ error: "Donne un titre à cette carte." })
+  .trim()
+  .min(1, { error: "Donne un titre à cette carte." })
+  .max(200, { error: "Le titre ne peut pas dépasser 200 caractères." });
 
-const creationSchema = z.object({
-  organizationId: z.uuid({ error: "Client introuvable." }),
-  name: nomTableau,
+const couleur = z.enum(BOARD_COLORS, { error: "Cette couleur n'existe pas." });
+const identifiant = z.uuid({ error: "Élément introuvable." });
+
+// --------------------------------- Tableaux ---------------------------------
+
+const creationTableau = z.object({
+  organizationId: identifiant,
+  name: nom80,
   color: couleur,
-  createdBy: z.uuid({ error: "Compte introuvable." }),
+  createdBy: identifiant,
 });
 
 export async function createBoard(input: {
@@ -39,7 +47,7 @@ export async function createBoard(input: {
   color: BoardColor;
   createdBy: string;
 }): Promise<ActionResult<{ id: string }>> {
-  const parsed = creationSchema.safeParse(input);
+  const parsed = creationTableau.safeParse(input);
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
@@ -87,9 +95,9 @@ export async function createBoard(input: {
   return ok({ id: board.id });
 }
 
-const majSchema = z.object({
-  boardId: z.uuid({ error: "Tableau introuvable." }),
-  name: nomTableau.optional(),
+const majTableau = z.object({
+  boardId: identifiant,
+  name: nom80.optional(),
   color: couleur.optional(),
   description: z.string().trim().max(500).optional(),
 });
@@ -100,7 +108,7 @@ export async function updateBoard(input: {
   color?: BoardColor;
   description?: string;
 }): Promise<ActionResult> {
-  const parsed = majSchema.safeParse(input);
+  const parsed = majTableau.safeParse(input);
   if (!parsed.success) return failFromZod(parsed.error);
 
   const { boardId, ...champs } = parsed.data;
@@ -125,8 +133,7 @@ async function basculerArchive(
   boardId: string,
   isArchived: boolean,
 ): Promise<ActionResult> {
-  const parsed = z.uuid({ error: "Tableau introuvable." }).safeParse(boardId);
-  if (!parsed.success) return fail("Tableau introuvable.");
+  if (!identifiant.safeParse(boardId).success) return fail("Tableau introuvable.");
 
   const supabase = createClient();
   const { error } = await supabase
@@ -148,5 +155,250 @@ async function basculerArchive(
 /** Archiver ne supprime rien : le tableau part dans la section archivée. */
 export const archiveBoard = (boardId: string) => basculerArchive(boardId, true);
 export const restoreBoard = (boardId: string) => basculerArchive(boardId, false);
+
+/** Réservé au rôle owner et à Louis — c'est la RLS qui tranche. */
+export async function deleteBoard(boardId: string): Promise<ActionResult> {
+  if (!identifiant.safeParse(boardId).success) return fail("Tableau introuvable.");
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("boards")
+    .delete()
+    .eq("id", boardId)
+    .select("id");
+
+  if (error) return fail("Impossible de supprimer ce tableau pour le moment.");
+  if (!data || data.length === 0) {
+    return fail("Seul un responsable du client peut supprimer un tableau.");
+  }
+  return ok();
+}
+
+// ---------------------------------- Listes ----------------------------------
+
+export async function createList(input: {
+  boardId: string;
+  name: string;
+  position: number;
+}): Promise<ActionResult<BoardList>> {
+  const parsed = z
+    .object({ boardId: identifiant, name: nom80, position: z.number() })
+    .safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("lists")
+    .insert({
+      board_id: parsed.data.boardId,
+      name: parsed.data.name,
+      position: parsed.data.position,
+    })
+    .select("id, name, position")
+    .single();
+
+  if (error || !data) return fail("Impossible d'ajouter cette liste.");
+  return ok(data);
+}
+
+export async function renameList(
+  listId: string,
+  name: string,
+): Promise<ActionResult> {
+  const parsed = z.object({ listId: identifiant, name: nom80 }).safeParse({ listId, name });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("lists")
+    .update({ name: parsed.data.name })
+    .eq("id", parsed.data.listId);
+
+  if (error) return fail("Impossible de renommer cette liste.");
+  return ok();
+}
+
+/** Archiver une liste emmène ses cartes avec elle. */
+export async function archiveList(listId: string): Promise<ActionResult> {
+  if (!identifiant.safeParse(listId).success) return fail("Liste introuvable.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("lists")
+    .update({ is_archived: true })
+    .eq("id", listId);
+
+  if (error) return fail("Impossible d'archiver cette liste.");
+
+  await supabase.from("cards").update({ is_archived: true }).eq("list_id", listId);
+  return ok();
+}
+
+export async function moveList(
+  listId: string,
+  position: number,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ listId: identifiant, position: z.number() })
+    .safeParse({ listId, position });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("lists")
+    .update({ position: parsed.data.position })
+    .eq("id", parsed.data.listId);
+
+  if (error) return fail("Impossible de déplacer cette liste.");
+  return ok();
+}
+
+// ---------------------------------- Cartes ----------------------------------
+
+export async function createCard(input: {
+  boardId: string;
+  listId: string;
+  title: string;
+  position: number;
+  createdBy: string;
+}): Promise<ActionResult<BoardCard>> {
+  const parsed = z
+    .object({
+      boardId: identifiant,
+      listId: identifiant,
+      title: titre200,
+      position: z.number(),
+      createdBy: identifiant,
+    })
+    .safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("cards")
+    .insert({
+      board_id: parsed.data.boardId,
+      list_id: parsed.data.listId,
+      title: parsed.data.title,
+      position: parsed.data.position,
+      created_by: parsed.data.createdBy,
+    })
+    .select(
+      "id, list_id, title, description, position, due_date, is_completed, cover_color",
+    )
+    .single();
+
+  if (error || !data) return fail("Impossible d'ajouter cette carte.");
+
+  await supabase.from("card_activities").insert({
+    card_id: data.id,
+    board_id: parsed.data.boardId,
+    user_id: parsed.data.createdBy,
+    type: "card.created",
+    payload: {},
+  });
+
+  return ok({
+    id: data.id,
+    listId: data.list_id,
+    title: data.title,
+    description: data.description,
+    position: data.position,
+    dueDate: data.due_date,
+    isCompleted: data.is_completed,
+    coverColor: data.cover_color,
+    labelIds: [],
+    assigneeIds: [],
+    checklistDone: 0,
+    checklistTotal: 0,
+    commentCount: 0,
+  });
+}
+
+export async function renameCard(
+  cardId: string,
+  title: string,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ cardId: identifiant, title: titre200 })
+    .safeParse({ cardId, title });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("cards")
+    .update({ title: parsed.data.title })
+    .eq("id", parsed.data.cardId);
+
+  if (error) return fail("Impossible de renommer cette carte.");
+  return ok();
+}
+
+export async function archiveCard(cardId: string): Promise<ActionResult> {
+  if (!identifiant.safeParse(cardId).success) return fail("Carte introuvable.");
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("cards")
+    .update({ is_archived: true })
+    .eq("id", cardId);
+
+  if (error) return fail("Impossible d'archiver cette carte.");
+  return ok();
+}
+
+/**
+ * Déplacement d'une carte. Une seule écriture, plus une trace d'activité quand
+ * la carte a changé de liste — c'est ce qui alimentera le journal de la fiche.
+ */
+export async function moveCard(input: {
+  cardId: string;
+  boardId: string;
+  listId: string;
+  position: number;
+  userId: string;
+  fromListName?: string;
+  toListName?: string;
+}): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      cardId: identifiant,
+      boardId: identifiant,
+      listId: identifiant,
+      position: z.number(),
+      userId: identifiant,
+      fromListName: z.string().optional(),
+      toListName: z.string().optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("cards")
+    .update({ list_id: parsed.data.listId, position: parsed.data.position })
+    .eq("id", parsed.data.cardId);
+
+  if (error) return fail("Impossible de déplacer cette carte.");
+
+  if (
+    parsed.data.fromListName &&
+    parsed.data.toListName &&
+    parsed.data.fromListName !== parsed.data.toListName
+  ) {
+    await supabase.from("card_activities").insert({
+      card_id: parsed.data.cardId,
+      board_id: parsed.data.boardId,
+      user_id: parsed.data.userId,
+      type: "card.moved",
+      payload: {
+        from_list: parsed.data.fromListName,
+        to_list: parsed.data.toListName,
+      },
+    });
+  }
+
+  return ok();
+}
 
 export { DEFAULT_BOARD_COLOR };
