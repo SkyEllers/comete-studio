@@ -7,6 +7,8 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { getMembership } from "@/lib/access";
 import { createClient } from "@/lib/supabase/server";
 
+import { apercuImage, lienOriginal } from "./liens";
+
 /**
  * Mutations de la médiathèque.
  *
@@ -179,11 +181,18 @@ async function retirerObjets(
   if (fileIds.length === 0) return ok();
 
   const chemins = fileIds.map((id) => `${organizationId}/${id}`);
-  const { data, error } = await supabase.storage.from(BUCKET).remove(chemins);
+
+  // Les couvertures de vidéo partent avec : Storage ignore sans broncher
+  // celles qui n'existent pas, elles ne faussent donc pas le compte ci-dessous.
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .remove([...chemins, ...fileIds.map((id) => `${organizationId}/${id}.poster.jpg`)]);
 
   if (error) return fail("Impossible de retirer ces fichiers du stockage.");
 
-  if ((data?.length ?? 0) < chemins.length) {
+  const retires = (data ?? []).filter((objet) => !objet.name.endsWith(".poster.jpg"));
+
+  if (retires.length < chemins.length) {
     return fail(
       "Certains de ces fichiers ont été déposés par quelqu'un d'autre : seul leur auteur ou un responsable peut les supprimer.",
     );
@@ -277,4 +286,175 @@ export async function nettoyerEnvoisAbandonnes(
     .select("id");
 
   return ok({ retires: data?.length ?? 0 });
+}
+
+// ------------------------- Fiche d'un fichier -------------------------------
+
+const nomFichier = z
+  .string({ error: "Donne un nom à ce fichier." })
+  .trim()
+  .min(1, { error: "Donne un nom à ce fichier." })
+  .max(255, { error: "Le nom ne peut pas dépasser 255 caractères." });
+
+export async function renameFile(
+  orgSlug: string,
+  fileId: string,
+  name: string,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ fileId: identifiant, name: nomFichier })
+    .safeParse({ fileId, name });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const { data, error } = await membre.supabase
+    .from("files")
+    .update({ name: parsed.data.name })
+    .eq("id", parsed.data.fileId)
+    .select("folder_id");
+
+  if (error) return fail("Impossible de renommer ce fichier.");
+  if (!data || data.length === 0) return fail("Ce fichier n'existe plus.");
+
+  rafraichir(orgSlug, data[0].folder_id);
+  return ok();
+}
+
+/**
+ * Déplacer un fichier ne touche pas au Storage : le chemin d'un objet porte
+ * l'organisation et l'identifiant du fichier, jamais son dossier. Le rangement
+ * vit en base, donc un déplacement coûte une ligne modifiée.
+ */
+export async function moveFile(
+  orgSlug: string,
+  fileId: string,
+  folderId: string | null,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ fileId: identifiant, folderId: identifiant.nullable() })
+    .safeParse({ fileId, folderId });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const { data, error } = await membre.supabase
+    .from("files")
+    .update({ folder_id: parsed.data.folderId })
+    .eq("id", parsed.data.fileId)
+    .select("folder_id");
+
+  if (error) return fail("Impossible de déplacer ce fichier.");
+  if (!data || data.length === 0) return fail("Ce fichier n'existe plus.");
+
+  rafraichir(orgSlug);
+  if (parsed.data.folderId) rafraichir(orgSlug, parsed.data.folderId);
+  return ok();
+}
+
+// ------------------------------ Liens signés -------------------------------
+
+/** L'original, avec son nom d'origine : c'est le lien de téléchargement. */
+export async function lienDeTelechargement(
+  orgSlug: string,
+  fileId: string,
+): Promise<ActionResult<string>> {
+  if (!identifiant.safeParse(fileId).success) return fail("Fichier introuvable.");
+
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const { data } = await membre.supabase
+    .from("files")
+    .select("name")
+    .eq("id", fileId)
+    .maybeSingle();
+
+  if (!data) return fail("Ce fichier n'existe plus.");
+
+  const lien = await lienOriginal(membre.supabase, membre.org.id, fileId, data.name);
+  if (!lien) return fail("Impossible de préparer ce téléchargement.");
+
+  return ok(lien);
+}
+
+/**
+ * Les liens d'un lot, pour le zip. Sans nom de téléchargement : c'est le zip
+ * qui porte les noms, le navigateur ne fait que lire les octets.
+ */
+export async function liensDuLot(
+  orgSlug: string,
+  fileIds: string[],
+): Promise<ActionResult<{ id: string; nom: string; url: string }[]>> {
+  const parsed = z
+    .array(identifiant)
+    .min(1, { error: "Aucun fichier sélectionné." })
+    .max(500, { error: "Trop de fichiers d'un coup." })
+    .safeParse(fileIds);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const { data: lignes } = await membre.supabase
+    .from("files")
+    .select("id, name")
+    .in("id", parsed.data)
+    .eq("status", "ready");
+
+  if (!lignes || lignes.length === 0) return fail("Ces fichiers n'existent plus.");
+
+  const { data: signes } = await membre.supabase.storage
+    .from(BUCKET)
+    .createSignedUrls(
+      lignes.map((ligne) => `${membre.org.id}/${ligne.id}`),
+      3600,
+    );
+
+  const liens = (signes ?? [])
+    .map((signe, rang) => {
+      const ligne = lignes[rang];
+      if (!ligne || signe.error || !signe.signedUrl) return null;
+      return { id: ligne.id, nom: ligne.name, url: signe.signedUrl };
+    })
+    .filter((lien) => lien !== null);
+
+  if (liens.length === 0) return fail("Impossible de préparer ce téléchargement.");
+  return ok(liens);
+}
+
+/** Ce qu'il faut pour afficher un fichier en grand dans sa fiche. */
+export async function apercuDuFichier(
+  orgSlug: string,
+  fileId: string,
+): Promise<ActionResult<{ apercu: string | null; original: string | null }>> {
+  if (!identifiant.safeParse(fileId).success) return fail("Fichier introuvable.");
+
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const { data } = await membre.supabase
+    .from("files")
+    .select("mime_type")
+    .eq("id", fileId)
+    .maybeSingle();
+
+  if (!data) return fail("Ce fichier n'existe plus.");
+
+  // Une image passe par le rendu redimensionné ; une vidéo et un PDF veulent
+  // l'original, le Storage sachant répondre aux requêtes partielles.
+  const apercu = data.mime_type.startsWith("image/")
+    ? await apercuImage(membre.supabase, membre.org.id, fileId)
+    : null;
+
+  const original =
+    data.mime_type.startsWith("video/") ||
+    data.mime_type.startsWith("audio/") ||
+    data.mime_type === "application/pdf"
+      ? await lienOriginal(membre.supabase, membre.org.id, fileId)
+      : null;
+
+  return ok({ apercu, original });
 }

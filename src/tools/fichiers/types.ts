@@ -21,6 +21,8 @@ export type FileRow = {
   createdLabel: string;
   /** L'utilisateur peut-il supprimer ce fichier (auteur, responsable, Louis) ? */
   canDelete: boolean;
+  /** Lien signé vers la vignette, quand le fichier en a une. */
+  thumbUrl?: string;
 };
 
 export type Mediatheque = {
@@ -34,5 +36,7 @@ export type Mediatheque = {
 export type FolderContents = {
   folder: { id: string; name: string };
   files: FileRow[];
+  /** Toutes les destinations possibles pour « Déplacer vers ». */
+  dossiers: { id: string; name: string }[];
   canDelete: boolean;
 };

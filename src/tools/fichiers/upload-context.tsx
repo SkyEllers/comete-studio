@@ -6,7 +6,7 @@ import * as tus from "tus-js-client";
 import { createClient } from "@/lib/supabase/client";
 
 import { nettoyerEnvoisAbandonnes, rafraichirApresLot } from "./actions";
-import { mesurer } from "./media";
+import { mesurer, posterVideo } from "./media";
 import { empreinte, memoriser, oublier, retrouver } from "./reprises";
 
 /**
@@ -164,7 +164,9 @@ export function FichiersProvider({
       if (!fileId) return;
       const supabase = createClient();
 
-      await supabase.storage.from(BUCKET).remove([`${organizationId}/${fileId}`]);
+      await supabase.storage
+        .from(BUCKET)
+        .remove([`${organizationId}/${fileId}`, `${organizationId}/${fileId}.poster.jpg`]);
       await supabase.from("files").delete().eq("id", fileId);
     },
     [organizationId],
@@ -300,6 +302,21 @@ export function FichiersProvider({
         onSuccess: () => {
           void (async () => {
             await supabase.from("files").update({ status: "ready" }).eq("id", fileId);
+
+            /*
+             * L'image de couverture d'une vidéo, seul dérivé jamais stocké.
+             * Après l'envoi, pas avant : une vidéo annulée ne laisse rien.
+             * Un échec ici ne coûte qu'une vignette.
+             */
+            const couverture = await posterVideo(fichier);
+            if (couverture) {
+              await supabase.storage
+                .from(BUCKET)
+                .upload(`${organizationId}/${fileId}.poster.jpg`, couverture, {
+                  contentType: "image/jpeg",
+                  upsert: true,
+                });
+            }
 
             oublier(cleReprise);
             uploadsRef.current.delete(cle);

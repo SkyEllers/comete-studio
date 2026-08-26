@@ -71,6 +71,8 @@ export default async function DossierPage({
           files={contenu.files}
           orgSlug={orgSlug}
           folderId={contenu.folder.id}
+          dossiers={contenu.dossiers}
+          nomArchive={contenu.folder.name}
         />
       )}
     </>

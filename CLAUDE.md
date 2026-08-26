@@ -22,6 +22,7 @@ Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventio
 | Auth | Email + mot de passe. Pas d'inscription publique : invitation par Louis uniquement | Réinitialisation par email. Flux serveur : route `/auth/confirm` + `verifyOtp` (doc Supabase « server-side auth »). |
 | Drag & drop | `@dnd-kit/core` + `@dnd-kit/sortable` | Kanban, phase 2. |
 | Envois de fichiers | `tus-js-client` | Fichiers, phase 3 : envois reprenables du navigateur vers Storage, morceaux de 6 Mo imposés par Supabase. |
+| Archives zip | `client-zip` | Fichiers, phase 3 : zip construit en flux dans le navigateur, jamais en mémoire entière. |
 | Validation | `zod` | Toute Server Action valide ses entrées avant de toucher la base. |
 | Icônes / toasts / markdown | `lucide-react` / `sonner` / `react-markdown` + `remark-gfm` | Markdown uniquement pour les descriptions de cartes (pas de HTML brut). |
 | Hébergement | Vercel, projet existant, domaine déjà lié | Variables d'env dans Vercel, jamais dans le repo. |

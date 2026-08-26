@@ -3,6 +3,8 @@ import "server-only";
 import { tempsRelatif } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 
+import { vignettes } from "./liens";
+
 import type { FileRow, FolderContents, FolderSummary, Mediatheque } from "./types";
 
 /**
@@ -110,15 +112,30 @@ export async function getMediatheque(
     fileCount += 1;
   }
 
+  const rootFiles = brutes
+    .slice()
+    .sort(parDateDecroissante)
+    .map((ligne) => versFichier(ligne, maintenant, userId, peutToutSupprimer));
+
   return {
     folders,
-    rootFiles: brutes
-      .slice()
-      .sort(parDateDecroissante)
-      .map((ligne) => versFichier(ligne, maintenant, userId, peutToutSupprimer)),
+    rootFiles: await avecVignettes(supabase, organizationId, rootFiles),
     usedBytes,
     fileCount,
   };
+}
+
+/** Une seule signature groupée pour toute la liste. */
+async function avecVignettes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+  fichiers: FileRow[],
+): Promise<FileRow[]> {
+  const liens = await vignettes(supabase, organizationId, fichiers);
+
+  return fichiers.map((fichier) =>
+    liens[fichier.id] ? { ...fichier, thumbUrl: liens[fichier.id] } : fichier,
+  );
 }
 
 /**
@@ -134,7 +151,7 @@ export async function getFolderContents(
 ): Promise<FolderContents | null> {
   const supabase = await createClient();
 
-  const [dossier, fichiers] = await Promise.all([
+  const [dossier, fichiers, tousLesDossiers] = await Promise.all([
     supabase
       .from("folders")
       .select("id, name, created_by")
@@ -148,17 +165,26 @@ export async function getFolderContents(
       .eq("status", "ready")
       .eq("folder_id", folderId)
       .order("created_at", { ascending: false }),
+    // Les destinations possibles de « Déplacer vers ».
+    supabase
+      .from("folders")
+      .select("id, name")
+      .eq("organization_id", organizationId)
+      .order("name"),
   ]);
 
   if (!dossier.data) return null;
 
   const maintenant = new Date();
 
+  const lignes = ((fichiers.data ?? []) as LigneBrute[]).map((ligne) =>
+    versFichier(ligne, maintenant, userId, peutToutSupprimer),
+  );
+
   return {
     folder: { id: dossier.data.id, name: dossier.data.name },
-    files: ((fichiers.data ?? []) as LigneBrute[]).map((ligne) =>
-      versFichier(ligne, maintenant, userId, peutToutSupprimer),
-    ),
+    files: await avecVignettes(supabase, organizationId, lignes),
+    dossiers: tousLesDossiers.data ?? [],
     canDelete: peutToutSupprimer || dossier.data.created_by === userId,
   };
 }

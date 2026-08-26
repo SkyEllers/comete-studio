@@ -66,7 +66,13 @@ async function Contenu({
               Hors dossier
             </h2>
           ) : null}
-          <FileList files={rootFiles} orgSlug={orgSlug} folderId={null} />
+          <FileList
+            files={rootFiles}
+            orgSlug={orgSlug}
+            folderId={null}
+            dossiers={folders}
+            nomArchive="fichiers"
+          />
         </section>
       ) : null}
     </>
