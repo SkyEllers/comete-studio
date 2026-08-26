@@ -133,8 +133,12 @@ export function BoardView({
     nom: string;
     cartes: number;
   } | null>(null);
+  // Liste tout juste créée par le bouton « + Liste » : on défile jusqu'à elle
+  // et sa colonne s'ouvre sur son champ de nom.
+  const [listeANommer, setListeANommer] = useState<string | null>(null);
   const origine = useRef<string | null>(null);
   const champRecherche = useRef<HTMLInputElement>(null);
+  const zoneListes = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   /*
@@ -484,6 +488,38 @@ export function BoardView({
     [dispatch],
   );
 
+  /**
+   * Le bouton de l'en-tête : la liste naît en fin de tableau, on défile
+   * jusqu'à elle et son nom attend d'être écrit. Le composeur en bout de
+   * ligne reste, pour qui préfère travailler là-bas.
+   */
+  const creerListeRapide = useCallback(async () => {
+    const data = etat.current;
+    const position = (data.lists.at(-1)?.position ?? 0) + PAS_POSITION;
+
+    const result = await createList({
+      boardId: data.board.id,
+      name: "Nouvelle liste",
+      position,
+    });
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    dispatch({ type: "list/added", list: result.data });
+    setListeANommer(result.data.id);
+  }, [dispatch]);
+
+  // Après le rendu de la colonne : c'est là seulement qu'il y a où défiler.
+  useEffect(() => {
+    if (!listeANommer) return;
+
+    const zone = zoneListes.current;
+    zone?.scrollTo({ left: zone.scrollWidth, behavior: "smooth" });
+  }, [listeANommer]);
+
   const renommerListe = useCallback(
     async (listId: string, name: string) => {
       const avant = etat.current.lists.find((l) => l.id === listId)?.name;
@@ -736,6 +772,7 @@ export function BoardView({
         filtres={filtres}
         champRecherche={champRecherche}
         onFiltres={setFiltres}
+        onNewList={() => void creerListeRapide()}
         onRename={renommerTableau}
         onColor={changerCouleur}
         onArchives={() => setArchivesOuvertes(true)}
@@ -759,6 +796,7 @@ export function BoardView({
         onDragEnd={onDragEnd}
       >
         <div
+          ref={zoneListes}
           className={cn(
             // Sur mobile, une colonne par écran : le défilement s'aligne sur
             // elles. Pendant un déplacement, l'aimant lutterait contre le
@@ -782,6 +820,7 @@ export function BoardView({
                 signalComposeur={
                   composeurCible?.listId === list.id ? composeurCible.n : 0
                 }
+                autoRenommer={list.id === listeANommer}
                 onRename={renommerListe}
                 onArchive={archiverListe}
                 onDelete={demanderSuppressionListe}

@@ -31,6 +31,7 @@ function ColonneBrute({
   members,
   dragDisabled = false,
   signalComposeur = 0,
+  autoRenommer = false,
   onRename,
   onArchive,
   onDelete,
@@ -47,6 +48,12 @@ function ColonneBrute({
   dragDisabled?: boolean;
   /** Le raccourci « n » vise cette colonne : on ouvre son composeur. */
   signalComposeur?: number;
+  /**
+   * Liste qui vient de naître par le bouton « + Liste » : son champ s'ouvre
+   * dès le montage, nom sélectionné, pour qu'on la nomme sans un clic de plus.
+   * L'état initial suffit — la colonne est neuve.
+   */
+  autoRenommer?: boolean;
   /*
    * Rappels sans fermeture sur la liste : la colonne rend son identifiant à
    * chaque appel, ce qui laisse le tableau leur donner une identité stable et
@@ -60,7 +67,7 @@ function ColonneBrute({
   onArchiveCard: (cardId: string) => void;
   onDeleteCard: (cardId: string) => void;
 }) {
-  const [edition, setEdition] = useState(false);
+  const [edition, setEdition] = useState(autoRenommer);
   const [nom, setNom] = useState(list.name);
   const champ = useRef<HTMLInputElement>(null);
 
@@ -235,6 +242,7 @@ export const ListColumn = memo(
     avant.members === apres.members &&
     avant.dragDisabled === apres.dragDisabled &&
     avant.signalComposeur === apres.signalComposeur &&
+    avant.autoRenommer === apres.autoRenommer &&
     avant.onRename === apres.onRename &&
     avant.onArchive === apres.onArchive &&
     avant.onDelete === apres.onDelete &&

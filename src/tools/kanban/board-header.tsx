@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   Palette,
   Pencil,
+  Plus,
   Search,
   Trash2,
   WifiOff,
@@ -55,6 +56,7 @@ export function BoardHeader({
   filtres,
   champRecherche,
   onFiltres,
+  onNewList,
   onRename,
   onColor,
   onArchives,
@@ -71,6 +73,8 @@ export function BoardHeader({
   /** Le raccourci « f » y pose le focus depuis le tableau. */
   champRecherche: React.RefObject<HTMLInputElement | null>;
   onFiltres: (filtres: Filtres) => void;
+  /** Ajouter une liste sans avoir à défiler jusqu'au bout du tableau. */
+  onNewList: () => void;
   onRename: (name: string) => void;
   onColor: (color: BoardColor) => void;
   onArchives: () => void;
@@ -166,6 +170,11 @@ export function BoardHeader({
       ) : null}
 
       <div className="ml-auto flex items-center gap-2">
+        <Button onClick={onNewList} className="max-sm:h-9">
+          <Plus aria-hidden="true" />
+          <span className="max-sm:sr-only">Liste</span>
+        </Button>
+
         {tempsReel === "hors-ligne" ? (
           <span
             role="status"
