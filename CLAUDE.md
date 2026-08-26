@@ -41,7 +41,8 @@ npm run qa:isolation # bancs de QA : isolation entre organisations, via l'API RE
 npm run qa:routes    # gardes de routes ; demande un serveur (npx next start -p 3100)
 npm run qa:fichiers  # isolation de l'outil Capsule : tables et Storage
 npm run qa:notifications # registre des notifications et compteurs d'espace
-npm run qa:radar     # isolation de l'outil Radar : tables, vue, Vault, actions
+npm run test         # tests unitaires (node --test) : le moteur d'attribution
+npm run qa:radar     # Radar : tables, vue, Vault, actions, webhook ; demande un serveur
 ```
 
 Les bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
@@ -63,6 +64,7 @@ src/
 │   │       ├── page.tsx              # grille des outils activés
 │   │       └── (tools)/
 │   │           └── kanban/           # Orbite ; layout.tsx = requireToolAccess(orgSlug, 'kanban')
+│   ├── api/webhooks/calendly/[orgId]/route.ts   # Radar : route sans session, signée
 │   ├── admin/                        # layout.tsx = requireAdmin() ; clients/ ; clients/[id]/ ; outils/
 │   ├── mentions-legales/  confidentialite/
 │   ├── layout.tsx  globals.css  not-found.tsx
@@ -77,7 +79,8 @@ src/
 │   └── utils.ts
 ├── tools/
 │   ├── registry.ts                   # catalogue des outils internes : slug → nom, description, icône, href
-│   └── kanban/                       # Orbite, phase 2 : composants, mutations, hooks, palette
+│   ├── kanban/                       # Orbite, phase 2 : composants, mutations, hooks, palette
+│   └── resultats/                    # Radar, phase 4 : attribution, calendly, fixtures
 public/
 ├── fonts/  brand/  favicon.svg  favicon-16.png  favicon-32.png  apple-touch-icon.png  robots.txt
 supabase/
@@ -108,6 +111,7 @@ docs/                                 # briefs par phase + docs/legacy/ (textes 
 - Server Components par défaut ; `'use client'` seulement quand il y a de l'interactivité.
 - Mutations : Server Actions (`actions.ts` à côté de la page) validées par zod, qui renvoient `{ ok: true, data } | { ok: false, error: string }` avec un message en français. Jamais d'exception non gérée côté client.
 - Exception : quand le navigateur doit parler à Supabase directement — les outils temps réel (Orbite), et les envois de fichiers qui partent en TUS sans traverser Vercel — il lit et écrit via `supabase-js`, la RLS protège. Dans ces cas-là, une Server Action reste nécessaire pour `revalidatePath` : c'est le seul mécanisme qui traverse la frontière. Toute opération d'administration (créer un client, inviter, activer un outil) passe par une Server Action avec le client `admin.ts`, après `requireAdmin()`.
+- Une route sans session — un webhook — vérifie une signature avant toute lecture du corps interprété, est idempotente, valide son entrée par zod en rejetant tout champ inattendu **de l'enveloppe** (le corps du fournisseur, lui, reste tolérant aux champs qu'on ignore : le refuser en bloc parce qu'un champ est apparu ferait perdre des messages en silence), ne journalise aucune donnée personnelle, répond en moins de 2 s, et n'emploie le service role que pour les tables qu'elle a à écrire. Elle ne renvoie jamais de 4xx pour un message qui ne passera jamais : le fournisseur le rejouerait pendant des heures. Elle garde le 500 pour ses propres pannes, là où un rejeu a un sens.
 - Toute nouvelle table : RLS activée + policies + index + test manuel avec deux comptes (membre / non-membre). Sans ça, le chantier n'est pas terminé.
 - Toute nouvelle fonction SQL : `revoke execute … from public, anon` puis `grant execute … to authenticated`, sinon elle est appelable sans session.
 - `has_tool()` renvoie `false` avec la clé service role : les Server Actions d'administration lisent `organization_tools` directement.

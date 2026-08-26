@@ -27,9 +27,28 @@ import {
   supprimerCompte,
   vide,
 } from "./qa-commun.mjs";
+import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+import { CANAUX_PAR_DEFAUT } from "../src/tools/resultats/attribution.ts";
+
+const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3100";
 
 const { verifie, bilan } = journal();
-annoncerCible("QA — outil Radar (socle)");
+annoncerCible(`QA — outil Radar\nServeur visé : ${BASE}`);
+
+/*
+ * Avant toute écriture : la section du webhook poste sur une vraie route. Si
+ * le serveur ne répond pas, on s'arrête ici plutôt que d'annoncer « 0 en
+ * échec » après avoir posé un décor et sauté la moitié du banc.
+ */
+if (!(await fetch(BASE, { redirect: "manual" }).catch(() => null))) {
+  console.error(
+    BASE +
+      " ne répond pas. Lance d'abord `npm run build`, puis `npx next start -p 3100` dans un autre terminal.",
+  );
+  process.exit(1);
+}
 
 const marque = Math.random().toString(36).slice(2, 8);
 const emails = {
@@ -529,6 +548,400 @@ try {
     apresEffacement.data === null,
     JSON.stringify(apresEffacement.data),
   );
+  // --------------------- 10. Le webhook Calendly ---------------------------
+
+  console.log("\n== 10. Le webhook Calendly ==");
+
+  const orgC = await creer("organizations", {
+    name: "ZZ QA RC",
+    slug: `zz-qa-rc-${marque}`,
+  });
+  orgs.c = orgC;
+
+  await creer("organization_tools", {
+    organization_id: orgC.id,
+    tool_id: outilId,
+    enabled: true,
+  });
+  await creer("radar_settings", {
+    organization_id: orgC.id,
+    window_days: 90,
+    currency: "EUR",
+    connected_at: new Date().toISOString(),
+  });
+
+  // Les canaux du catalogue, ceux que le chantier 3 posera à l'activation.
+  for (const canal of CANAUX_PAR_DEFAUT) {
+    await creer("radar_channels", { organization_id: orgC.id, ...canal });
+  }
+  const canaux = Object.fromEntries(
+    (
+      await srv("GET", `radar_channels?select=id,key&organization_id=eq.${orgC.id}`)
+    ).data.map((canal) => [canal.key, canal.id]),
+  );
+
+  const CLE_SIGNATURE = "cle-de-signature-de-recette-0123456789abcdef";
+  const SEL = "sel-de-recette-fedcba9876543210";
+  await srv("POST", "rpc/radar_set_secret", {
+    org: orgC.id,
+    kind: "signing_key",
+    value: CLE_SIGNATURE,
+  });
+  await srv("POST", "rpc/radar_set_secret", { org: orgC.id, kind: "salt", value: SEL });
+
+  const EMAIL_1 = `camille-${marque}@example.com`;
+  const EMAIL_2 = `dominique-${marque}@example.com`;
+  const EMAIL_3 = `sacha-${marque}@example.com`;
+  const NOM = "Camille Dupont";
+
+  const uri = (suffixe) => `https://api.calendly.com/scheduled_events/zz-${marque}-${suffixe}`;
+  const invitee = (suffixe) =>
+    `https://api.calendly.com/scheduled_events/zz-${marque}/invitees/${suffixe}`;
+
+  /* Le banc signe de son côté, avec node:crypto : réutiliser la fonction du
+   * code éprouvé ne prouverait rien — un bug partagé resterait invisible. */
+  const signature = (corps, cle, horodatage) =>
+    `t=${horodatage},v1=${createHmac("sha256", cle).update(`${horodatage}.${corps}`).digest("hex")}`;
+
+  const gabarit = (fichier, remplacements = {}) => {
+    let texte = readFileSync(
+      new URL(`../src/tools/resultats/fixtures/${fichier}`, import.meta.url),
+      "utf8",
+    );
+    for (const [cle, valeur] of Object.entries(remplacements)) {
+      texte = texte.split(`{{${cle}}}`).join(valeur);
+    }
+    return texte;
+  };
+
+  const poster = async (
+    corps,
+    { cle = CLE_SIGNATURE, decalage = 0, entete, org = orgC.id } = {},
+  ) => {
+    const t = Math.floor(Date.now() / 1000) + decalage;
+    const valeur = entete === undefined ? signature(corps, cle, t) : entete;
+    const reponse = await fetch(`${BASE}/api/webhooks/calendly/${org}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(valeur === null ? {} : { "Calendly-Webhook-Signature": valeur }),
+      },
+      body: corps,
+    });
+    return reponse.status;
+  };
+
+  const lignes = async (invitee_uri) =>
+    (
+      await srv(
+        "GET",
+        `radar_bookings?select=*&organization_id=eq.${orgC.id}` +
+          (invitee_uri ? `&invitee_uri=eq.${encodeURIComponent(invitee_uri)}` : ""),
+      )
+    ).data;
+
+  const journaux = async () =>
+    (
+      await srv(
+        "GET",
+        `radar_webhook_log?select=outcome,event_kind,message&organization_id=eq.${orgC.id}&limit=200`,
+      )
+    ).data;
+
+  const combien = (liste, outcome) => liste.filter((l) => l.outcome === outcome).length;
+
+  const dans = (n) => new Date(Date.now() + n * 86400000).toISOString();
+
+  // ------------------------- La porte d'entrée ------------------------------
+
+  const u1 = invitee("u1");
+  const corpsPaye = gabarit("cree-paye.json", {
+    EMAIL: EMAIL_1,
+    INVITEE_URI: u1,
+    EVENT_URI: uri("e1"),
+    START: dans(5),
+    END: dans(5),
+  });
+
+  verifie(
+    "signature fausse → 401",
+    (await poster(corpsPaye, { cle: "mauvaise-cle" })) === 401,
+  );
+  verifie(
+    "horodatage vieux de dix minutes → 401",
+    (await poster(corpsPaye, { decalage: -600 })) === 401,
+  );
+  verifie("en-tête de signature absent → 401", (await poster(corpsPaye, { entete: null })) === 401);
+  verifie(
+    "en-tête mal formé → 401",
+    (await poster(corpsPaye, { entete: "n'importe quoi" })) === 401,
+  );
+  verifie(
+    "organisation inconnue → 404",
+    (await poster(corpsPaye, { org: crypto.randomUUID() })) === 404,
+  );
+  verifie(
+    "adresse qui n'est pas un identifiant → 404",
+    (await poster(corpsPaye, { org: "pas-un-uuid" })) === 404,
+  );
+  verifie(
+    "client sans connexion Calendly → 404",
+    (await poster(corpsPaye, { org: orgs.a.id })) === 404,
+  );
+  verifie(
+    "aucun rendez-vous n'a été créé par ces tentatives",
+    (await lignes()).length === 0,
+    `${(await lignes()).length}`,
+  );
+
+  // ---------------------------- Une création --------------------------------
+
+  verifie("création payée → 200", (await poster(corpsPaye)) === 200);
+
+  const creees = await lignes(u1);
+  verifie("une ligne, une seule", creees.length === 1, `${creees.length}`);
+
+  const paye = creees[0];
+  verifie(
+    "attribuée aux annonces par ses utm",
+    paye?.channel_id === canaux.google_ads && paye?.attribution === "utm",
+    JSON.stringify({ canal: paye?.channel_id, attribution: paye?.attribution }),
+  );
+  verifie("montant en centimes", paye?.amount_cents === 9000, `${paye?.amount_cents}`);
+  verifie("paiement réussi et sa référence", paye?.payment_ok === true && paye?.payment_ref === "ch_3PtestStripe0001", JSON.stringify(paye?.payment_ref));
+  verifie("statut confirmé, venu de Calendly", paye?.status === "confirme" && paye?.status_origin === "calendly");
+  verifie("réponse déclarée conservée", paye?.declared_source === "Google", JSON.stringify(paye?.declared_source));
+  verifie(
+    "seuls les utm sont retenus, pas le salesforce_uuid",
+    JSON.stringify(Object.keys(paye?.utm ?? {}).sort()) ===
+      JSON.stringify(["utm_campaign", "utm_medium", "utm_source"]),
+    JSON.stringify(paye?.utm),
+  );
+
+  const activitesCreation = (
+    await srv("GET", `radar_booking_activities?select=type&booking_id=eq.${paye.id}`)
+  ).data;
+  verifie(
+    "une activité booking.created",
+    activitesCreation.length === 1 && activitesCreation[0].type === "booking.created",
+    JSON.stringify(activitesCreation),
+  );
+
+  const reglagesApres = (
+    await srv("GET", `radar_settings?select=last_webhook_at&organization_id=eq.${orgC.id}`)
+  ).data[0];
+  verifie("last_webhook_at a avancé", Boolean(reglagesApres?.last_webhook_at));
+
+  // ----------------------- Ce qui ne doit pas passer ------------------------
+
+  verifie("le même message rejoué → 200", (await poster(corpsPaye)) === 200);
+  verifie("toujours une seule ligne", (await lignes(u1)).length === 1);
+
+  const enveloppeSale = JSON.stringify({
+    ...JSON.parse(corpsPaye),
+    zz_champ_inattendu: "surprise",
+  });
+  verifie("champ inattendu dans l'enveloppe → 200", (await poster(enveloppeSale)) === 200);
+
+  const autreEvenement = JSON.stringify({
+    ...JSON.parse(corpsPaye),
+    event: "invitee_no_show.created",
+  });
+  verifie("événement d'un autre type → 200", (await poster(autreEvenement)) === 200);
+
+  verifie("JSON illisible → 200", (await poster("{ceci n'est pas du json")) === 200);
+
+  verifie(
+    "aucune ligne de plus après ces trois-là",
+    (await lignes()).length === 1,
+    `${(await lignes()).length}`,
+  );
+
+  // -------------------- Gratuit, et paiement échoué -------------------------
+
+  const u2 = invitee("u2");
+  verifie(
+    "création gratuite → 200",
+    (await poster(
+      gabarit("cree-gratuit.json", {
+        EMAIL: EMAIL_2,
+        INVITEE_URI: u2,
+        EVENT_URI: uri("e2"),
+        START: dans(6),
+        END: dans(6),
+      }),
+    )) === 200,
+  );
+  const gratuit = (await lignes(u2))[0];
+  verifie(
+    "une séance gratuite vaut zéro et n'est pas payée",
+    gratuit?.amount_cents === 0 && gratuit?.payment_ok === false,
+    JSON.stringify({ montant: gratuit?.amount_cents, paye: gratuit?.payment_ok }),
+  );
+  verifie(
+    "sans campagne ni précédent, elle est directe",
+    gratuit?.channel_id === canaux.direct && gratuit?.attribution === "direct",
+    JSON.stringify({ canal: gratuit?.channel_id, attribution: gratuit?.attribution }),
+  );
+
+  const u3 = invitee("u3");
+  await poster(
+    gabarit("cree-paiement-echoue.json", {
+      EMAIL: EMAIL_3,
+      INVITEE_URI: u3,
+      EVENT_URI: uri("e3"),
+      START: dans(7),
+      END: dans(7),
+    }),
+  );
+  const echoue = (await lignes(u3))[0];
+  verifie(
+    "un paiement échoué garde son montant mais n'est pas payé",
+    echoue?.amount_cents === 9000 && echoue?.payment_ok === false,
+    JSON.stringify({ montant: echoue?.amount_cents, paye: echoue?.payment_ok }),
+  );
+
+  // ------------------------------ Annulation --------------------------------
+
+  const corpsAnnule = gabarit("annule.json", {
+    EMAIL: EMAIL_1,
+    INVITEE_URI: u1,
+    EVENT_URI: uri("e1"),
+    START: dans(5),
+    END: dans(5),
+  });
+  verifie("annulation → 200", (await poster(corpsAnnule)) === 200);
+
+  const annulee = (await lignes(u1))[0];
+  verifie(
+    "la séance est annulée, par Calendly",
+    annulee?.status === "annule" && annulee?.status_origin === "calendly",
+    JSON.stringify({ statut: annulee?.status, origine: annulee?.status_origin }),
+  );
+  verifie(
+    "le motif est une catégorie, pas le texte de la personne",
+    annulee?.status_note === "Annulée dans Calendly",
+    JSON.stringify(annulee?.status_note),
+  );
+  verifie("la date d'annulation est posée", Boolean(annulee?.canceled_at));
+
+  const activitesAnnulation = (
+    await srv("GET", `radar_booking_activities?select=type&booking_id=eq.${paye.id}&type=eq.booking.canceled`)
+  ).data;
+  verifie("une activité booking.canceled", activitesAnnulation.length === 1);
+
+  const inconnu = gabarit("annule.json", {
+    EMAIL: EMAIL_1,
+    INVITEE_URI: invitee("jamais-vu"),
+    EVENT_URI: uri("e9"),
+    START: dans(5),
+    END: dans(5),
+  });
+  verifie("annulation d'un invité inconnu → 200", (await poster(inconnu)) === 200);
+
+  // ---------------------------- Reprogrammation -----------------------------
+
+  const u4 = invitee("u4");
+  verifie(
+    "reprogrammation → 200",
+    (await poster(
+      gabarit("cree-reprogramme.json", {
+        EMAIL: EMAIL_1,
+        INVITEE_URI: u4,
+        EVENT_URI: uri("e4"),
+        START: dans(12),
+        END: dans(12),
+        OLD_INVITEE: u1,
+      }),
+    )) === 200,
+  );
+
+  const deplacee = (await lignes(u4))[0];
+  verifie(
+    "elle pointe sur celle qu'elle remplace",
+    deplacee?.rescheduled_from === paye.id,
+    JSON.stringify(deplacee?.rescheduled_from),
+  );
+  verifie(
+    "elle hérite du canal et de l'attribution, sans repasser par le moteur",
+    deplacee?.channel_id === canaux.google_ads && deplacee?.attribution === "utm",
+    JSON.stringify({ canal: deplacee?.channel_id, attribution: deplacee?.attribution }),
+  );
+  const activiteDeplacement = (
+    await srv("GET", `radar_booking_activities?select=type&booking_id=eq.${deplacee.id}`)
+  ).data;
+  verifie(
+    "une activité booking.rescheduled",
+    activiteDeplacement.length === 1 && activiteDeplacement[0].type === "booking.rescheduled",
+    JSON.stringify(activiteDeplacement),
+  );
+
+  // ------------------------------ Récurrence --------------------------------
+
+  const u5 = invitee("u5");
+  await poster(
+    gabarit("cree-gratuit.json", {
+      EMAIL: EMAIL_1,
+      INVITEE_URI: u5,
+      EVENT_URI: uri("e5"),
+      START: dans(40),
+      END: dans(40),
+    }),
+  );
+  const revenue = (await lignes(u5))[0];
+  verifie(
+    "la même personne qui revient sans annonce garde son canal",
+    revenue?.channel_id === canaux.google_ads && revenue?.attribution === "recurrence",
+    JSON.stringify({ canal: revenue?.channel_id, attribution: revenue?.attribution }),
+  );
+  verifie(
+    "et sa réponse déclarée diverge sans rien changer au calcul",
+    revenue?.declared_source === "Bouche à oreille",
+    JSON.stringify(revenue?.declared_source),
+  );
+
+  // ------------------------- Le journal, et l'oubli -------------------------
+
+  const journal = await journaux();
+  verifie("le journal a compté les signatures refusées", combien(journal, "invalid_signature") === 4, `${combien(journal, "invalid_signature")}`);
+  verifie("… les doublons", combien(journal, "duplicate") === 1, `${combien(journal, "duplicate")}`);
+  verifie("… les payloads refusés", combien(journal, "invalid_payload") === 2, `${combien(journal, "invalid_payload")}`);
+  verifie("… les messages ignorés", combien(journal, "ignored") === 2, `${combien(journal, "ignored")}`);
+  verifie("… et les acceptés", combien(journal, "accepted") === 6, `${combien(journal, "accepted")}`);
+  verifie("aucune erreur interne", combien(journal, "error") === 0, JSON.stringify(journal.filter((l) => l.outcome === "error")));
+
+  /*
+   * Le contrat de Radar, vérifié plutôt que promis : ni l'email, ni le nom, ni
+   * le motif d'annulation écrit par la personne n'existent nulle part.
+   */
+  const toutesLesLignes = JSON.stringify(await lignes());
+  const toutLeJournal = JSON.stringify(journal);
+  const activitesToutes = JSON.stringify(
+    (await srv("GET", `radar_booking_activities?select=*&organization_id=eq.${orgC.id}`)).data,
+  );
+  const partout = toutesLesLignes + toutLeJournal + activitesToutes;
+
+  for (const [quoi, valeur] of [
+    ["l'email", EMAIL_1],
+    ["le deuxième email", EMAIL_2],
+    ["le nom de la personne", NOM],
+    ["le motif écrit à la main", "imprévu de dernière minute"],
+    ["le numéro Salesforce", "0031t00000AbCdEf"],
+  ]) {
+    verifie(`${quoi} n'apparaît nulle part`, !partout.includes(valeur));
+  }
+
+  verifie(
+    "la clé d'invité est bien un HMAC, la même pour la même personne",
+    revenue?.invitee_key === deplacee?.invitee_key &&
+      /^[0-9a-f]{64}$/.test(revenue?.invitee_key ?? ""),
+    JSON.stringify(revenue?.invitee_key),
+  );
+  verifie(
+    "deux personnes différentes ont deux clés différentes",
+    gratuit?.invitee_key !== revenue?.invitee_key,
+  );
+
 } finally {
   console.log("\n== Nettoyage ==");
 

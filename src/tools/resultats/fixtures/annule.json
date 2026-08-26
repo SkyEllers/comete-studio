@@ -1,0 +1,82 @@
+{
+  "created_at": "2026-06-15T09:00:00.000000Z",
+  "created_by": "https://api.calendly.com/users/UUUUUUUU",
+  "event": "invitee.canceled",
+  "payload": {
+    "cancel_url": "https://calendly.com/cancellations/ZZZZ",
+    "created_at": "2026-06-15T09:00:00.000000Z",
+    "email": "{{EMAIL}}",
+    "first_name": null,
+    "last_name": null,
+    "name": "Camille Dupont",
+    "new_invitee": null,
+    "no_show": null,
+    "old_invitee": null,
+    "payment": {
+      "external_id": "ch_3PtestStripe0001",
+      "provider": "stripe",
+      "amount": 90.0,
+      "currency": "EUR",
+      "terms": "Séance de 60 minutes",
+      "successful": true
+    },
+    "questions_and_answers": [
+      {
+        "answer": "Google",
+        "position": 0,
+        "question": "Comment m'avez-vous connu ?"
+      }
+    ],
+    "reconfirmation": null,
+    "reschedule_url": "https://calendly.com/reschedulings/ZZZZ",
+    "rescheduled": false,
+    "routing_form_submission": null,
+    "scheduled_event": {
+      "created_at": "2026-06-15T09:00:00.000000Z",
+      "end_time": "{{END}}",
+      "event_guests": [],
+      "event_memberships": [
+        {
+          "user": "https://api.calendly.com/users/UUUUUUUU",
+          "user_email": "praticien@example.com",
+          "user_name": "Praticien"
+        }
+      ],
+      "event_type": "https://api.calendly.com/event_types/EEEEEEEE",
+      "invitees_counter": {
+        "active": 1,
+        "limit": 1,
+        "total": 1
+      },
+      "location": {
+        "type": "physical",
+        "location": "Cabinet"
+      },
+      "name": "Séance de suivi",
+      "start_time": "{{START}}",
+      "status": "canceled",
+      "updated_at": "2026-06-15T09:00:00.000000Z",
+      "uri": "{{EVENT_URI}}"
+    },
+    "status": "canceled",
+    "text_reminder_number": null,
+    "timezone": "Europe/Paris",
+    "tracking": {
+      "salesforce_uuid": "0031t00000AbCdEf",
+      "utm_campaign": "lancement-printemps",
+      "utm_content": null,
+      "utm_medium": "cpc",
+      "utm_source": "google",
+      "utm_term": null
+    },
+    "updated_at": "2026-06-15T09:00:00.000000Z",
+    "uri": "{{INVITEE_URI}}",
+    "canceled": true,
+    "cancellation": {
+      "canceled_by": "Camille Dupont",
+      "reason": "Un imprévu de dernière minute, désolée",
+      "canceler_type": "invitee",
+      "created_at": "2026-06-16T08:00:00.000000Z"
+    }
+  }
+}
