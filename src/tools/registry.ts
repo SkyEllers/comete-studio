@@ -1,4 +1,4 @@
-import { SquareKanban, type LucideIcon } from "lucide-react";
+import { FolderOpen, SquareKanban, type LucideIcon } from "lucide-react";
 
 /**
  * Catalogue des outils internes.
@@ -24,6 +24,14 @@ export const TOOL_REGISTRY: Record<string, ToolMeta> = {
       "Tableaux, listes et cartes pour piloter un projet à plusieurs.",
     icon: SquareKanban,
     href: (orgSlug) => `/app/${orgSlug}/kanban`,
+  },
+  fichiers: {
+    slug: "fichiers",
+    name: "Fichiers",
+    description:
+      "Dépose photos, vidéos et documents, en qualité d'origine.",
+    icon: FolderOpen,
+    href: (orgSlug) => `/app/${orgSlug}/fichiers`,
   },
 };
 
