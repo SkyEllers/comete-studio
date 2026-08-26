@@ -9,14 +9,15 @@ import { useEnvois } from "./upload-context";
 
 /**
  * Les deux façons de déposer : glisser un fichier n'importe où sur la page, ou
- * appuyer sur « Déposer ».
+ * appuyer sur « Déposer ». Les deux mènent au même dialog de préparation :
+ * rien ne part sans être passé par là.
  *
  * Aucune restriction de type sur le sélecteur : sur un téléphone, un `accept`
  * restrictif ferme la porte soit à la pellicule, soit à l'app Fichiers. Mieux
  * vaut tout accepter et laisser le tri à qui dépose.
  */
 export function ZoneDepot({ folderId }: { folderId: string | null }) {
-  const { ajouter } = useEnvois();
+  const { preparer } = useEnvois();
   const [survol, setSurvol] = useState(false);
   const champ = useRef<HTMLInputElement>(null);
 
@@ -56,7 +57,7 @@ export function ZoneDepot({ folderId }: { folderId: string | null }) {
       setSurvol(false);
 
       const fichiers = Array.from(event.dataTransfer?.files ?? []);
-      if (fichiers.length > 0) ajouter(fichiers, folderId);
+      if (fichiers.length > 0) preparer(fichiers, folderId);
     };
 
     window.addEventListener("dragenter", entrer);
@@ -70,7 +71,7 @@ export function ZoneDepot({ folderId }: { folderId: string | null }) {
       window.removeEventListener("dragleave", sortir);
       window.removeEventListener("drop", deposer);
     };
-  }, [ajouter, folderId]);
+  }, [preparer, folderId]);
 
   return (
     <>
@@ -81,7 +82,7 @@ export function ZoneDepot({ folderId }: { folderId: string | null }) {
         hidden
         onChange={(event) => {
           const fichiers = Array.from(event.target.files ?? []);
-          if (fichiers.length > 0) ajouter(fichiers, folderId);
+          if (fichiers.length > 0) preparer(fichiers, folderId);
           // Remis à zéro : sans ça, redéposer le même fichier ne déclenche rien.
           event.target.value = "";
         }}
