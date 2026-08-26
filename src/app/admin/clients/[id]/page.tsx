@@ -276,7 +276,7 @@ export default async function ClientDetailPage({
       </div>
 
       <section className="space-y-4">
-        <h2 className="text-lg">Fichiers</h2>
+        <h2 className="text-lg">Capsule</h2>
 
         <Suspense fallback={<CountersSkeleton compteurs={2} />}>
           <StockageSection organizationId={org.id} />

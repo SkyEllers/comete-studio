@@ -589,7 +589,10 @@ export async function notifyBatch(
     const noms = lot.slice(0, NOMS_LISTES).map((f) => f.name);
     const reste = lot.length - noms.length;
 
-    const sujet = `${membre.profile.full_name} a déposé ${compteFichiers(lot.length)} ${ou}`;
+    // Le nom de l'outil en tête : dans une boîte de réception, c'est ce qui
+    // permet de trier d'un coup d'œil quand d'autres outils se mettront aussi
+    // à écrire.
+    const sujet = `Capsule · ${membre.profile.full_name} a déposé ${compteFichiers(lot.length)} ${ou}`;
     const entete = `${membre.org.name} · ${compteFichiers(lot.length)} ${ou} · ${tailleLisible(octets)}`;
     const suite = reste > 0 ? `\n… et ${compteFichiers(reste)} de plus.` : "";
 
@@ -601,7 +604,7 @@ export async function notifyBatch(
       reste > 0
         ? `<p>… et ${echapper(compteFichiers(reste))} de plus.</p>`
         : "",
-      `<p><a href="${echapper(lien)}">Ouvrir ${echapper(nomDossier ?? "la médiathèque")}</a></p>`,
+      `<p><a href="${echapper(lien)}">Ouvrir ${echapper(nomDossier ?? "Capsule")}</a></p>`,
     ].join("");
 
     const parti = await envoyer({ sujet, texte, html });

@@ -9,7 +9,7 @@ Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventio
 - `cometestudio.fr` est l'espace client de Comète Studio (Louis Girault, Lyon). Ce n'est plus un site vitrine : la vitrine publique est `louisgirault.fr`.
 - Un client se connecte (email + mot de passe), arrive dans son espace et n'y voit que les outils que Louis lui a activés.
 - Louis administre tout depuis `/admin` : clients (organisations), membres, activation des outils.
-- Premier outil : un kanban façon Trello, collaboratif (phase 2). D'autres outils suivront, tous branchés sur le même socle d'accès.
+- Premier outil : **Orbite**, un kanban façon Trello, collaboratif (phase 2). Puis **Capsule**, la médiathèque du client (phase 3). D'autres suivront, tous branchés sur le même socle d'accès.
 - Rien n'est indexable : header `X-Robots-Tag: noindex, nofollow` sur toutes les routes, `robots.txt` en `Disallow: /`.
 
 ## 2. Stack (décisions actées, ne pas rediscuter)
@@ -20,9 +20,9 @@ Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventio
 | Styles | Tailwind CSS (version posée par create-next-app) + shadcn/ui | Tokens de la charte dans `src/app/globals.css` (bloc `@theme` en Tailwind v4). |
 | Backend | Supabase : Auth, Postgres + RLS, Realtime, Storage | Projet en région EU. Accès via `@supabase/ssr` (client serveur + client navigateur). |
 | Auth | Email + mot de passe. Pas d'inscription publique : invitation par Louis uniquement | Réinitialisation par email. Flux serveur : route `/auth/confirm` + `verifyOtp` (doc Supabase « server-side auth »). |
-| Drag & drop | `@dnd-kit/core` + `@dnd-kit/sortable` | Kanban, phase 2. |
-| Envois de fichiers | `tus-js-client` | Fichiers, phase 3 : envois reprenables du navigateur vers Storage, morceaux de 6 Mo imposés par Supabase. |
-| Archives zip | `client-zip` | Fichiers, phase 3 : zip construit en flux dans le navigateur, jamais en mémoire entière. |
+| Drag & drop | `@dnd-kit/core` + `@dnd-kit/sortable` | Orbite, phase 2. |
+| Envois de fichiers | `tus-js-client` | Capsule, phase 3 : envois reprenables du navigateur vers Storage, morceaux de 6 Mo imposés par Supabase. |
+| Archives zip | `client-zip` | Capsule, phase 3 : zip construit en flux dans le navigateur, jamais en mémoire entière. |
 | Validation | `zod` | Toute Server Action valide ses entrées avant de toucher la base. |
 | Icônes / toasts / markdown | `lucide-react` / `sonner` / `react-markdown` + `remark-gfm` | Markdown uniquement pour les descriptions de cartes (pas de HTML brut). |
 | Hébergement | Vercel, projet existant, domaine déjà lié | Variables d'env dans Vercel, jamais dans le repo. |
@@ -39,7 +39,7 @@ npx supabase db push               # applique les migrations au projet lié
 
 npm run qa:isolation # bancs de QA : isolation entre organisations, via l'API REST
 npm run qa:routes    # gardes de routes ; demande un serveur (npx next start -p 3100)
-npm run qa:fichiers  # isolation de l'outil Fichiers : tables et Storage
+npm run qa:fichiers  # isolation de l'outil Capsule : tables et Storage
 ```
 
 Les deux bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
@@ -60,7 +60,7 @@ src/
 │   │       ├── layout.tsx            # requireMembership(orgSlug)
 │   │       ├── page.tsx              # grille des outils activés
 │   │       └── (tools)/
-│   │           └── kanban/           # layout.tsx = requireToolAccess(orgSlug, 'kanban') ; pages de l'outil
+│   │           └── kanban/           # Orbite ; layout.tsx = requireToolAccess(orgSlug, 'kanban')
 │   ├── admin/                        # layout.tsx = requireAdmin() ; clients/ ; clients/[id]/ ; outils/
 │   ├── mentions-legales/  confidentialite/
 │   ├── layout.tsx  globals.css  not-found.tsx
@@ -75,7 +75,7 @@ src/
 │   └── utils.ts
 ├── tools/
 │   ├── registry.ts                   # catalogue des outils internes : slug → nom, description, icône, href
-│   └── kanban/                       # phase 2 : composants, mutations, hooks, palette
+│   └── kanban/                       # Orbite, phase 2 : composants, mutations, hooks, palette
 public/
 ├── fonts/  brand/  favicon.svg  favicon-16.png  favicon-32.png  apple-touch-icon.png  robots.txt
 supabase/
@@ -98,13 +98,14 @@ docs/                                 # briefs par phase + docs/legacy/ (textes 
 - `profiles` (1 par utilisateur, `is_admin` pour Louis) · `organizations` (1 par client) · `memberships` (utilisateur ↔ organisation, rôle `owner` | `member`) · `tools` (catalogue) · `organization_tools` (outil activé ou non pour une organisation).
 - Règle d'or : un utilisateur ne voit que les organisations dont il est membre, et dans chacune uniquement les outils activés. Louis (`is_admin`) voit tout, mais dans un espace client il voit exactement ce que le client voit.
 - Ces règles vivent dans la base (RLS + fonctions `is_admin()`, `is_member(org)`, `has_tool(org, slug)`) ET dans l'app (`requireMembership`, `requireToolAccess`). Les deux couches sont obligatoires.
+- Le slug est une adresse, le nom une étiquette. Un outil peut être renommé sans toucher à son slug : `kanban` porte Orbite, `fichiers` porte Capsule. Les routes, les chemins Storage, les politiques RLS et les gardes suivent le slug ; ce que le client lit vient de `tools.name` et `tools.description`.
 - Ajouter un outil = un dossier dans `src/app/app/[orgSlug]/(tools)/<slug>/` avec sa garde d'accès, une entrée dans `src/tools/registry.ts`, une ligne dans la table `tools`, et Louis coche la case dans `/admin`.
 
 ## 7. Conventions de code
 
 - Server Components par défaut ; `'use client'` seulement quand il y a de l'interactivité.
 - Mutations : Server Actions (`actions.ts` à côté de la page) validées par zod, qui renvoient `{ ok: true, data } | { ok: false, error: string }` avec un message en français. Jamais d'exception non gérée côté client.
-- Exception : quand le navigateur doit parler à Supabase directement — les outils temps réel (kanban), et les envois de fichiers qui partent en TUS sans traverser Vercel — il lit et écrit via `supabase-js`, la RLS protège. Dans ces cas-là, une Server Action reste nécessaire pour `revalidatePath` : c'est le seul mécanisme qui traverse la frontière. Toute opération d'administration (créer un client, inviter, activer un outil) passe par une Server Action avec le client `admin.ts`, après `requireAdmin()`.
+- Exception : quand le navigateur doit parler à Supabase directement — les outils temps réel (Orbite), et les envois de fichiers qui partent en TUS sans traverser Vercel — il lit et écrit via `supabase-js`, la RLS protège. Dans ces cas-là, une Server Action reste nécessaire pour `revalidatePath` : c'est le seul mécanisme qui traverse la frontière. Toute opération d'administration (créer un client, inviter, activer un outil) passe par une Server Action avec le client `admin.ts`, après `requireAdmin()`.
 - Toute nouvelle table : RLS activée + policies + index + test manuel avec deux comptes (membre / non-membre). Sans ça, le chantier n'est pas terminé.
 - Toute nouvelle fonction SQL : `revoke execute … from public, anon` puis `grant execute … to authenticated`, sinon elle est appelable sans session.
 - `has_tool()` renvoie `false` avec la clé service role : les Server Actions d'administration lisent `organization_tools` directement.

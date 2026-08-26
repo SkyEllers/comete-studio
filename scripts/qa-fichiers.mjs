@@ -1,5 +1,5 @@
 /**
- * Banc de l'outil Fichiers — tables et Storage.
+ * Banc de l'outil Capsule (slug `fichiers`) — tables et Storage.
  *
  *   npm run qa:fichiers
  *
@@ -36,7 +36,7 @@ import {
 } from "./qa-commun.mjs";
 
 const { verifie, bilan } = journal();
-annoncerCible("QA — outil Fichiers");
+annoncerCible("QA — outil Capsule");
 
 const BUCKET = "fichiers";
 const CONTENU = Buffer.from("photo de recette\n");

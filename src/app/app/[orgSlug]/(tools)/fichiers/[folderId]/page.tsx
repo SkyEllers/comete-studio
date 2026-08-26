@@ -41,7 +41,7 @@ export default async function DossierPage({
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm transition-colors"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />
-          Fichiers
+          Capsule
         </Link>
       </nav>
 

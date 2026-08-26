@@ -84,7 +84,7 @@ try {
   await creer("memberships", { organization_id: orgs.a.id, user_id: comptes.a, role: "owner" });
   await creer("memberships", { organization_id: orgs.b.id, user_id: comptes.b, role: "owner" });
 
-  // Kanban pour A seulement : c'est ce qui rend le 404 de B parlant.
+  // Orbite pour A seulement : c'est ce qui rend le 404 de B parlant.
   const outilId = (await srv("GET", "tools?select=id&slug=eq.kanban")).data[0].id;
   await creer("organization_tools", { organization_id: orgs.a.id, tool_id: outilId, enabled: true });
 
@@ -123,7 +123,7 @@ try {
   verifie("A · /admin → 404", (await visite(ca, "/admin")).status === 404);
   verifie("A · /admin/clients → 404", (await visite(ca, "/admin/clients")).status === 404);
 
-  console.log("\n== 2. Le membre de B, sans Kanban ==");
+  console.log("\n== 2. Le membre de B, sans Orbite ==");
   verifie(`B · ${sb}`, (await visite(cb, sb)).status === 200);
   verifie(`B · ${sb}/kanban → 404 (outil non activé)`, (await visite(cb, `${sb}/kanban`)).status === 404);
   verifie(`B · ${sa} → 404`, (await visite(cb, sa)).status === 404);
@@ -132,7 +132,7 @@ try {
   verifie("B · le tableau de A sous son propre espace → 404", (await visite(cb, `${sb}/kanban/${board.id}`)).status === 404);
   verifie("B · /admin → 404", (await visite(cb, "/admin")).status === 404);
 
-  console.log("\n== 3. Kanban coupé pour A, sans reconnexion ==");
+  console.log("\n== 3. Orbite coupé pour A, sans reconnexion ==");
   const basculer = (enabled) =>
     srv("PATCH", `organization_tools?organization_id=eq.${orgs.a.id}&tool_id=eq.${outilId}`, { enabled });
 

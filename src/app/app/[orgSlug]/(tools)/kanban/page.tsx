@@ -67,8 +67,8 @@ export default async function KanbanPage({
   return (
     <>
       <PageHeader
-        title="Kanban"
-        description="Tes tableaux, listes et cartes pour piloter un projet à plusieurs."
+        title="Orbite"
+        description="Tes tableaux de suivi : listes, cartes, avancement à plusieurs."
         action={
           <div className="flex items-center gap-2">
             <Button asChild variant="outline">

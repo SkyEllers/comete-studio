@@ -89,7 +89,7 @@ export default async function FichiersPage({
   return (
     <>
       <PageHeader
-        title="Fichiers"
+        title="Capsule"
         description="Tes photos, vidéos et documents, conservés en qualité d'origine."
         action={
           <div className="flex items-center gap-2">

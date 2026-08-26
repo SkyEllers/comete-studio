@@ -5,6 +5,11 @@ import { FolderOpen, SquareKanban, type LucideIcon } from "lucide-react";
  *
  * Deux sources, deux rôles : ce registre décrit ce que le code sait faire
  * (icône, route), la table `tools` dit ce qui existe et pour qui c'est activé.
+ *
+ * Le slug reste l'adresse — routes, chemins Storage, politiques RLS — et ne
+ * suit pas les changements de nom : `kanban` porte Orbite, `fichiers` porte
+ * Capsule. C'est la table qui fournit le nom affiché ; celui d'ici sert de
+ * repère au développeur.
  * Un slug présent en base mais absent d'ici n'a pas de page : il est signalé
  * dans l'administration et n'apparaît jamais côté client.
  */
@@ -19,17 +24,16 @@ export type ToolMeta = {
 export const TOOL_REGISTRY: Record<string, ToolMeta> = {
   kanban: {
     slug: "kanban",
-    name: "Kanban",
-    description:
-      "Tableaux, listes et cartes pour piloter un projet à plusieurs.",
+    name: "Orbite",
+    description: "Tes tableaux de suivi : listes, cartes, avancement à plusieurs.",
     icon: SquareKanban,
     href: (orgSlug) => `/app/${orgSlug}/kanban`,
   },
   fichiers: {
     slug: "fichiers",
-    name: "Fichiers",
+    name: "Capsule",
     description:
-      "Dépose photos, vidéos et documents, en qualité d'origine.",
+      "Tes photos, vidéos et documents, conservés en qualité d'origine.",
     icon: FolderOpen,
     href: (orgSlug) => `/app/${orgSlug}/fichiers`,
   },
