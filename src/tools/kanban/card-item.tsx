@@ -8,6 +8,7 @@ import { AlignLeft, CalendarDays, CheckSquare, MessageSquare } from "lucide-reac
 import { cn } from "@/lib/utils";
 
 import { initiales } from "./initials";
+import { estDepassee } from "./jours";
 import { colorHex } from "./palette";
 import type { BoardCard, BoardLabel, BoardMember } from "./types";
 
@@ -15,13 +16,6 @@ const jourMois = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
   month: "short",
 });
-
-/** Aujourd'hui à minuit : une échéance du jour n'est pas encore dépassée. */
-function estDepassee(dueDate: string) {
-  const aujourdhui = new Date();
-  aujourdhui.setHours(0, 0, 0, 0);
-  return new Date(`${dueDate}T00:00:00`) < aujourdhui;
-}
 
 function CarteBrute({
   card,

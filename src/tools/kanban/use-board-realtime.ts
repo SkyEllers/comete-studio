@@ -22,12 +22,13 @@ export type EtatTempsReel = "connexion" | "connecte" | "hors-ligne";
 
 export type RappelsTempsReel = {
   boardId: string;
-  userId: string;
   dispatch: (action: BoardAction) => void;
   /** Carte à laquelle appartient une checklist, dans l'état du moment. */
   carteDeChecklist: (checklistId: string) => string | undefined;
   /** La carte est-elle déjà chargée ? Une carte restaurée ne l'est pas. */
   carteConnue: (cardId: string) => boolean;
+  /** La liste est-elle déjà chargée ? Une liste restaurée ne l'est pas. */
+  listeConnue: (listId: string) => boolean;
   /** Une carte a reçu un commentaire, une checklist ou une activité. */
   onCarteTouchee: (cardId: string) => void;
   /** Une carte vient de quitter le tableau (archivée ou supprimée ailleurs). */
@@ -138,19 +139,28 @@ export function useBoardRealtime(rappels: RappelsTempsReel): EtatTempsReel {
       const row = ligne(evenement);
       if (!row?.id || estNotreEcho("lists", row.id)) return;
 
-      const { dispatch } = courants.current;
+      const { dispatch, listeConnue, onResync } = courants.current;
 
       if (evenement.eventType === "DELETE" || row.is_archived) {
         dispatch({ type: "list/removed", id: row.id });
         return;
       }
 
-      // `list/added` ne fait rien si la liste est déjà là : les deux dispatchs
-      // couvrent d'un coup la création, la restauration et la modification.
-      dispatch({
-        type: "list/added",
-        list: { id: row.id, name: row.name, position: row.position },
-      });
+      if (!listeConnue(row.id)) {
+        // Une liste créée arrive vide ; une liste restaurée, elle, ramène des
+        // cartes qu'on n'a pas : on recharge.
+        if (evenement.eventType !== "INSERT") {
+          onResync();
+          return;
+        }
+
+        dispatch({
+          type: "list/added",
+          list: { id: row.id, name: row.name, position: row.position },
+        });
+        return;
+      }
+
       dispatch({
         type: "list/patched",
         id: row.id,
@@ -330,14 +340,14 @@ export function useBoardRealtime(rappels: RappelsTempsReel): EtatTempsReel {
 
     // ------------------------------- Commentaires -----------------------------
     /*
-     * Nos propres commentaires sont déjà affichés : on les reconnaît à
-     * `user_id`. Contrepartie assumée en v1 : le même compte ouvert sur deux
-     * appareils ne verra pas ses commentaires apparaître tout seuls.
+     * Reconnus par leur identifiant, comme le reste : celui d'un commentaire
+     * qu'on vient de publier est tiré avant l'insertion, donc la marque existe
+     * quand l'événement revient. Un commentaire écrit depuis un autre appareil
+     * du même compte, lui, n'a pas de marque et apparaît normalement.
      */
     abonner<Ligne<"comments">>("comments", surCeTableau, (evenement) => {
       const row = ligne(evenement);
       if (!row?.id || estNotreEcho("comments", row.id)) return;
-      if (row.user_id === courants.current.userId) return;
 
       const { dispatch, onCarteTouchee } = courants.current;
 
@@ -356,7 +366,7 @@ export function useBoardRealtime(rappels: RappelsTempsReel): EtatTempsReel {
       surCeTableau,
       (evenement) => {
         const row = ligne(evenement);
-        if (!row?.card_id || row.user_id === courants.current.userId) return;
+        if (!row?.id || estNotreEcho("card_activities", row.id)) return;
         courants.current.onCarteTouchee(row.card_id);
       },
     );

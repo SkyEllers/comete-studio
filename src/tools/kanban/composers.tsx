@@ -25,6 +25,11 @@ export function Composer({
   submitLabel: string;
   onSubmit: (valeur: string) => Promise<boolean>;
   className?: string;
+  /**
+   * Ouvert d'emblée. Le raccourci « n » s'en sert en changeant la `key` du
+   * composeur : il repart neuf, ouvert, et l'effet ci-dessous lui donne le
+   * focus — sans état supplémentaire à synchroniser.
+   */
   autoOpen?: boolean;
 }) {
   const [ouvert, setOuvert] = useState(autoOpen);
@@ -56,7 +61,7 @@ export function Composer({
         type="button"
         onClick={() => setOuvert(true)}
         className={cn(
-          "text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none",
+          "text-muted-foreground hover:bg-surface-2 hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-1.5 rounded-md px-2 py-2.5 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none sm:py-1.5",
           className,
         )}
       >

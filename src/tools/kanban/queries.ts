@@ -35,7 +35,16 @@ export async function getBoards(organizationId: string): Promise<{
       .eq("organization_id", organizationId)
       .order("position")
       .order("name"),
-    supabase.from("cards").select("board_id").eq("is_archived", false),
+    /*
+     * `!inner` écarte les cartes dont la liste est archivée : elles ne sont pas
+     * archivées elles-mêmes, mais elles ne sont pas sur le tableau non plus,
+     * et le compte affiché doit dire ce qu'on y verra.
+     */
+    supabase
+      .from("cards")
+      .select("board_id, lists!inner (is_archived)")
+      .eq("is_archived", false)
+      .eq("lists.is_archived", false),
   ]);
 
   const cardCount = new Map<string, number>();
@@ -62,8 +71,13 @@ export async function getBoards(organizationId: string): Promise<{
 }
 
 /**
- * Un tableau complet, en une passe : la page n'a qu'une attente, et le store
- * côté navigateur démarre avec tout ce qu'il lui faut.
+ * Un tableau complet, en trois requêtes.
+ *
+ * Une seule attente pour la page, et le store côté navigateur démarre avec
+ * tout ce qu'il lui faut : le tableau et ce qui lui appartient en propre
+ * (listes, étiquettes), les cartes avec ce qui pend dessous (étiquettes,
+ * membres, checklists, commentaires), et les membres de l'organisation. Le
+ * reste est de l'agrégation en mémoire, sans aller-retour supplémentaire.
  *
  * Renvoie `null` si le tableau n'existe pas, s'il n'appartient pas à cette
  * organisation, ou si la RLS le cache (outil coupé, non-membre) : la page
@@ -76,83 +90,77 @@ export async function getBoardData(
 ): Promise<BoardData | null> {
   const supabase = await createClient();
 
-  const { data: board } = await supabase
-    .from("boards")
-    .select("id, organization_id, name, description, color, is_archived")
-    .eq("id", boardId)
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-
-  if (!board) return null;
-
-  const [
-    { data: lists },
-    { data: cards },
-    { data: labels },
-    { data: checklists },
-    { data: comments },
-    { data: memberships },
-  ] = await Promise.all([
+  const [tableau, cartes, membres] = await Promise.all([
     supabase
-      .from("lists")
-      .select("id, name, position")
-      .eq("board_id", boardId)
-      .eq("is_archived", false)
-      .order("position"),
+      .from("boards")
+      .select(
+        "id, organization_id, name, description, color, is_archived, lists (id, name, position), labels (id, name, color)",
+      )
+      .eq("id", boardId)
+      .eq("organization_id", organizationId)
+      .eq("lists.is_archived", false)
+      .order("position", { referencedTable: "lists" })
+      .maybeSingle(),
     supabase
       .from("cards")
       .select(
-        "id, list_id, title, description, position, due_date, is_completed, cover_color, card_labels (label_id), card_assignees (user_id)",
+        "id, list_id, title, description, position, due_date, is_completed, cover_color, card_labels (label_id), card_assignees (user_id), checklists (id, checklist_items (is_done)), comments (id)",
       )
       .eq("board_id", boardId)
       .eq("is_archived", false)
       .order("position"),
-    supabase.from("labels").select("id, name, color").eq("board_id", boardId),
-    supabase
-      .from("checklists")
-      .select("id, card_id, checklist_items (is_done)")
-      .eq("board_id", boardId),
-    supabase.from("comments").select("card_id").eq("board_id", boardId),
     supabase
       .from("memberships")
       .select("user_id, profiles (full_name, email)")
       .eq("organization_id", organizationId),
   ]);
 
-  // Checklists : on ne garde que le fait / total par carte, plus le lien
-  // checklist → carte dont le temps réel a besoin.
-  const checklistStats = new Map<string, { done: number; total: number }>();
+  const board = tableau.data;
+  if (!board) return null;
+
+  const lists = board.lists ?? [];
+  const listesActives = new Set(lists.map((liste) => liste.id));
+
+  // Checklist → carte : le temps réel en a besoin, un événement d'item ne
+  // porte que `checklist_id`.
   const checklistOwners: Record<string, string> = {};
-  for (const checklist of checklists ?? []) {
-    checklistOwners[checklist.id] = checklist.card_id;
-    const stat = checklistStats.get(checklist.card_id) ?? { done: 0, total: 0 };
-    for (const item of checklist.checklist_items ?? []) {
-      stat.total += 1;
-      if (item.is_done) stat.done += 1;
+  const cards: BoardCard[] = [];
+
+  for (const card of cartes.data ?? []) {
+    /*
+     * Archiver une liste ne touche pas à ses cartes : elles restent actives,
+     * simplement hors du tableau tant que leur liste l'est. C'est ce qui
+     * permet à la restauration de tout ramener intact.
+     */
+    if (!listesActives.has(card.list_id)) continue;
+
+    let checklistDone = 0;
+    let checklistTotal = 0;
+
+    for (const checklist of card.checklists ?? []) {
+      checklistOwners[checklist.id] = card.id;
+      for (const item of checklist.checklist_items ?? []) {
+        checklistTotal += 1;
+        if (item.is_done) checklistDone += 1;
+      }
     }
-    checklistStats.set(checklist.card_id, stat);
-  }
 
-  const commentCount = new Map<string, number>();
-  for (const comment of comments ?? []) {
-    commentCount.set(comment.card_id, (commentCount.get(comment.card_id) ?? 0) + 1);
+    cards.push({
+      id: card.id,
+      listId: card.list_id,
+      title: card.title,
+      description: card.description,
+      position: card.position,
+      dueDate: card.due_date,
+      isCompleted: card.is_completed,
+      coverColor: card.cover_color,
+      labelIds: (card.card_labels ?? []).map((l) => l.label_id),
+      assigneeIds: (card.card_assignees ?? []).map((a) => a.user_id),
+      checklistDone,
+      checklistTotal,
+      commentCount: (card.comments ?? []).length,
+    });
   }
-
-  const cartes: BoardCard[] = (cards ?? []).map((card) => ({
-    id: card.id,
-    listId: card.list_id,
-    title: card.title,
-    description: card.description,
-    position: card.position,
-    dueDate: card.due_date,
-    isCompleted: card.is_completed,
-    coverColor: card.cover_color,
-    labelIds: (card.card_labels ?? []).map((l) => l.label_id),
-    assigneeIds: (card.card_assignees ?? []).map((a) => a.user_id),
-    checklistDone: checklistStats.get(card.id)?.done ?? 0,
-    checklistTotal: checklistStats.get(card.id)?.total ?? 0,
-    commentCount: commentCount.get(card.id) ?? 0,
-  }));
 
   return {
     board: {
@@ -163,10 +171,10 @@ export async function getBoardData(
       color: board.color,
       isArchived: board.is_archived,
     },
-    lists: lists ?? [],
-    cards: cartes,
-    labels: labels ?? [],
-    members: (memberships ?? []).map((m) => ({
+    lists,
+    cards,
+    labels: board.labels ?? [],
+    members: (membres.data ?? []).map((m) => ({
       id: m.user_id,
       name: m.profiles?.full_name || m.profiles?.email || "—",
       email: m.profiles?.email ?? "",

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
 
+import { tracer } from "./card-mutations";
 import { marquerEcriture } from "./echo";
 
 import { PAS_POSITION } from "./positions";
@@ -227,8 +228,19 @@ export async function renameList(
   return ok();
 }
 
-/** Archiver une liste emmène ses cartes avec elle. */
-export async function archiveList(listId: string): Promise<ActionResult> {
+/**
+ * Archiver une liste l'emmène avec ses cartes, sans y toucher : elles restent
+ * `is_archived = false`, simplement rattachées à une liste qui n'est plus
+ * chargée (`getBoardData` écarte les cartes des listes archivées).
+ *
+ * C'est ce qui rend la restauration exacte : la liste revient telle qu'elle
+ * était, et une carte archivée à la main avant l'archivage de sa liste, elle,
+ * reste dans les archives.
+ */
+async function basculerArchiveListe(
+  listId: string,
+  isArchived: boolean,
+): Promise<ActionResult> {
   if (!identifiant.safeParse(listId).success) return fail("Liste introuvable.");
 
   const supabase = createClient();
@@ -236,12 +248,37 @@ export async function archiveList(listId: string): Promise<ActionResult> {
 
   const { error } = await supabase
     .from("lists")
-    .update({ is_archived: true })
+    .update({ is_archived: isArchived })
     .eq("id", listId);
 
-  if (error) return fail("Impossible d'archiver cette liste.");
+  if (error) {
+    return fail(
+      isArchived
+        ? "Impossible d'archiver cette liste."
+        : "Impossible de restaurer cette liste.",
+    );
+  }
+  return ok();
+}
 
-  await supabase.from("cards").update({ is_archived: true }).eq("list_id", listId);
+export const archiveList = (listId: string) => basculerArchiveListe(listId, true);
+export const restoreList = (listId: string) => basculerArchiveListe(listId, false);
+
+/** Suppression définitive : la liste emporte ses cartes (cascade en base). */
+export async function deleteList(listId: string): Promise<ActionResult> {
+  if (!identifiant.safeParse(listId).success) return fail("Liste introuvable.");
+
+  const supabase = createClient();
+  marquerEcriture("lists", listId);
+
+  const { data, error } = await supabase
+    .from("lists")
+    .delete()
+    .eq("id", listId)
+    .select("id");
+
+  if (error) return fail("Impossible de supprimer cette liste.");
+  if (!data || data.length === 0) return fail("Cette liste n'existe plus.");
   return ok();
 }
 
@@ -303,13 +340,7 @@ export async function createCard(input: {
 
   if (error || !data) return fail("Impossible d'ajouter cette carte.");
 
-  await supabase.from("card_activities").insert({
-    card_id: data.id,
-    board_id: parsed.data.boardId,
-    user_id: parsed.data.createdBy,
-    type: "card.created",
-    payload: {},
-  });
+  await tracer(data.id, parsed.data.boardId, parsed.data.createdBy, "card.created");
 
   return ok({
     id: data.id,
@@ -405,16 +436,16 @@ export async function moveCard(input: {
     parsed.data.toListName &&
     parsed.data.fromListName !== parsed.data.toListName
   ) {
-    await supabase.from("card_activities").insert({
-      card_id: parsed.data.cardId,
-      board_id: parsed.data.boardId,
-      user_id: parsed.data.userId,
-      type: "card.moved",
-      payload: {
+    await tracer(
+      parsed.data.cardId,
+      parsed.data.boardId,
+      parsed.data.userId,
+      "card.moved",
+      {
         from_list: parsed.data.fromListName,
         to_list: parsed.data.toListName,
       },
-    });
+    );
   }
 
   return ok();

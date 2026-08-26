@@ -8,9 +8,7 @@ import {
   Link2,
   MoreHorizontal,
   Plus,
-  RotateCcw,
   Tag,
-  Trash2,
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -24,7 +22,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -41,7 +38,6 @@ import {
   createChecklistItem,
   createComment,
   createLabel,
-  deleteCard,
   deleteChecklist,
   deleteChecklistItem,
   deleteComment,
@@ -49,7 +45,6 @@ import {
   moveCardToList,
   renameChecklist,
   renameLabel,
-  restoreCard,
   setCardCover,
   setCardDueDate,
   toggleCardAssignee,
@@ -96,8 +91,6 @@ export function CardPanel({
   cardsOfTargetList,
   boardId,
   userId,
-  canDelete,
-  archived = false,
   dispatch,
   onClose,
 }: {
@@ -111,9 +104,6 @@ export function CardPanel({
   cardsOfTargetList: (listId: string) => number;
   boardId: string;
   userId: string;
-  canDelete: boolean;
-  /** La fiche est ouverte depuis les archives (chantier 6). */
-  archived?: boolean;
   dispatch: React.Dispatch<BoardAction>;
   onClose: () => void;
 }) {
@@ -536,27 +526,6 @@ export function CardPanel({
     onClose();
   };
 
-  const restaurer = async () => {
-    const result = await restoreCard(cardId);
-    if (!result.ok) {
-      echec(result.error);
-      return;
-    }
-    toast.success("Carte restaurée");
-    onClose();
-  };
-
-  const supprimer = async () => {
-    const result = await deleteCard(cardId);
-    if (!result.ok) {
-      echec(result.error);
-      return;
-    }
-    dispatch({ type: "card/removed", id: cardId });
-    toast.success("Carte supprimée");
-    onClose();
-  };
-
   // ---------------------------------- Rendu ----------------------------------
 
   const etiquettes = labels.filter((l) => card.labelIds.includes(l.id));
@@ -667,31 +636,13 @@ export function CardPanel({
                       Copier le lien
                     </DropdownMenuItem>
 
-                    {archived ? (
-                      <>
-                        <DropdownMenuItem onSelect={() => void restaurer()}>
-                          <RotateCcw aria-hidden="true" />
-                          Restaurer
-                        </DropdownMenuItem>
-                        {canDelete ? (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onSelect={() => void supprimer()}
-                            >
-                              <Trash2 aria-hidden="true" />
-                              Supprimer définitivement
-                            </DropdownMenuItem>
-                          </>
-                        ) : null}
-                      </>
-                    ) : (
-                      <DropdownMenuItem onSelect={() => void archiver()}>
-                        <Archive aria-hidden="true" />
-                        Archiver la carte
-                      </DropdownMenuItem>
-                    )}
+                    <DropdownMenuItem onSelect={() => void archiver()}>
+                      <Archive aria-hidden="true" />
+                      Archiver la carte
+                    </DropdownMenuItem>
+                    {/* Restaurer et supprimer définitivement vivent dans la
+                        vue Archives : une carte archivée n'est plus dans le
+                        store, sa fiche ne pourrait donc plus rien refléter. */}
                   </DropdownMenuContent>
                 </DropdownMenu>
             </div>

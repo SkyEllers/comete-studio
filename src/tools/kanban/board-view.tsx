@@ -21,14 +21,25 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { cn } from "@/lib/utils";
+
 import { refreshBoard, renormalizeBoardLists, renormalizeList } from "./actions";
+import { annoncesDnd, INSTRUCTIONS_DND, type Depot } from "./annonces";
+import { ArchivesDialog } from "./archives-dialog";
 import { BoardHeader } from "./board-header";
 import { CardFace } from "./card-item";
 import { CardPanel } from "./card-panel";
 import { Composer } from "./composers";
+import {
+  carteRetenue,
+  FILTRES_VIDES,
+  nombreFiltres,
+  preparer,
+  type Filtres,
+} from "./filters";
 import { ListColumn } from "./list-column";
 import {
   archiveBoard,
@@ -44,7 +55,7 @@ import {
 import type { BoardColor } from "./palette";
 import { PAS_POSITION, ecartTropPetit, positionEntre } from "./positions";
 import { cardsOfList, useBoardStore } from "./store";
-import type { BoardData } from "./types";
+import type { BoardCard, BoardData } from "./types";
 import { useBoardRealtime } from "./use-board-realtime";
 
 /** Liste visée par un survol, quel que soit l'élément survolé. */
@@ -55,6 +66,20 @@ function listeSurvolee(over: Over | null): string | null {
   if (data?.type === "listDropzone") return String(data.listId);
   if (data?.type === "list") return String(over.id);
   return null;
+}
+
+/** Un champ de saisie a la main : les raccourcis d'une lettre s'effacent. */
+function dansUnChamp(cible: EventTarget | null) {
+  const element = cible as HTMLElement | null;
+  if (!element) return false;
+
+  const balise = element.tagName;
+  return (
+    balise === "INPUT" ||
+    balise === "TEXTAREA" ||
+    balise === "SELECT" ||
+    element.isContentEditable
+  );
 }
 
 export function BoardView({
@@ -72,19 +97,38 @@ export function BoardView({
   const [state, dispatch] = useBoardStore(initial);
   const [carteEnMain, setCarteEnMain] = useState<string | null>(null);
   const [listeEnMain, setListeEnMain] = useState<string | null>(null);
-  const [recherche, setRecherche] = useState("");
+  const [filtres, setFiltres] = useState<Filtres>(FILTRES_VIDES);
   const [carteOuverte, setCarteOuverte] = useState<string | null>(initialCardId);
+  const [archivesOuvertes, setArchivesOuvertes] = useState(false);
   // Incrémenté quand quelqu'un d'autre touche la carte ouverte : la fiche
   // recharge alors son fil (commentaires, checklists, activité).
   const [filVersion, setFilVersion] = useState(0);
+  // Le raccourci « n » vise une colonne : ce compteur ouvre son composeur.
+  const [composeurCible, setComposeurCible] = useState<{
+    listId: string;
+    n: number;
+  } | null>(null);
   const origine = useRef<string | null>(null);
+  const champRecherche = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  /*
+   * Dernier état connu, hors du flux de rendu.
+   *
+   * Les rappels passés aux colonnes doivent garder la même identité d'un rendu
+   * à l'autre, sinon la mémoïsation par liste ne sert à rien : ils lisent donc
+   * l'état ici plutôt que dans leur fermeture.
+   */
+  const etat = useRef(state);
+  useEffect(() => {
+    etat.current = state;
+  });
 
   /**
    * Rechargement complet, demandé par le canal temps réel après une
    * reconnexion. `board/reset` remplace l'état d'un bloc : rien à réconcilier.
    */
-  const resynchroniser = async () => {
+  const resynchroniser = useCallback(async () => {
     const result = await refreshBoard(orgSlug, initial.board.id);
     if (!result.ok) {
       toast.error(result.error);
@@ -92,14 +136,19 @@ export function BoardView({
       return;
     }
     dispatch({ type: "board/reset", data: result.data });
-  };
+  }, [dispatch, initial.board.id, orgSlug, router]);
+
+  const fermerCarte = useCallback(() => {
+    setCarteOuverte(null);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   const tempsReel = useBoardRealtime({
     boardId: initial.board.id,
-    userId,
     dispatch,
     carteDeChecklist: (checklistId) => state.checklistOwners[checklistId],
     carteConnue: (cardId) => state.cards.some((c) => c.id === cardId),
+    listeConnue: (listId) => state.lists.some((l) => l.id === listId),
     onCarteTouchee: (cardId) => {
       if (cardId === carteOuverte) setFilVersion((v) => v + 1);
     },
@@ -134,11 +183,31 @@ export function BoardView({
     }),
   );
 
-  const filtre = recherche.trim().toLowerCase();
-  const correspond = (titre: string, description: string) =>
-    !filtre ||
-    titre.toLowerCase().includes(filtre) ||
-    description.toLowerCase().includes(filtre);
+  // --------------------------------- filtres ---------------------------------
+
+  const nbFiltres = nombreFiltres(filtres);
+  const filtrage = nbFiltres > 0;
+
+  /*
+   * Cartes par liste, filtrées. Le résultat est un objet neuf à chaque
+   * changement de cartes ou de filtres ; c'est `ListColumn` qui compare sa
+   * propre série carte par carte et décide de se re-rendre ou non.
+   */
+  const parListe = useMemo(() => {
+    const criteres = preparer(filtres);
+    const groupes: Record<string, BoardCard[]> = {};
+    for (const liste of state.lists) groupes[liste.id] = [];
+
+    // `state.cards` est déjà trié par position : l'ordre se conserve seul.
+    for (const card of state.cards) {
+      const groupe = groupes[card.listId];
+      if (groupe && carteRetenue(card, criteres)) groupe.push(card);
+    }
+
+    return groupes;
+  }, [state.lists, state.cards, filtres]);
+
+  // ------------------------------ glisser-déposer -----------------------------
 
   /**
    * Où la carte atterrirait si on lâchait maintenant.
@@ -180,8 +249,28 @@ export function BoardView({
 
     const avant = voisines[index - 1]?.position;
     const apres = voisines[index]?.position;
-    return { listId, position: positionEntre(avant, apres), avant, apres };
+    return {
+      listId,
+      position: positionEntre(avant, apres),
+      avant,
+      apres,
+      rang: index + 1,
+      total: voisines.length + 1,
+    };
   };
+
+  /** Ce que la région `aria-live` annonce : la liste d'arrivée et le rang. */
+  const depot = (cardId: string, over: Over | null): Depot => {
+    const place = cible(cardId, over);
+    if (!place) return null;
+
+    const liste = state.lists.find((l) => l.id === place.listId);
+    if (!liste) return null;
+
+    return { liste: liste.name, rang: place.rang, total: place.total };
+  };
+
+  const annonces = annoncesDnd(() => state, depot);
 
   const onDragStart = (event: DragStartEvent) => {
     const type = event.active.data.current?.type;
@@ -223,6 +312,7 @@ export function BoardView({
 
   const onDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    const data = state;
     setCarteEnMain(null);
     setListeEnMain(null);
 
@@ -236,9 +326,9 @@ export function BoardView({
       const overListId = listeSurvolee(over);
       if (!overListId || overListId === listId) return;
 
-      const ids = state.lists.map((l) => l.id);
+      const ids = data.lists.map((l) => l.id);
       const reordonnees = arrayMove(
-        state.lists,
+        data.lists,
         ids.indexOf(listId),
         ids.indexOf(overListId),
       );
@@ -248,20 +338,24 @@ export function BoardView({
       const apres = voisines[place]?.position;
       const position = positionEntre(avant, apres);
 
-      const precedente = state.lists.find((l) => l.id === listId)?.position;
+      const precedente = data.lists.find((l) => l.id === listId)?.position;
       dispatch({ type: "list/patched", id: listId, patch: { position } });
 
       const result = await moveList(listId, position);
       if (!result.ok) {
         if (precedente !== undefined) {
-          dispatch({ type: "list/patched", id: listId, patch: { position: precedente } });
+          dispatch({
+            type: "list/patched",
+            id: listId,
+            patch: { position: precedente },
+          });
         }
         toast.error(result.error);
         return;
       }
 
       if (ecartTropPetit(avant, apres)) {
-        const renum = await renormalizeBoardLists(state.board.id);
+        const renum = await renormalizeBoardLists(data.board.id);
         if (renum.ok) dispatch({ type: "lists/repositioned", positions: renum.data });
       }
       return;
@@ -269,7 +363,7 @@ export function BoardView({
 
     // ----- déplacement d'une carte -----
     const cardId = String(active.id);
-    const carte = state.cards.find((c) => c.id === cardId);
+    const carte = data.cards.find((c) => c.id === cardId);
     if (!carte) return;
 
     const departId = origine.current;
@@ -291,12 +385,12 @@ export function BoardView({
 
     const result = await moveCard({
       cardId,
-      boardId: state.board.id,
+      boardId: data.board.id,
       listId: destination.listId,
       position: destination.position,
       userId,
-      fromListName: state.lists.find((l) => l.id === departId)?.name,
-      toListName: state.lists.find((l) => l.id === destination.listId)?.name,
+      fromListName: data.lists.find((l) => l.id === departId)?.name,
+      toListName: data.lists.find((l) => l.id === destination.listId)?.name,
     });
 
     if (!result.ok) {
@@ -321,63 +415,81 @@ export function BoardView({
 
   // --------------------------------- écritures ---------------------------------
 
-  const ajouterCarte = async (listId: string, title: string) => {
-    const cartes = cardsOfList(state, listId);
-    const position = (cartes.at(-1)?.position ?? 0) + PAS_POSITION;
+  const ajouterCarte = useCallback(
+    async (listId: string, title: string) => {
+      const data = etat.current;
+      const cartes = cardsOfList(data, listId);
+      const position = (cartes.at(-1)?.position ?? 0) + PAS_POSITION;
 
-    const result = await createCard({
-      boardId: state.board.id,
-      listId,
-      title,
-      position,
-      createdBy: userId,
-    });
+      const result = await createCard({
+        boardId: data.board.id,
+        listId,
+        title,
+        position,
+        createdBy: userId,
+      });
 
-    if (!result.ok) {
-      toast.error(result.error);
-      return false;
-    }
+      if (!result.ok) {
+        toast.error(result.error);
+        return false;
+      }
 
-    dispatch({ type: "card/added", card: result.data });
-    return true;
-  };
+      dispatch({ type: "card/added", card: result.data });
+      return true;
+    },
+    [dispatch, userId],
+  );
 
-  const ajouterListe = async (name: string) => {
-    const position = (state.lists.at(-1)?.position ?? 0) + PAS_POSITION;
-    const result = await createList({ boardId: state.board.id, name, position });
+  const ajouterListe = useCallback(
+    async (name: string) => {
+      const data = etat.current;
+      const position = (data.lists.at(-1)?.position ?? 0) + PAS_POSITION;
+      const result = await createList({ boardId: data.board.id, name, position });
 
-    if (!result.ok) {
-      toast.error(result.error);
-      return false;
-    }
+      if (!result.ok) {
+        toast.error(result.error);
+        return false;
+      }
 
-    dispatch({ type: "list/added", list: result.data });
-    return true;
-  };
+      dispatch({ type: "list/added", list: result.data });
+      return true;
+    },
+    [dispatch],
+  );
 
-  const renommerListe = async (listId: string, name: string) => {
-    const avant = state.lists.find((l) => l.id === listId)?.name;
-    dispatch({ type: "list/patched", id: listId, patch: { name } });
+  const renommerListe = useCallback(
+    async (listId: string, name: string) => {
+      const avant = etat.current.lists.find((l) => l.id === listId)?.name;
+      dispatch({ type: "list/patched", id: listId, patch: { name } });
 
-    const result = await renameList(listId, name);
-    if (!result.ok) {
-      if (avant) dispatch({ type: "list/patched", id: listId, patch: { name: avant } });
-      toast.error(result.error);
-    }
-  };
+      const result = await renameList(listId, name);
+      if (!result.ok) {
+        if (avant) {
+          dispatch({ type: "list/patched", id: listId, patch: { name: avant } });
+        }
+        toast.error(result.error);
+      }
+    },
+    [dispatch],
+  );
 
-  const archiverListe = async (listId: string) => {
-    const liste = state.lists.find((l) => l.id === listId);
-    dispatch({ type: "list/removed", id: listId });
+  const archiverListe = useCallback(
+    async (listId: string) => {
+      const liste = etat.current.lists.find((l) => l.id === listId);
+      dispatch({ type: "list/removed", id: listId });
 
-    const result = await archiveList(listId);
-    if (!result.ok) {
-      toast.error(result.error);
-      router.refresh();
-      return;
-    }
-    toast.success(`« ${liste?.name} » archivée`);
-  };
+      const result = await archiveList(listId);
+      if (!result.ok) {
+        // La liste a déjà disparu de l'écran : seule une relecture complète la
+        // ramène avec ses cartes, que le store ne porte plus.
+        toast.error(result.error);
+        void resynchroniser();
+        return;
+      }
+      toast.success(`« ${liste?.name} » archivée`);
+    },
+    [dispatch, resynchroniser],
+  );
 
   const renommerTableau = async (name: string) => {
     const avant = state.board.name;
@@ -425,20 +537,62 @@ export function BoardView({
    * L'URL suit la fiche ouverte sans navigation : `replaceState` garde le lien
    * partageable (« Copier le lien ») sans rejouer la page ni vider le store.
    */
-  const ouvrirCarte = (cardId: string) => {
+  const ouvrirCarte = useCallback((cardId: string) => {
     setCarteOuverte(cardId);
     window.history.replaceState(null, "", `?card=${cardId}`);
-  };
+  }, []);
 
-  const fermerCarte = () => {
-    setCarteOuverte(null);
-    window.history.replaceState(null, "", window.location.pathname);
-  };
+  // -------------------------------- raccourcis --------------------------------
+
+  /*
+   * `n` ouvre le composeur de la première liste, `f` va au champ de recherche.
+   * Rien pendant qu'une fiche ou les archives sont ouvertes : les fenêtres
+   * modales ont la main, et Échap les referme d'elles-mêmes — comme les
+   * composeurs, les menus et les popovers. Ne reste ici que la recherche, que
+   * personne d'autre ne ferme.
+   */
+  useEffect(() => {
+    if (carteOuverte || archivesOuvertes) return;
+
+    const surTouche = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (dansUnChamp(event.target)) {
+        if (event.key === "Escape" && event.target === champRecherche.current) {
+          setFiltres((actuels) => ({ ...actuels, texte: "" }));
+          champRecherche.current?.blur();
+        }
+        return;
+      }
+
+      if (event.key === "f") {
+        event.preventDefault();
+        champRecherche.current?.focus();
+        champRecherche.current?.select();
+        return;
+      }
+
+      if (event.key === "n") {
+        const premiere = etat.current.lists[0];
+        if (!premiere) return;
+        event.preventDefault();
+        setComposeurCible((cible) => ({
+          listId: premiere.id,
+          n: (cible?.n ?? 0) + 1,
+        }));
+      }
+    };
+
+    window.addEventListener("keydown", surTouche);
+    return () => window.removeEventListener("keydown", surTouche);
+  }, [carteOuverte, archivesOuvertes]);
+
+  // ----------------------------------- rendu -----------------------------------
 
   const carteEnFiche = state.cards.find((c) => c.id === carteOuverte);
-
   const carteAffichee = state.cards.find((c) => c.id === carteEnMain);
   const listeAffichee = state.lists.find((l) => l.id === listeEnMain);
+  const enDeplacement = Boolean(carteEnMain || listeEnMain);
 
   return (
     // La vue vit dans le <main> de la coquille : 3,5rem de barre haute et
@@ -446,14 +600,17 @@ export function BoardView({
     <div className="flex h-[calc(100svh-7.5rem)] min-h-96 flex-col">
       <BoardHeader
         board={state.board}
+        labels={state.labels}
         members={state.members}
         orgSlug={orgSlug}
         canDelete={state.canDelete}
         tempsReel={tempsReel}
-        recherche={recherche}
-        onRecherche={setRecherche}
+        filtres={filtres}
+        champRecherche={champRecherche}
+        onFiltres={setFiltres}
         onRename={renommerTableau}
         onColor={changerCouleur}
+        onArchives={() => setArchivesOuvertes(true)}
         onArchive={archiverTableau}
         onDelete={supprimerTableau}
       />
@@ -465,11 +622,23 @@ export function BoardView({
         id="kanban-board"
         sensors={sensors}
         collisionDetection={closestCorners}
+        accessibility={{
+          announcements: annonces,
+          screenReaderInstructions: INSTRUCTIONS_DND,
+        }}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
       >
-        <div className="flex flex-1 items-start gap-3 overflow-x-auto p-4 sm:p-6">
+        <div
+          className={cn(
+            // Sur mobile, une colonne par écran : le défilement s'aligne sur
+            // elles. Pendant un déplacement, l'aimant lutterait contre le
+            // défilement automatique de dnd-kit.
+            "flex flex-1 items-start gap-3 overflow-x-auto p-4 max-sm:snap-x max-sm:snap-mandatory sm:p-6",
+            enDeplacement && "snap-none",
+          )}
+        >
           <SortableContext
             items={state.lists.map((l) => l.id)}
             strategy={horizontalListSortingStrategy}
@@ -478,21 +647,22 @@ export function BoardView({
               <ListColumn
                 key={list.id}
                 list={list}
-                cards={cardsOfList(state, list.id).filter((c) =>
-                  correspond(c.title, c.description),
-                )}
+                cards={parListe[list.id] ?? []}
                 labels={state.labels}
                 members={state.members}
-                dragDisabled={Boolean(filtre)}
-                onRename={(name) => void renommerListe(list.id, name)}
-                onArchive={() => void archiverListe(list.id)}
-                onAddCard={(title) => ajouterCarte(list.id, title)}
+                dragDisabled={filtrage}
+                signalComposeur={
+                  composeurCible?.listId === list.id ? composeurCible.n : 0
+                }
+                onRename={renommerListe}
+                onArchive={archiverListe}
+                onAddCard={ajouterCarte}
                 onOpenCard={ouvrirCarte}
               />
             ))}
           </SortableContext>
 
-          <div className="bg-surface-1 border-line w-[272px] shrink-0 rounded-lg border p-2">
+          <div className="bg-surface-1 border-line w-[85vw] max-w-[272px] shrink-0 snap-center rounded-lg border p-2">
             <Composer
               label="Ajouter une liste"
               placeholder="Nom de la liste"
@@ -531,11 +701,18 @@ export function BoardView({
           }
           boardId={state.board.id}
           userId={userId}
-          canDelete={state.canDelete}
           dispatch={dispatch}
           onClose={fermerCarte}
         />
       ) : null}
+
+      <ArchivesDialog
+        boardId={state.board.id}
+        canDelete={state.canDelete}
+        ouvert={archivesOuvertes}
+        onOpenChange={setArchivesOuvertes}
+        onResync={() => void resynchroniser()}
+      />
     </div>
   );
 }

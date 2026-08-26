@@ -1,6 +1,17 @@
 "use client";
 
-import { Archive, ArrowLeft, MoreHorizontal, Palette, Pencil, Search, Trash2, WifiOff } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  MoreHorizontal,
+  Palette,
+  Pencil,
+  Search,
+  Trash2,
+  WifiOff,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -27,33 +38,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
+import { BoardFilters } from "./board-filters";
+import type { Filtres } from "./filters";
 import { initiales } from "./initials";
 import { BOARD_COLORS, PALETTE, colorHex, type BoardColor } from "./palette";
-import type { BoardMember, BoardSelf } from "./types";
+import type { BoardLabel, BoardMember, BoardSelf } from "./types";
 import type { EtatTempsReel } from "./use-board-realtime";
 
 export function BoardHeader({
   board,
+  labels,
   members,
   orgSlug,
   canDelete,
   tempsReel,
-  recherche,
-  onRecherche,
+  filtres,
+  champRecherche,
+  onFiltres,
   onRename,
   onColor,
+  onArchives,
   onArchive,
   onDelete,
 }: {
   board: BoardSelf;
+  labels: BoardLabel[];
   members: BoardMember[];
   orgSlug: string;
   canDelete: boolean;
   tempsReel: EtatTempsReel;
-  recherche: string;
-  onRecherche: (valeur: string) => void;
+  filtres: Filtres;
+  /** Le raccourci « f » y pose le focus depuis le tableau. */
+  champRecherche: React.RefObject<HTMLInputElement | null>;
+  onFiltres: (filtres: Filtres) => void;
   onRename: (name: string) => void;
   onColor: (color: BoardColor) => void;
+  onArchives: () => void;
   onArchive: () => void;
   onDelete: () => void;
 }) {
@@ -162,17 +182,42 @@ export function BoardHeader({
             className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2"
           />
           <Input
-            value={recherche}
-            onChange={(event) => onRecherche(event.target.value)}
+            ref={champRecherche}
+            value={filtres.texte}
+            onChange={(event) =>
+              onFiltres({ ...filtres, texte: event.target.value })
+            }
             placeholder="Rechercher"
             aria-label="Rechercher dans les cartes"
-            className="w-40 pl-7 sm:w-52"
+            className="w-36 pr-7 pl-7 sm:w-52"
           />
+          {filtres.texte ? (
+            <button
+              type="button"
+              onClick={() => onFiltres({ ...filtres, texte: "" })}
+              aria-label="Effacer la recherche"
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1/2 right-1 -translate-y-1/2 rounded-sm p-1 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <X aria-hidden="true" className="size-3.5" />
+            </button>
+          ) : null}
         </div>
+
+        <BoardFilters
+          filtres={filtres}
+          labels={labels}
+          members={members}
+          onChange={onFiltres}
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" aria-label="Menu du tableau">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="max-sm:size-9 max-sm:p-0"
+              aria-label="Menu du tableau"
+            >
               <MoreHorizontal aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
@@ -205,6 +250,10 @@ export function BoardHeader({
             </div>
 
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onArchives}>
+              <ArchiveRestore aria-hidden="true" />
+              Archives
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={onArchive}>
               <Archive aria-hidden="true" />
               Archiver le tableau

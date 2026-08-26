@@ -16,15 +16,9 @@ import {
 import { cn } from "@/lib/utils";
 
 import { initiales } from "./initials";
+import { jourISO } from "./jours";
 import { BOARD_COLORS, PALETTE, colorHex, type BoardColor } from "./palette";
 import type { BoardLabel, BoardMember } from "./types";
-
-/** `YYYY-MM-DD` en heure locale : `toISOString()` décalerait d'un jour. */
-export function jourISO(date: Date) {
-  const mois = String(date.getMonth() + 1).padStart(2, "0");
-  const jour = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${mois}-${jour}`;
-}
 
 // -------------------------------- Étiquettes --------------------------------
 

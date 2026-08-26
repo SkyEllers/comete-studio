@@ -28,7 +28,14 @@ export type TypeActivite =
 /** Les valeurs d'un `payload` sont écrites en jsonb : rien d'imbriqué. */
 type PayloadActivite = Record<string, string | number | boolean | null>;
 
-async function tracer(
+/**
+ * Une trace dans le journal de la carte.
+ *
+ * L'identifiant est tiré ici plutôt que par la base : c'est lui qui permet au
+ * canal temps réel de reconnaître l'écho de notre propre écriture, y compris
+ * quand le même compte est ouvert sur un autre appareil.
+ */
+export async function tracer(
   cardId: string,
   boardId: string,
   userId: string,
@@ -36,9 +43,12 @@ async function tracer(
   payload: PayloadActivite = {},
 ) {
   const supabase = createClient();
+  const id = crypto.randomUUID();
+  marquerEcriture("card_activities", id);
+
   await supabase
     .from("card_activities")
-    .insert({ card_id: cardId, board_id: boardId, user_id: userId, type, payload });
+    .insert({ id, card_id: cardId, board_id: boardId, user_id: userId, type, payload });
 }
 
 // --------------------------------- La carte ---------------------------------
@@ -505,9 +515,20 @@ export async function createComment(input: {
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = createClient();
+
+  /*
+   * Identifiant tiré avant l'insertion, pas après : l'événement temps réel
+   * peut arriver avant la réponse HTTP, et c'est cette marque qui distingue
+   * notre propre commentaire — déjà affiché — de celui du même compte ouvert
+   * sur un autre appareil, qui doit apparaître.
+   */
+  const id = crypto.randomUUID();
+  marquerEcriture("comments", id);
+
   const { data, error } = await supabase
     .from("comments")
     .insert({
+      id,
       card_id: parsed.data.cardId,
       board_id: parsed.data.boardId,
       user_id: parsed.data.userId,

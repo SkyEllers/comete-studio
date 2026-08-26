@@ -29,6 +29,7 @@ function ColonneBrute({
   labels,
   members,
   dragDisabled = false,
+  signalComposeur = 0,
   onRename,
   onArchive,
   onAddCard,
@@ -38,11 +39,18 @@ function ColonneBrute({
   cards: BoardCard[];
   labels: BoardLabel[];
   members: BoardMember[];
-  /** Une recherche filtre l'affichage : déplacer n'aurait plus de sens. */
+  /** Un filtre masque des cartes : déplacer n'aurait plus de sens. */
   dragDisabled?: boolean;
-  onRename: (name: string) => void;
-  onArchive: () => void;
-  onAddCard: (title: string) => Promise<boolean>;
+  /** Le raccourci « n » vise cette colonne : on ouvre son composeur. */
+  signalComposeur?: number;
+  /*
+   * Rappels sans fermeture sur la liste : la colonne rend son identifiant à
+   * chaque appel, ce qui laisse le tableau leur donner une identité stable et
+   * la mémoïsation faire son travail.
+   */
+  onRename: (listId: string, name: string) => void;
+  onArchive: (listId: string) => void;
+  onAddCard: (listId: string, title: string) => Promise<boolean>;
   onOpenCard: (cardId: string) => void;
 }) {
   const [edition, setEdition] = useState(false);
@@ -64,7 +72,7 @@ function ColonneBrute({
 
   // On sème le champ à l'ouverture plutôt que de le synchroniser depuis les
   // props : le nom affiché vient de `list.name`, donc une mise à jour venue
-  // d'ailleurs (temps réel, chantier 5) n'a rien à recopier ici.
+  // d'ailleurs (temps réel) n'a rien à recopier ici.
   const ouvrirEdition = () => {
     setNom(list.name);
     setEdition(true);
@@ -73,7 +81,7 @@ function ColonneBrute({
   const valider = () => {
     const propre = nom.trim();
     setEdition(false);
-    if (propre && propre !== list.name) onRename(propre);
+    if (propre && propre !== list.name) onRename(list.id, propre);
     else setNom(list.name);
   };
 
@@ -83,14 +91,14 @@ function ColonneBrute({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       aria-label={`Liste ${list.name}`}
       className={cn(
-        "bg-surface-1 border-line flex max-h-full w-[272px] shrink-0 flex-col rounded-lg border",
+        "bg-surface-1 border-line flex max-h-full w-[85vw] max-w-[272px] shrink-0 snap-center flex-col rounded-lg border",
         isDragging && "opacity-40",
       )}
     >
       <header className="flex items-center gap-1 px-2 py-2">
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-grab rounded-sm p-1 focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring cursor-grab rounded-sm p-1.5 focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing sm:p-1"
           aria-label={`Déplacer la liste ${list.name}`}
           {...attributes}
           {...listeners}
@@ -137,7 +145,7 @@ function ColonneBrute({
             <Button
               variant="ghost"
               size="sm"
-              className="size-7 shrink-0 p-0"
+              className="size-9 shrink-0 p-0 sm:size-7"
               aria-label={`Menu de la liste ${list.name}`}
             >
               <MoreHorizontal aria-hidden="true" />
@@ -148,7 +156,7 @@ function ColonneBrute({
               <Pencil aria-hidden="true" />
               Renommer
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onArchive}>
+            <DropdownMenuItem onSelect={() => onArchive(list.id)}>
               <Archive aria-hidden="true" />
               Archiver la liste
             </DropdownMenuItem>
@@ -178,15 +186,42 @@ function ColonneBrute({
 
       <div className="p-2 pt-0">
         <Composer
+          // Changer la clé remonte le composeur : c'est ainsi que le raccourci
+          // « n » l'ouvre et lui donne le focus, même s'il l'était déjà.
+          key={`composeur-${signalComposeur}`}
+          autoOpen={signalComposeur > 0}
           label="Ajouter une carte"
           placeholder="Titre de la carte"
           submitLabel="Ajouter"
-          onSubmit={onAddCard}
+          onSubmit={(title) => onAddCard(list.id, title)}
         />
       </div>
     </section>
   );
 }
 
-/** Une colonne ne se re-rend que si ses propres cartes changent. */
-export const ListColumn = memo(ColonneBrute);
+type ProprietesColonne = React.ComponentProps<typeof ColonneBrute>;
+
+/**
+ * Une colonne ne se re-rend que si ses propres cartes changent.
+ *
+ * Le réducteur reconstruit `cards` à chaque écriture, même pour une carte
+ * d'une autre liste : comparer la série carte par carte — par identité, le
+ * réducteur ne remplace que les objets modifiés — est ce qui évite de
+ * re-rendre les six colonnes quand une seule bouge.
+ */
+export const ListColumn = memo(
+  ColonneBrute,
+  (avant: ProprietesColonne, apres: ProprietesColonne) =>
+    avant.list === apres.list &&
+    avant.labels === apres.labels &&
+    avant.members === apres.members &&
+    avant.dragDisabled === apres.dragDisabled &&
+    avant.signalComposeur === apres.signalComposeur &&
+    avant.onRename === apres.onRename &&
+    avant.onArchive === apres.onArchive &&
+    avant.onAddCard === apres.onAddCard &&
+    avant.onOpenCard === apres.onOpenCard &&
+    avant.cards.length === apres.cards.length &&
+    avant.cards.every((carte, index) => carte === apres.cards[index]),
+);
