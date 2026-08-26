@@ -83,6 +83,33 @@ export async function rest(cle, jeton, methode, chemin, corps) {
   return { status: reponse.status, data };
 }
 
+/**
+ * Appel à l'API Storage. `jeton` à `null` pour parler avec la clé secrète —
+ * le décor et le ménage, jamais un test.
+ */
+export async function stockage(jeton, methode, chemin, { corps, entetes } = {}) {
+  const cle = jeton ? ANON : SECRET;
+
+  const reponse = await fetch(`${SUPABASE}/storage/v1/${chemin}`, {
+    method: methode,
+    headers: {
+      apikey: cle,
+      Authorization: `Bearer ${jeton ?? SECRET}`,
+      ...(entetes ?? {}),
+    },
+    body: corps,
+  });
+
+  const texte = await reponse.text();
+  let data = null;
+  try {
+    data = texte ? JSON.parse(texte) : null;
+  } catch {
+    data = texte;
+  }
+  return { status: reponse.status, data };
+}
+
 /** Avec la clé secrète : pour poser le décor et constater, jamais pour tester. */
 export const srv = (methode, chemin, corps) =>
   rest(SECRET, SECRET, methode, chemin, corps);

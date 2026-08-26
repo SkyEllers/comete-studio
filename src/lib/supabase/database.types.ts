@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -428,6 +428,118 @@ export type Database = {
           },
         ]
       }
+      files: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          folder_id: string | null
+          height: number | null
+          id: string
+          mime_type: string
+          name: string
+          organization_id: string
+          size_bytes: number
+          status: Database["public"]["Enums"]["file_status"]
+          updated_at: string
+          uploaded_by: string | null
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          folder_id?: string | null
+          height?: number | null
+          id?: string
+          mime_type?: string
+          name: string
+          organization_id: string
+          size_bytes: number
+          status?: Database["public"]["Enums"]["file_status"]
+          updated_at?: string
+          uploaded_by?: string | null
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          folder_id?: string | null
+          height?: number | null
+          id?: string
+          mime_type?: string
+          name?: string
+          organization_id?: string
+          size_bytes?: number
+          status?: Database["public"]["Enums"]["file_status"]
+          updated_at?: string
+          uploaded_by?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "files_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      folders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "folders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labels: {
         Row: {
           board_id: string
@@ -674,13 +786,21 @@ export type Database = {
     }
     Functions: {
       can_access_board: { Args: { b: string }; Returns: boolean }
+      can_access_files: { Args: { org: string }; Returns: boolean }
+      can_access_files_path: { Args: { object_name: string }; Returns: boolean }
+      est_auteur_objet: {
+        Args: { owner: string; owner_id: string }
+        Returns: boolean
+      }
       has_tool: { Args: { org: string; tool_slug: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_member: { Args: { org: string }; Returns: boolean }
       is_org_owner: { Args: { org: string }; Returns: boolean }
+      org_du_chemin: { Args: { object_name: string }; Returns: string }
       shares_org_with: { Args: { other: string }; Returns: boolean }
     }
     Enums: {
+      file_status: "uploading" | "ready"
       membership_role: "owner" | "member"
       tool_kind: "internal" | "external"
     }
@@ -813,6 +933,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      file_status: ["uploading", "ready"],
       membership_role: ["owner", "member"],
       tool_kind: ["internal", "external"],
     },
