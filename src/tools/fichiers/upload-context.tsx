@@ -181,10 +181,12 @@ export function FichiersProvider({
       patcher(cle, { etat: "envoi" });
 
       const supabase = createClient();
-      const { data: session } = await supabase.auth.getSession();
-      const jeton = session.session?.access_token;
 
-      if (!jeton) {
+      // Une session absente se voit tout de suite : inutile d'inscrire une
+      // ligne pour un envoi qui ne partira pas.
+      const { data: session } = await supabase.auth.getSession();
+
+      if (!session.session) {
         patcher(cle, { etat: "echec", message: "Session expirée. Reconnecte-toi." });
         demarrerSuivants();
         return;
@@ -254,9 +256,17 @@ export function FichiersProvider({
 
       const upload = new tus.Upload(fichier, {
         endpoint: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/upload/resumable`,
-        headers: {
-          authorization: `Bearer ${jeton}`,
-          "x-upsert": "true",
+        headers: { "x-upsert": "true" },
+        /*
+         * Le jeton est relu avant chaque morceau, jamais figé au départ : un
+         * envoi de plusieurs gigaoctets dure plus qu'une heure de session, et
+         * l'envoi tombait alors en 401 au milieu. `getSession()` rend le jeton
+         * courant et le renouvelle de lui-même quand il approche de sa fin.
+         */
+        onBeforeRequest: async (requete) => {
+          const { data } = await supabase.auth.getSession();
+          const frais = data.session?.access_token;
+          if (frais) requete.setHeader("authorization", `Bearer ${frais}`);
         },
         chunkSize: MORCEAU,
         retryDelays: [0, 3000, 5000, 10000, 20000],
