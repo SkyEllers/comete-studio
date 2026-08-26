@@ -24,6 +24,16 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 import { refreshBoard, renormalizeBoardLists, renormalizeList } from "./actions";
@@ -41,12 +51,14 @@ import {
   type Filtres,
 } from "./filters";
 import { ListColumn } from "./list-column";
+import { archiveCardById, deleteCard } from "./card-mutations";
 import {
   archiveBoard,
   archiveList,
   createCard,
   createList,
   deleteBoard,
+  deleteList,
   moveCard,
   moveList,
   renameList,
@@ -108,6 +120,19 @@ export function BoardView({
     listId: string;
     n: number;
   } | null>(null);
+  /*
+   * Une seule fenêtre de confirmation pour tout le tableau, pilotée par ces
+   * deux états : la poser dans chaque carte en monterait deux cents.
+   */
+  const [suppressionCarte, setSuppressionCarte] = useState<{
+    id: string;
+    titre: string;
+  } | null>(null);
+  const [suppressionListe, setSuppressionListe] = useState<{
+    id: string;
+    nom: string;
+    cartes: number;
+  } | null>(null);
   const origine = useRef<string | null>(null);
   const champRecherche = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -120,8 +145,10 @@ export function BoardView({
    * l'état ici plutôt que dans leur fermeture.
    */
   const etat = useRef(state);
+  const ouverte = useRef(carteOuverte);
   useEffect(() => {
     etat.current = state;
+    ouverte.current = carteOuverte;
   });
 
   /**
@@ -491,6 +518,107 @@ export function BoardView({
     [dispatch, resynchroniser],
   );
 
+  // ------------------------- archivage et suppression -------------------------
+
+  const archiverCarte = useCallback(
+    async (cardId: string) => {
+      const data = etat.current;
+      const carte = data.cards.find((c) => c.id === cardId);
+      if (!carte) return;
+
+      dispatch({ type: "card/removed", id: cardId });
+      if (ouverte.current === cardId) fermerCarte();
+
+      const result = await archiveCardById({
+        cardId,
+        boardId: data.board.id,
+        userId,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error);
+        void resynchroniser();
+        return;
+      }
+      toast.success(`« ${carte.title} » archivée`);
+    },
+    [dispatch, fermerCarte, resynchroniser, userId],
+  );
+
+  const supprimerCarte = useCallback(
+    async (cardId: string) => {
+      setSuppressionCarte(null);
+      dispatch({ type: "card/removed", id: cardId });
+      if (ouverte.current === cardId) fermerCarte();
+
+      const result = await deleteCard(cardId);
+      if (!result.ok) {
+        toast.error(result.error);
+        void resynchroniser();
+        return;
+      }
+      toast.success("Carte supprimée");
+    },
+    [dispatch, fermerCarte, resynchroniser],
+  );
+
+  /**
+   * Une carte nue part sans qu'on demande : il n'y a rien à perdre, et une
+   * fenêtre de plus à chaque ménage rendrait le geste pénible. Dès qu'elle
+   * porte du texte, des commentaires ou une checklist, on demande.
+   */
+  const demanderSuppressionCarte = useCallback(
+    (cardId: string) => {
+      const carte = etat.current.cards.find((c) => c.id === cardId);
+      if (!carte) return;
+
+      const aDuContenu =
+        carte.description.trim().length > 0 ||
+        carte.commentCount > 0 ||
+        carte.checklistTotal > 0;
+
+      if (aDuContenu) {
+        setSuppressionCarte({ id: cardId, titre: carte.title });
+        return;
+      }
+      void supprimerCarte(cardId);
+    },
+    [supprimerCarte],
+  );
+
+  const supprimerListe = useCallback(
+    async (listId: string) => {
+      setSuppressionListe(null);
+      dispatch({ type: "list/removed", id: listId });
+
+      const result = await deleteList(listId);
+      if (!result.ok) {
+        toast.error(result.error);
+        void resynchroniser();
+        return;
+      }
+      toast.success("Liste supprimée");
+    },
+    [dispatch, resynchroniser],
+  );
+
+  /** Une liste vide part sans qu'on demande ; avec des cartes, on demande. */
+  const demanderSuppressionListe = useCallback(
+    (listId: string) => {
+      const data = etat.current;
+      const liste = data.lists.find((l) => l.id === listId);
+      if (!liste) return;
+
+      const cartes = data.cards.filter((c) => c.listId === listId).length;
+      if (cartes > 0) {
+        setSuppressionListe({ id: listId, nom: liste.name, cartes });
+        return;
+      }
+      void supprimerListe(listId);
+    },
+    [supprimerListe],
+  );
+
   const renommerTableau = async (name: string) => {
     const avant = state.board.name;
     dispatch({ type: "board/patched", patch: { name } });
@@ -656,8 +784,11 @@ export function BoardView({
                 }
                 onRename={renommerListe}
                 onArchive={archiverListe}
+                onDelete={demanderSuppressionListe}
                 onAddCard={ajouterCarte}
                 onOpenCard={ouvrirCarte}
+                onArchiveCard={archiverCarte}
+                onDeleteCard={demanderSuppressionCarte}
               />
             ))}
           </SortableContext>
@@ -702,13 +833,71 @@ export function BoardView({
           boardId={state.board.id}
           userId={userId}
           dispatch={dispatch}
+          onDelete={demanderSuppressionCarte}
           onClose={fermerCarte}
         />
       ) : null}
 
+      <AlertDialog
+        open={suppressionCarte !== null}
+        onOpenChange={(ouvert) => !ouvert && setSuppressionCarte(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Supprimer « {suppressionCarte?.titre} » ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Sa description, ses commentaires et ses checklists partent avec
+              elle, sans retour possible. Pour la retrouver plus tard, archive-la
+              plutôt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() =>
+                suppressionCarte && void supprimerCarte(suppressionCarte.id)
+              }
+            >
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={suppressionListe !== null}
+        onOpenChange={(ouvert) => !ouvert && setSuppressionListe(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Supprimer « {suppressionListe?.nom} » ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {suppressionListe?.cartes === 1
+                ? "Sa carte part avec elle, sans retour possible. Pour la retrouver plus tard, archive la liste plutôt."
+                : `Ses ${suppressionListe?.cartes} cartes partent avec elle, sans retour possible. Pour les retrouver plus tard, archive la liste plutôt.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() =>
+                suppressionListe && void supprimerListe(suppressionListe.id)
+              }
+            >
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ArchivesDialog
         boardId={state.board.id}
-        canDelete={state.canDelete}
         ouvert={archivesOuvertes}
         onOpenChange={setArchivesOuvertes}
         onResync={() => void resynchroniser()}

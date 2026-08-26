@@ -19,9 +19,11 @@ import { getBoards } from "@/tools/kanban/queries";
 async function BoardList({
   organizationId,
   orgSlug,
+  canDelete,
 }: {
   organizationId: string;
   orgSlug: string;
+  canDelete: boolean;
 }) {
   const { active, archived } = await getBoards(organizationId);
 
@@ -44,6 +46,7 @@ async function BoardList({
               cardCount={board.cardCount}
               updatedLabel={board.updatedLabel}
               orgSlug={orgSlug}
+              canDelete={canDelete}
             />
           ))}
         </div>
@@ -59,7 +62,7 @@ export default async function KanbanPage({
 }: PageProps<"/app/[orgSlug]/kanban">) {
   const { orgSlug } = await params;
   // Garde hors `<Suspense>` : c'est elle qui décide du statut de la réponse.
-  const { org, userId } = await requireMembership(orgSlug);
+  const { org, userId, role } = await requireMembership(orgSlug);
 
   return (
     <>
@@ -84,7 +87,11 @@ export default async function KanbanPage({
       />
 
       <Suspense fallback={<CardGridSkeleton />}>
-        <BoardList organizationId={org.id} orgSlug={orgSlug} />
+        <BoardList
+          organizationId={org.id}
+          orgSlug={orgSlug}
+          canDelete={role === "owner" || role === "admin"}
+        />
       </Suspense>
     </>
   );

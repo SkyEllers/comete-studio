@@ -63,11 +63,9 @@ const VIDE: Archives = { cards: [], lists: [] };
  */
 function ContenuArchives({
   boardId,
-  canDelete,
   onResync,
 }: {
   boardId: string;
-  canDelete: boolean;
   onResync: () => void;
 }) {
   const [archives, setArchives] = useState<Archives | null>(null);
@@ -189,23 +187,21 @@ function ContenuArchives({
                       Restaurer
                     </Button>
 
-                    {canDelete ? (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Supprimer définitivement la carte ${carte.title}`}
-                        className="text-destructive"
-                        onClick={() =>
-                          setSuppression({
-                            genre: "carte",
-                            id: carte.id,
-                            nom: carte.title,
-                          })
-                        }
-                      >
-                        <Trash2 aria-hidden="true" />
-                      </Button>
-                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Supprimer définitivement la carte ${carte.title}`}
+                      className="text-destructive"
+                      onClick={() =>
+                        setSuppression({
+                          genre: "carte",
+                          id: carte.id,
+                          nom: carte.title,
+                        })
+                      }
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
                   </Rangee>
                 ))}
               </ul>
@@ -241,24 +237,22 @@ function ContenuArchives({
                       Restaurer
                     </Button>
 
-                    {canDelete ? (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Supprimer définitivement la liste ${liste.name}`}
-                        className="text-destructive"
-                        onClick={() =>
-                          setSuppression({
-                            genre: "liste",
-                            id: liste.id,
-                            nom: liste.name,
-                            cardCount: liste.cardCount,
-                          })
-                        }
-                      >
-                        <Trash2 aria-hidden="true" />
-                      </Button>
-                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Supprimer définitivement la liste ${liste.name}`}
+                      className="text-destructive"
+                      onClick={() =>
+                        setSuppression({
+                          genre: "liste",
+                          id: liste.id,
+                          nom: liste.name,
+                          cardCount: liste.cardCount,
+                        })
+                      }
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
                   </Rangee>
                 ))}
               </ul>
@@ -285,8 +279,8 @@ function ContenuArchives({
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={() => void confirmerSuppression()}
-              className="bg-destructive/10 text-destructive hover:bg-destructive/20"
             >
               Supprimer définitivement
             </AlertDialogAction>
@@ -299,13 +293,11 @@ function ContenuArchives({
 
 export function ArchivesDialog({
   boardId,
-  canDelete,
   ouvert,
   onOpenChange,
   onResync,
 }: {
   boardId: string;
-  canDelete: boolean;
   ouvert: boolean;
   onOpenChange: (ouvert: boolean) => void;
   /** Une restauration remet des éléments sur le tableau : on le recharge. */
@@ -322,11 +314,7 @@ export function ArchivesDialog({
         </DialogHeader>
 
         {ouvert ? (
-          <ContenuArchives
-            boardId={boardId}
-            canDelete={canDelete}
-            onResync={onResync}
-          />
+          <ContenuArchives boardId={boardId} onResync={onResync} />
         ) : null}
       </DialogContent>
     </Dialog>

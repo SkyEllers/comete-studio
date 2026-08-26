@@ -7,7 +7,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, GripVertical, MoreHorizontal, Pencil } from "lucide-react";
+import { Archive, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -32,8 +33,11 @@ function ColonneBrute({
   signalComposeur = 0,
   onRename,
   onArchive,
+  onDelete,
   onAddCard,
   onOpenCard,
+  onArchiveCard,
+  onDeleteCard,
 }: {
   list: BoardList;
   cards: BoardCard[];
@@ -50,8 +54,11 @@ function ColonneBrute({
    */
   onRename: (listId: string, name: string) => void;
   onArchive: (listId: string) => void;
+  onDelete: (listId: string) => void;
   onAddCard: (listId: string, title: string) => Promise<boolean>;
   onOpenCard: (cardId: string) => void;
+  onArchiveCard: (cardId: string) => void;
+  onDeleteCard: (cardId: string) => void;
 }) {
   const [edition, setEdition] = useState(false);
   const [nom, setNom] = useState(list.name);
@@ -160,6 +167,14 @@ function ColonneBrute({
               <Archive aria-hidden="true" />
               Archiver la liste
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={() => onDelete(list.id)}
+            >
+              <Trash2 aria-hidden="true" />
+              Supprimer définitivement
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
@@ -178,6 +193,8 @@ function ColonneBrute({
                 members={members}
                 disabled={dragDisabled}
                 onOpen={onOpenCard}
+                onArchive={onArchiveCard}
+                onDelete={onDeleteCard}
               />
             ))}
           </ul>
@@ -220,8 +237,11 @@ export const ListColumn = memo(
     avant.signalComposeur === apres.signalComposeur &&
     avant.onRename === apres.onRename &&
     avant.onArchive === apres.onArchive &&
+    avant.onDelete === apres.onDelete &&
     avant.onAddCard === apres.onAddCard &&
     avant.onOpenCard === apres.onOpenCard &&
+    avant.onArchiveCard === apres.onArchiveCard &&
+    avant.onDeleteCard === apres.onDeleteCard &&
     avant.cards.length === apres.cards.length &&
     avant.cards.every((carte, index) => carte === apres.cards[index]),
 );

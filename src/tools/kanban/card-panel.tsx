@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Plus,
   Tag,
+  Trash2,
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -22,6 +23,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -92,6 +94,7 @@ export function CardPanel({
   boardId,
   userId,
   dispatch,
+  onDelete,
   onClose,
 }: {
   card: BoardCard;
@@ -105,6 +108,8 @@ export function CardPanel({
   boardId: string;
   userId: string;
   dispatch: React.Dispatch<BoardAction>;
+  /** Le tableau tranche : confirmation si la carte porte du contenu. */
+  onDelete: (cardId: string) => void;
   onClose: () => void;
 }) {
   const [chargement, setChargement] = useState(true);
@@ -640,9 +645,17 @@ export function CardPanel({
                       <Archive aria-hidden="true" />
                       Archiver la carte
                     </DropdownMenuItem>
-                    {/* Restaurer et supprimer définitivement vivent dans la
-                        vue Archives : une carte archivée n'est plus dans le
-                        store, sa fiche ne pourrait donc plus rien refléter. */}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onSelect={() => onDelete(cardId)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      Supprimer définitivement
+                    </DropdownMenuItem>
+                    {/* Restaurer vit dans la vue Archives : une carte archivée
+                        n'est plus dans le store, sa fiche ne pourrait donc plus
+                        rien refléter. */}
                   </DropdownMenuContent>
                 </DropdownMenu>
             </div>

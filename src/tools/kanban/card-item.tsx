@@ -3,8 +3,24 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { memo, useRef } from "react";
 import { CSS } from "@dnd-kit/utilities";
-import { AlignLeft, CalendarDays, CheckSquare, MessageSquare } from "lucide-react";
+import {
+  AlignLeft,
+  Archive,
+  CalendarDays,
+  CheckSquare,
+  MessageSquare,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 import { initiales } from "./initials";
@@ -141,12 +157,16 @@ function ItemBrut({
   members,
   disabled = false,
   onOpen,
+  onArchive,
+  onDelete,
 }: {
   card: BoardCard;
   labels: BoardLabel[];
   members: BoardMember[];
   disabled?: boolean;
   onOpen: (cardId: string) => void;
+  onArchive: (cardId: string) => void;
+  onDelete: (cardId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
@@ -175,7 +195,7 @@ function ItemBrut({
       onPointerDown={(event) => {
         depart.current = { x: event.clientX, y: event.clientY };
       }}
-      className={cn("touch-none", isDragging && "opacity-40")}
+      className={cn("group/carte relative touch-none", isDragging && "opacity-40")}
     >
       <button
         type="button"
@@ -187,6 +207,38 @@ function ItemBrut({
       >
         <CardFace card={card} labels={labels} members={members} />
       </button>
+
+      {/* Hors du bouton de saisie : un bouton n'en contient pas un autre, et
+          le menu ne doit pas déclencher un déplacement. Toujours visible au
+          doigt, révélé au survol et au focus ailleurs. */}
+      <div className="absolute top-1 right-1">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Menu de la carte ${card.title}`}
+              className="bg-surface-2/80 opacity-0 backdrop-blur-sm transition-opacity group-hover/carte:opacity-100 focus-visible:opacity-100 max-sm:opacity-100 data-[state=open]:opacity-100"
+            >
+              <MoreHorizontal aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => onArchive(card.id)}>
+              <Archive aria-hidden="true" />
+              Archiver la carte
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={() => onDelete(card.id)}
+            >
+              <Trash2 aria-hidden="true" />
+              Supprimer définitivement
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </li>
   );
 }

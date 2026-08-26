@@ -1,20 +1,32 @@
 "use client";
 
-import { Archive, MoreHorizontal } from "lucide-react";
+import { Archive, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
-import { archiveBoard } from "./mutations";
+import { archiveBoard, deleteBoard } from "./mutations";
 import { colorHex } from "./palette";
 
 export type BoardCardProps = {
@@ -24,6 +36,8 @@ export type BoardCardProps = {
   cardCount: number;
   updatedLabel: string;
   orgSlug: string;
+  /** Supprimer définitivement un tableau : responsable du client, ou Louis. */
+  canDelete: boolean;
 };
 
 export function BoardCard({
@@ -33,8 +47,11 @@ export function BoardCard({
   cardCount,
   updatedLabel,
   orgSlug,
+  canDelete,
 }: BoardCardProps) {
   const [pending, startTransition] = useTransition();
+  const [confirmation, setConfirmation] = useState("");
+  const [ouvert, setOuvert] = useState(false);
   const router = useRouter();
 
   const archiver = () =>
@@ -45,6 +62,19 @@ export function BoardCard({
         return;
       }
       toast.success(`« ${name} » archivé`);
+      router.refresh();
+    });
+
+  const supprimer = () =>
+    startTransition(async () => {
+      const result = await deleteBoard(id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setOuvert(false);
+      setConfirmation("");
+      toast.success(`« ${name} » supprimé`);
       router.refresh();
     });
 
@@ -90,9 +120,67 @@ export function BoardCard({
               <Archive aria-hidden="true" />
               Archiver
             </DropdownMenuItem>
+            {canDelete ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={(event) => {
+                    // Le menu se referme sur la sélection : sans ça, il
+                    // emporterait la fenêtre de confirmation avec lui.
+                    event.preventDefault();
+                    setOuvert(true);
+                  }}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Supprimer définitivement
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <AlertDialog
+        open={ouvert}
+        onOpenChange={(valeur) => {
+          setOuvert(valeur);
+          if (!valeur) setConfirmation("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {name} ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ses listes, ses cartes et leurs commentaires disparaissent, sans
+              retour possible. Saisis le nom du tableau pour confirmer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor={`confirmation-${id}`}>
+              Saisis <span className="font-mono">{name}</span>
+            </Label>
+            <Input
+              id={`confirmation-${id}`}
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              autoComplete="off"
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={confirmation.trim() !== name || pending}
+              onClick={supprimer}
+            >
+              Supprimer définitivement
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
