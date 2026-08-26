@@ -47,7 +47,14 @@ const moisEtAnnee = new Intl.DateTimeFormat("fr-FR", {
   timeZone: PARIS,
 });
 
+const heureSeule = new Intl.DateTimeFormat("fr-FR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: PARIS,
+});
+
 export const dateHeure = (iso: string) => jourEtHeure.format(new Date(iso));
+export const heure = (iso: string) => heureSeule.format(new Date(iso));
 export const jour = (iso: string) => jourSeul.format(new Date(iso));
 export const mois = (iso: string) => moisEtAnnee.format(new Date(iso));
 

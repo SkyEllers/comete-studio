@@ -28,6 +28,7 @@ export type Canal = {
 export type Attribution = "utm" | "recurrence" | "direct" | "manuel";
 
 export type Precedent = {
+  id?: string | null;
   channel_id: string | null;
   scheduled_start: string;
 };
@@ -123,7 +124,12 @@ export function attribuer({
   previous: Precedent | null;
   /** Absent du brief, mais la fenêtre de récurrence ne se devine pas. */
   windowDays: number;
-}): { channel_id: string | null; attribution: Attribution } {
+}): {
+  channel_id: string | null;
+  attribution: Attribution;
+  /** Le rendez-vous qui a transmis son canal, quand c'est une récurrence. */
+  source: string | null;
+} {
   const actifs = actifsOrdonnes(channels);
   const parCle = (cle: string) => actifs.find((canal) => canal.key === cle)?.id ?? null;
 
@@ -132,7 +138,7 @@ export function attribuer({
     const trouve = actifs.find((canal) => canalReconnait(canal, utm));
     // Une campagne qu'aucun canal ne reconnaît reste une campagne : elle va
     // dans « Autre », et ses `utm` restent lisibles pour que Louis tranche.
-    return { channel_id: trouve?.id ?? parCle("autre"), attribution: "utm" };
+    return { channel_id: trouve?.id ?? parCle("autre"), attribution: "utm", source: null };
   }
 
   // 2. La même personne qui revient sans repasser par une annonce.
@@ -140,11 +146,15 @@ export function attribuer({
     const ecart =
       (Date.parse(scheduledStart) - Date.parse(previous.scheduled_start)) / JOUR_MS;
     if (Number.isFinite(ecart) && ecart >= 0 && ecart < windowDays) {
-      return { channel_id: previous.channel_id, attribution: "recurrence" };
+      return {
+        channel_id: previous.channel_id,
+        attribution: "recurrence",
+        source: previous.id ?? null,
+      };
     }
   }
 
-  return { channel_id: parCle("direct"), attribution: "direct" };
+  return { channel_id: parCle("direct"), attribution: "direct", source: null };
 }
 
 /**
@@ -156,7 +166,12 @@ export function attribuer({
  * sur une séance qui n'a jamais existé.
  */
 export function precedent(
-  historique: { channel_id: string | null; scheduled_start: string; status: string }[],
+  historique: {
+    id?: string | null;
+    channel_id: string | null;
+    scheduled_start: string;
+    status: string;
+  }[],
   scheduledStart: string,
 ): Precedent | null {
   const borne = Date.parse(scheduledStart);
@@ -172,7 +187,11 @@ export function precedent(
 
   const retenu = candidats[0];
   return retenu
-    ? { channel_id: retenu.channel_id, scheduled_start: retenu.scheduled_start }
+    ? {
+        id: retenu.id ?? null,
+        channel_id: retenu.channel_id,
+        scheduled_start: retenu.scheduled_start,
+      }
     : null;
 }
 

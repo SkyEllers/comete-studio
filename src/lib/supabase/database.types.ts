@@ -854,6 +854,7 @@ export type Database = {
           amount_cents: number
           attribution: Database["public"]["Enums"]["radar_attribution"]
           attribution_note: string | null
+          attribution_source_id: string | null
           canceled_at: string | null
           channel_id: string | null
           created_at: string
@@ -882,6 +883,7 @@ export type Database = {
           amount_cents?: number
           attribution?: Database["public"]["Enums"]["radar_attribution"]
           attribution_note?: string | null
+          attribution_source_id?: string | null
           canceled_at?: string | null
           channel_id?: string | null
           created_at?: string
@@ -910,6 +912,7 @@ export type Database = {
           amount_cents?: number
           attribution?: Database["public"]["Enums"]["radar_attribution"]
           attribution_note?: string | null
+          attribution_source_id?: string | null
           canceled_at?: string | null
           channel_id?: string | null
           created_at?: string
@@ -935,6 +938,20 @@ export type Database = {
           utm?: Json
         }
         Relationships: [
+          {
+            foreignKeyName: "radar_bookings_attribution_source_id_fkey"
+            columns: ["attribution_source_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_attribution_source_id_fkey"
+            columns: ["attribution_source_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "radar_bookings_channel_id_fkey"
             columns: ["channel_id"]
@@ -1258,6 +1275,7 @@ export type Database = {
           amount_cents: number | null
           attribution: Database["public"]["Enums"]["radar_attribution"] | null
           attribution_note: string | null
+          attribution_source_id: string | null
           canceled_at: string | null
           channel_id: string | null
           counts_for_commission: boolean | null
@@ -1271,6 +1289,7 @@ export type Database = {
           id: string | null
           invitee_key: string | null
           invitee_uri: string | null
+          mois: string | null
           organization_id: string | null
           payment_ok: boolean | null
           payment_ref: string | null
@@ -1287,6 +1306,20 @@ export type Database = {
           utm: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "radar_bookings_attribution_source_id_fkey"
+            columns: ["attribution_source_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_attribution_source_id_fkey"
+            columns: ["attribution_source_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "radar_bookings_channel_id_fkey"
             columns: ["channel_id"]

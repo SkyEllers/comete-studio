@@ -259,7 +259,7 @@ export async function POST(
         .eq("organization_id", orgId),
       admin
         .from("radar_bookings")
-        .select("channel_id, scheduled_start, status")
+        .select("id, channel_id, scheduled_start, status")
         .eq("organization_id", orgId)
         .eq("invitee_key", invitee_key)
         .order("scheduled_start", { ascending: false })
@@ -290,7 +290,11 @@ export async function POST(
     const heritage = invite.rescheduled && ancien.data ? ancien.data : null;
 
     const verdict = heritage
-      ? { channel_id: heritage.channel_id, attribution: heritage.attribution }
+      ? {
+          channel_id: heritage.channel_id,
+          attribution: heritage.attribution,
+          source: heritage.id,
+        }
       : attribuer({
           utm,
           scheduledStart: debut,
@@ -316,6 +320,9 @@ export async function POST(
         declared_source: reponseDeclaree(invite.questions_and_answers ?? []),
         channel_id: verdict.channel_id,
         attribution: verdict.attribution,
+        // De quel rendez-vous ce canal vient, quand il ne vient pas d'une
+        // campagne : c'est ce qui rend la récurrence vérifiable.
+        attribution_source_id: verdict.source,
         status: "confirme",
         status_origin: "calendly",
         amount_cents: centimes(paiement?.amount),

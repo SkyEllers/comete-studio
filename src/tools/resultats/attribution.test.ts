@@ -34,7 +34,11 @@ const decale = (jours: number, depuis = LE_JOUR) =>
 
 const verdict = (
   utm: Record<string, string>,
-  options: { previous?: { channel_id: string | null; scheduled_start: string } | null; windowDays?: number; channels?: Canal[] } = {},
+  options: {
+    previous?: { id?: string | null; channel_id: string | null; scheduled_start: string } | null;
+    windowDays?: number;
+    channels?: Canal[];
+  } = {},
 ) =>
   attribuer({
     utm,
@@ -49,6 +53,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ utm_source: "google", utm_medium: "cpc" }), {
       channel_id: "id-google_ads",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -56,6 +61,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ gclid: "Cj0KCQ" }), {
       channel_id: "id-google_ads",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -63,6 +69,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ utm_source: "Instagram", utm_medium: "cpc" }), {
       channel_id: "id-meta",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -70,6 +77,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ fbclid: "IwAR" }), {
       channel_id: "id-meta",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -80,6 +88,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ utm_source: "google", utm_medium: "organic" }), {
       channel_id: "id-seo",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -87,6 +96,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ utm_source: "brevo", utm_medium: "email" }), {
       channel_id: "id-newsletter",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -94,6 +104,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ utm_source: "tiktok", utm_medium: "cpc" }), {
       channel_id: "id-autre",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -101,6 +112,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ utm_source: "GOOGLE", utm_medium: "CPC" }), {
       channel_id: "id-google_ads",
       attribution: "utm",
+      source: null,
     });
   });
 
@@ -110,7 +122,7 @@ describe("attribution par la campagne", () => {
     );
     assert.deepEqual(
       verdict({ utm_source: "google", utm_medium: "cpc" }, { channels: sansAnnonces }),
-      { channel_id: "id-autre", attribution: "utm" },
+      { channel_id: "id-autre", attribution: "utm", source: null },
     );
   });
 
@@ -118,6 +130,7 @@ describe("attribution par la campagne", () => {
     assert.deepEqual(verdict({ utm_source: "" }), {
       channel_id: "id-direct",
       attribution: "direct",
+      source: null,
     });
   });
 });
@@ -129,7 +142,7 @@ describe("attribution par la récurrence", () => {
         {},
         { previous: { channel_id: "id-google_ads", scheduled_start: decale(-89) } },
       ),
-      { channel_id: "id-google_ads", attribution: "recurrence" },
+      { channel_id: "id-google_ads", attribution: "recurrence", source: null },
     );
   });
 
@@ -139,7 +152,7 @@ describe("attribution par la récurrence", () => {
         {},
         { previous: { channel_id: "id-google_ads", scheduled_start: decale(-91) } },
       ),
-      { channel_id: "id-direct", attribution: "direct" },
+      { channel_id: "id-direct", attribution: "direct", source: null },
     );
   });
 
@@ -149,7 +162,7 @@ describe("attribution par la récurrence", () => {
         { utm_source: "instagram" },
         { previous: { channel_id: "id-google_ads", scheduled_start: decale(-2) } },
       ),
-      { channel_id: "id-meta", attribution: "utm" },
+      { channel_id: "id-meta", attribution: "utm", source: null },
     );
   });
 
@@ -162,14 +175,35 @@ describe("attribution par la récurrence", () => {
           previous: { channel_id: "id-google_ads", scheduled_start: decale(-2) },
         },
       ),
-      { channel_id: "id-direct", attribution: "direct" },
+      { channel_id: "id-direct", attribution: "direct", source: null },
     );
+  });
+
+  it("15b. la récurrence dit de quelle séance elle vient", () => {
+    // Sans cette référence, la fiche ne pourrait qu'affirmer « par récurrence »,
+    // ce qui demande au client de croire sur parole.
+    const trouve = precedent(
+      [
+        {
+          id: "rdv-de-mars",
+          channel_id: "id-google_ads",
+          scheduled_start: decale(-30),
+          status: "honore",
+        },
+      ],
+      LE_JOUR,
+    );
+    assert.deepEqual(verdict({}, { previous: trouve }), {
+      channel_id: "id-google_ads",
+      attribution: "recurrence",
+      source: "rdv-de-mars",
+    });
   });
 
   it("15. un précédent sans canal ne propage rien", () => {
     assert.deepEqual(
       verdict({}, { previous: { channel_id: null, scheduled_start: decale(-2) } }),
-      { channel_id: "id-direct", attribution: "direct" },
+      { channel_id: "id-direct", attribution: "direct", source: null },
     );
   });
 });
@@ -181,6 +215,7 @@ describe("le rendez-vous précédent", () => {
       { channel_id: "id-meta", scheduled_start: decale(-40), status: "honore" },
     ];
     assert.deepEqual(precedent(historique, LE_JOUR), {
+      id: null,
       channel_id: "id-meta",
       scheduled_start: decale(-40),
     });
@@ -195,6 +230,7 @@ describe("le rendez-vous précédent", () => {
     assert.deepEqual(verdict({}, { previous: trouve }), {
       channel_id: "id-direct",
       attribution: "direct",
+      source: null,
     });
   });
 
@@ -229,6 +265,7 @@ describe("la source déclarée", () => {
     assert.deepEqual(verdict({ utm_source: "google", utm_medium: "cpc" }), {
       channel_id: "id-google_ads",
       attribution: "utm",
+      source: null,
     });
   });
 

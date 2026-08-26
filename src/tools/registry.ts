@@ -1,4 +1,4 @@
-import { FolderOpen, SquareKanban, type LucideIcon } from "lucide-react";
+import { FolderOpen, Radar, SquareKanban, type LucideIcon } from "lucide-react";
 
 /**
  * Catalogue des outils internes.
@@ -36,6 +36,13 @@ export const TOOL_REGISTRY: Record<string, ToolMeta> = {
       "Tes photos, vidéos et documents, conservés en qualité d'origine.",
     icon: FolderOpen,
     href: (orgSlug) => `/app/${orgSlug}/fichiers`,
+  },
+  resultats: {
+    slug: "resultats",
+    name: "Radar",
+    description: "Tes rendez-vous, d'où ils viennent, et le relevé du mois.",
+    icon: Radar,
+    href: (orgSlug) => `/app/${orgSlug}/resultats`,
   },
 };
 
