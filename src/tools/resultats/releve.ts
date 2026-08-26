@@ -153,3 +153,69 @@ export function versCsv(lignes: LigneReleve[]): string {
 
   return [entete.join(";"), ...corps].join("\r\n");
 }
+
+// ------------------------------ Les décisions -------------------------------
+
+export type Verdict = { ok: true } | { ok: false; raison: string; champ?: string };
+
+/**
+ * Ce mois peut-il être clôturé, et dans quel état ?
+ *
+ * Sorti de la Server Action pour être déroulable : ces trois lignes décident
+ * si Louis peut facturer, et une erreur ici se répare par un avoir.
+ *
+ * Un relevé validé ne se re-clôture pas. Le client a dit oui sur des chiffres
+ * précis ; les changer après coup viderait sa validation de son sens. S'il faut
+ * vraiment corriger, cela se règle hors de l'outil.
+ */
+export function peutCloturer(
+  statutExistant: string | null,
+  mois: string,
+  moisCourant: string,
+): Verdict {
+  if (!estRevolu(mois, moisCourant)) {
+    return {
+      ok: false,
+      raison: "Ce mois n'est pas terminé : il se clôture à partir du 1er du mois suivant.",
+    };
+  }
+
+  if (statutExistant === null || statutExistant === "conteste") return { ok: true };
+
+  return {
+    ok: false,
+    raison:
+      statutExistant === "cloture"
+        ? "Ce mois est déjà clôturé et attend la réponse du client."
+        : "Ce relevé est déjà validé : il ne se re-clôture pas.",
+  };
+}
+
+/**
+ * Ce relevé peut-il être marqué payé ?
+ *
+ * Sur un relevé validé, un clic suffit. Sur un relevé seulement clôturé,
+ * l'accord s'est pris hors de l'outil : la note devient la seule trace de cet
+ * échange, et elle est donc exigée.
+ */
+export function peutMarquerPaye(statut: string, note?: string | null): Verdict {
+  if (statut === "paye") return { ok: false, raison: "Ce relevé est déjà marqué payé." };
+
+  if (statut === "conteste") {
+    return {
+      ok: false,
+      raison: "Ce relevé est contesté : corrige-le et re-clôture-le d'abord.",
+    };
+  }
+
+  if (statut === "cloture" && !note?.trim()) {
+    return {
+      ok: false,
+      raison:
+        "Ce relevé n'a pas été validé par le client. Dis en une ligne sur quoi vous vous êtes mis d'accord.",
+      champ: "note",
+    };
+  }
+
+  return { ok: true };
+}

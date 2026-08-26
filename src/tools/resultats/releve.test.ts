@@ -8,6 +8,8 @@ import { describe, it } from "node:test";
 import {
   construireLignes,
   estRevolu,
+  peutCloturer,
+  peutMarquerPaye,
   raisonExclusion,
   totaux,
   versCsv,
@@ -207,5 +209,75 @@ describe("l'export", () => {
       CANAUX,
     );
     assert.equal(versCsv(lignes).includes('"Séance ""longue""; suivi"'), true);
+  });
+});
+
+describe("qui peut clôturer, et quand", () => {
+  it("20. un mois révolu sans relevé se clôture", () => {
+    assert.deepEqual(peutCloturer(null, "2026-07-01", "2026-08-01"), { ok: true });
+  });
+
+  it("21. le mois en cours, non", () => {
+    const verdict = peutCloturer(null, "2026-08-01", "2026-08-01");
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.ok === false ? verdict.raison : "", /pas terminé/);
+  });
+
+  it("22. un relevé contesté se re-clôture : c'est le geste attendu", () => {
+    assert.deepEqual(peutCloturer("conteste", "2026-07-01", "2026-08-01"), { ok: true });
+  });
+
+  it("23. un relevé déjà clôturé attend une réponse, il ne se re-clôture pas", () => {
+    const verdict = peutCloturer("cloture", "2026-07-01", "2026-08-01");
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.ok === false ? verdict.raison : "", /attend la réponse/);
+  });
+
+  it("24. un relevé validé ne se re-clôture jamais", () => {
+    // Le client a dit oui sur des chiffres précis : les changer après coup
+    // viderait sa validation de son sens.
+    const verdict = peutCloturer("valide", "2026-07-01", "2026-08-01");
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.ok === false ? verdict.raison : "", /déjà validé/);
+  });
+
+  it("25. ni un relevé payé", () => {
+    assert.equal(peutCloturer("paye", "2026-07-01", "2026-08-01").ok, false);
+  });
+
+  it("26. le mois révolu prime : un relevé contesté du mois en cours ne se clôture pas", () => {
+    assert.equal(peutCloturer("conteste", "2026-08-01", "2026-08-01").ok, false);
+  });
+});
+
+describe("marquer payé", () => {
+  it("27. un relevé validé se marque payé d'un clic", () => {
+    assert.deepEqual(peutMarquerPaye("valide"), { ok: true });
+  });
+
+  it("28. un relevé seulement clôturé exige une note", () => {
+    const verdict = peutMarquerPaye("cloture");
+    assert.equal(verdict.ok, false);
+    assert.equal(verdict.ok === false ? verdict.champ : "", "note");
+  });
+
+  it("29. … et une note d'espaces n'en est pas une", () => {
+    assert.equal(peutMarquerPaye("cloture", "   ").ok, false);
+  });
+
+  it("30. avec la note, il passe", () => {
+    assert.deepEqual(peutMarquerPaye("cloture", "Accord par téléphone le 3."), {
+      ok: true,
+    });
+  });
+
+  it("31. un relevé contesté se corrige avant de se payer", () => {
+    const verdict = peutMarquerPaye("conteste", "on s'est arrangés");
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.ok === false ? verdict.raison : "", /re-clôture/);
+  });
+
+  it("32. un relevé déjà payé ne se repaie pas", () => {
+    assert.equal(peutMarquerPaye("paye", "encore").ok, false);
   });
 });

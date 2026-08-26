@@ -18,7 +18,8 @@ import { preparerRadar } from "@/tools/resultats/installation";
 import { moisCourant } from "@/tools/resultats/mois";
 import {
   construireLignes,
-  estRevolu,
+  peutCloturer,
+  peutMarquerPaye,
   totaux,
   type CanalDuReleve,
   type SeanceDuMois,
@@ -526,12 +527,6 @@ export async function cloturerMois(input: unknown): Promise<ActionResult> {
 
   const { organizationId, mois } = parsed.data;
 
-  if (!estRevolu(mois, moisCourant())) {
-    return fail(
-      "Ce mois n'est pas terminé : il se clôture à partir du 1er du mois suivant.",
-    );
-  }
-
   const admin = createAdminClient();
 
   const [existant, reglages, canaux, seances] = await Promise.all([
@@ -560,13 +555,8 @@ export async function cloturerMois(input: unknown): Promise<ActionResult> {
       .limit(1000),
   ]);
 
-  if (existant.data && existant.data.status !== "conteste") {
-    return fail(
-      existant.data.status === "cloture"
-        ? "Ce mois est déjà clôturé et attend la réponse du client."
-        : "Ce relevé est déjà validé : il ne se re-clôture pas.",
-    );
-  }
+  const verdict = peutCloturer(existant.data?.status ?? null, mois, moisCourant());
+  if (!verdict.ok) return fail(verdict.raison);
 
   const taux = Number(reglages.data?.commission_rate ?? 20);
   const lignes = construireLignes(
@@ -651,18 +641,10 @@ export async function marquerPaye(input: unknown): Promise<ActionResult> {
     .maybeSingle();
 
   if (!releve) return fail("Ce relevé n'existe plus.");
-  if (releve.status === "paye") return fail("Ce relevé est déjà marqué payé.");
-  if (releve.status === "conteste") {
-    return fail("Ce relevé est contesté : corrige-le et re-clôture-le d'abord.");
-  }
 
   const note = parsed.data.note?.trim();
-  if (releve.status === "cloture" && !note) {
-    return fail(
-      "Ce relevé n'a pas été validé par le client. Dis en une ligne sur quoi vous vous êtes mis d'accord.",
-      "note",
-    );
-  }
+  const verdict = peutMarquerPaye(releve.status, note);
+  if (!verdict.ok) return fail(verdict.raison, verdict.champ);
 
   const { error } = await admin
     .from("radar_statements")

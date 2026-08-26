@@ -366,6 +366,64 @@ try {
     vide(await a1("GET", `radar_webhook_log?select=id&organization_id=eq.${orgs.a.id}`)),
   );
 
+  /*
+   * Le plus tentant de tous : le taux est ce que le client paie. S'il pouvait
+   * l'écrire, Radar ne servirait plus à rien.
+   */
+  const tauxParA = await a1(
+    "PATCH",
+    `radar_settings?organization_id=eq.${orgs.a.id}&select=commission_rate`,
+    { commission_rate: 1 },
+  );
+  verifie(
+    "A1 · ne baisse pas son propre taux de commission",
+    refuse(tauxParA),
+    `statut ${tauxParA.status}`,
+  );
+  verifie(
+    "… et le taux est intact",
+    Number(
+      (await srv("GET", `radar_settings?select=commission_rate&organization_id=eq.${orgs.a.id}`))
+        .data[0].commission_rate,
+    ) === 20,
+  );
+
+  const fenetreParA = await a1(
+    "PATCH",
+    `radar_settings?organization_id=eq.${orgs.a.id}&select=window_days`,
+    { window_days: 0 },
+  );
+  verifie("A1 · ne raccourcit pas la fenêtre de récurrence", refuse(fenetreParA));
+
+  const canalInvente = await a1("POST", "radar_channels", {
+    organization_id: orgs.a.id,
+    key: "invente",
+    label: "Canal inventé",
+    is_comete: false,
+  });
+  verifie("A1 · n'ajoute pas de canal", refuse(canalInvente), `statut ${canalInvente.status}`);
+
+  const canalEfface = await a1("DELETE", `radar_channels?id=eq.${canalComete.id}&select=id`);
+  verifie("A1 · ne supprime pas un canal", refuse(canalEfface));
+
+  const saisieParA = await a1("POST", "radar_channel_entries", {
+    organization_id: orgs.a.id,
+    month: "2026-01-01",
+    channel_id: canalComete.id,
+    spend_cents: 999999,
+  });
+  verifie(
+    "A1 · n'invente pas une dépense pour gonfler le coût de Louis",
+    refuse(saisieParA),
+    `statut ${saisieParA.status}`,
+  );
+
+  const journalParA = await a1("POST", "radar_webhook_log", {
+    organization_id: orgs.a.id,
+    outcome: "accepted",
+  });
+  verifie("A1 · n'écrit pas dans le journal des webhooks", refuse(journalParA));
+
   // --------------------- 6. La fonction de statut ---------------------------
 
   console.log("\n== 6. radar_client_set_status ==");
@@ -491,6 +549,32 @@ try {
       releveApres.reviewed_by === comptes.a1,
     JSON.stringify(releveApres),
   );
+
+  /*
+   * Les deux écritures qu'un client aurait intérêt à tenter : se déclarer payé
+   * sans l'être, ou inventer un relevé à zéro.
+   */
+  const payeParA = await a1("PATCH", `radar_statements?id=eq.${releve.id}&select=id`, {
+    status: "paye",
+    paid_at: new Date().toISOString(),
+  });
+  verifie("A1 · ne se déclare pas payé", refuse(payeParA), `statut ${payeParA.status}`);
+
+  const baisseParA = await a1("PATCH", `radar_statements?id=eq.${releve.id}&select=id`, {
+    commission_cents: 0,
+  });
+  verifie("A1 · ne remet pas sa commission à zéro", refuse(baisseParA));
+
+  const releveInvente = await a1("POST", "radar_statements", {
+    organization_id: orgs.a.id,
+    month: "2025-01-01",
+    commission_rate: 0,
+    window_days: 90,
+  });
+  verifie("A1 · n'invente pas un relevé", refuse(releveInvente), `statut ${releveInvente.status}`);
+
+  const releveEfface = await a1("DELETE", `radar_statements?id=eq.${releve.id}&select=id`);
+  verifie("A1 · ne supprime pas un relevé", refuse(releveEfface));
 
   const deuxiemeFois = await a1("POST", "rpc/radar_review_statement", {
     statement_id: releve.id,
@@ -644,7 +728,7 @@ try {
     (
       await srv(
         "GET",
-        `radar_webhook_log?select=outcome,event_kind,message&organization_id=eq.${orgC.id}&limit=200`,
+        `radar_webhook_log?select=outcome,event_kind,message,received_at&organization_id=eq.${orgC.id}&order=received_at.asc,id.asc&limit=200`,
       )
     ).data;
 
@@ -945,7 +1029,9 @@ try {
   // ------------------- Le relevé des champs de Calendly ---------------------
 
   const accepte = (await journaux()).filter((l) => l.outcome === "accepted");
-  const releveChamps = accepte[0]?.message ?? "";
+  // Celui de la séance payée : on le désigne par son contenu, pas par son rang.
+  const releveChamps =
+    accepte.find((l) => (l.message ?? "").includes("payment : amount"))?.message ?? "";
 
   verifie(
     "un appel accepté relève les champs reçus",
