@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts"
+    "types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts",
+    "qa:isolation": "node scripts/qa-isolation.mjs",
+    "qa:routes": "node scripts/qa-routes.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

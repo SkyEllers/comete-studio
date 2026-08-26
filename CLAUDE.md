@@ -34,7 +34,14 @@ npm run lint
 npm run types        # = supabase gen types typescript --linked > src/lib/supabase/database.types.ts
 npx supabase migration new <nom>   # nouvelle migration dans supabase/migrations/
 npx supabase db push               # applique les migrations au projet lié
+
+npm run qa:isolation # bancs de QA : isolation entre organisations, via l'API REST
+npm run qa:routes    # gardes de routes ; demande un serveur (npx next start -p 3100)
 ```
+
+Les deux bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
+des comptes et des organisations préfixés `zz-qa-`, puis les suppriment et
+vérifient qu'il n'en reste rien. À rejouer avant chaque mise en production.
 
 ## 4. Structure du repo
 
