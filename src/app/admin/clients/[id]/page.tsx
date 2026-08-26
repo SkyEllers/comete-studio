@@ -19,6 +19,7 @@ import {
   InviteMemberDialog,
   MemberActions,
 } from "@/app/admin/clients/[id]/members-section";
+import { ClientTabs } from "@/components/admin/client-tabs";
 import { Counter } from "@/components/admin/counter";
 import { EmptyState } from "@/components/app/empty-state";
 import {
@@ -246,6 +247,15 @@ export default async function ClientDetailPage({
 
   if (!org) notFound();
 
+  // Une requête de plus hors `<Suspense>`, mais minuscule : l'onglet Radar doit
+  // être décidé avant que la page commence à se rendre.
+  const { data: radar } = await supabase
+    .from("organization_tools")
+    .select("enabled, tools!inner(slug)")
+    .eq("organization_id", org.id)
+    .eq("tools.slug", "resultats")
+    .maybeSingle();
+
   return (
     <>
       <div className="mb-8 space-y-4">
@@ -275,7 +285,13 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      <section className="space-y-4">
+      <ClientTabs
+        organizationId={org.id}
+        actif="fiche"
+        radarActif={Boolean(radar?.enabled)}
+      />
+
+      <section className="mt-8 space-y-4">
         <h2 className="text-lg">Capsule</h2>
 
         <Suspense fallback={<CountersSkeleton compteurs={2} />}>

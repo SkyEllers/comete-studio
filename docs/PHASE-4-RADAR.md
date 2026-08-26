@@ -251,8 +251,9 @@ Mobile d'abord. Sous `/app/[orgSlug]/(tools)/resultats`, garde `requireToolAcces
 
 ## Chantier 6 — Script de landing et purge
 
+- **Traduire les identifiants de clic en UTM.** Calendly ne relaie que les `utm_*` dans `payload.tracking` : un `gclid` seul n'arriverait jamais jusqu'à Radar. Quand l'URL d'arrivée porte un identifiant de clic **et aucun `utm_source`**, `radar.js` pose les UTM correspondants avant de les transmettre : `gclid` → `utm_source=google&utm_medium=cpc`, `fbclid` → `utm_source=facebook&utm_medium=paid`. Les UTM déjà présents ne sont jamais écrasés — une campagne correctement taguée fait foi.
 - `public/radar.js` (moins de 3 Ko, sans dépendance) : à l'arrivée, lit `utm_*`, `gclid`, `fbclid`, `ttclid` dans l'URL ; s'ils existent et qu'aucune valeur n'est déjà en `sessionStorage`, les mémorise (premier contact de la visite) ; à chaque clic sur un lien vers `calendly.com` et au chargement d'un embed Calendly, ajoute ces paramètres à l'URL. Aucun cookie, aucune requête sortante, rien après la fermeture de l'onglet. Commentaire d'en-tête expliquant ce que fait le script, en français.
-- Page d'aide interne `docs/RADAR-INSTALLATION.md` : la checklist complète pour brancher un nouveau client (Calendly, question, Stripe, jeton, script, contrat), à suivre pour chaque client.
+- Page d'aide interne `docs/RADAR-INSTALLATION.md` : la checklist complète pour brancher un nouveau client (Calendly, question, Stripe, jeton, script, contrat), à suivre pour chaque client. Elle doit couvrir **le taguage des annonces**, sans lequel tout arrive en « Direct » : le modèle de suivi Google Ads au niveau du compte (`{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}`) et les UTM de chaque annonce Meta (`utm_source=facebook`, `utm_medium=paid`). C'est la moitié du travail d'attribution, et elle se fait hors du hub.
 - Tâches `pg_cron` du chantier 1 vérifiées en conditions réelles (une exécution manuelle sur des lignes fictives datées).
 
 ## Chantier 7 — Recette et mise en ligne
