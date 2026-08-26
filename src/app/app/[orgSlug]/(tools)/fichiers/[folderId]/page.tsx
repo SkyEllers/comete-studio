@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { requireMembership } from "@/lib/access";
+import { ZoneDepot } from "@/tools/fichiers/drop-zone";
 import { FileList } from "@/tools/fichiers/file-list";
 import { compteFichiers, tailleLisible } from "@/tools/fichiers/format";
 import { getFolderContents } from "@/tools/fichiers/queries";
@@ -47,11 +48,14 @@ export default async function DossierPage({
       <PageHeader
         title={contenu.folder.name}
         action={
-          <Button asChild variant="outline">
-            <Link href={`/app/${orgSlug}/fichiers`} prefetch>
-              Tous les dossiers
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href={`/app/${orgSlug}/fichiers`} prefetch>
+                Tous les dossiers
+              </Link>
+            </Button>
+            <ZoneDepot folderId={folderId} />
+          </div>
         }
       />
 

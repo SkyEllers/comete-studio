@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { CardGridSkeleton } from "@/components/app/skeletons";
 import { Button } from "@/components/ui/button";
 import { requireMembership } from "@/lib/access";
+import { ZoneDepot } from "@/tools/fichiers/drop-zone";
 import { FileList } from "@/tools/fichiers/file-list";
 import { FolderTile } from "@/tools/fichiers/folder-tile";
 import { compteFichiers, tailleLisible } from "@/tools/fichiers/format";
@@ -93,6 +94,7 @@ export default async function FichiersPage({
               </Link>
             </Button>
             <NewFolderDialog orgSlug={orgSlug} />
+            <ZoneDepot folderId={null} />
           </div>
         }
       />

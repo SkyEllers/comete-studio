@@ -221,3 +221,60 @@ export async function deleteFiles(
   rafraichir(orgSlug, folderId);
   return ok({ supprimes: data?.length ?? 0 });
 }
+
+// ------------------------------ Fin d'un lot --------------------------------
+
+/**
+ * Appelée par la file quand plus rien ne part : c'est `revalidatePath` qui
+ * fait apparaître les fichiers dans la liste sans rechargement. Les lignes,
+ * elles, ont déjà été écrites depuis le navigateur.
+ */
+export async function rafraichirApresLot(
+  orgSlug: string,
+  folderId: string | null,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  rafraichir(orgSlug, folderId);
+  return ok();
+}
+
+/**
+ * Le ménage des envois abandonnés, à l'ouverture de l'outil.
+ *
+ * Un envoi interrompu laisse une ligne `uploading` et un objet incomplet. On
+ * les garde vingt-quatre heures — le temps de revenir et de reprendre — puis
+ * on les efface. La RLS limite d'elle-même le ménage à ce que cette personne
+ * a le droit de supprimer.
+ */
+export async function nettoyerEnvoisAbandonnes(
+  orgSlug: string,
+): Promise<ActionResult<{ retires: number }>> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const limite = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: abandonnes } = await membre.supabase
+    .from("files")
+    .select("id")
+    .eq("organization_id", membre.org.id)
+    .eq("status", "uploading")
+    .lt("created_at", limite);
+
+  const ids = (abandonnes ?? []).map((f) => f.id);
+  if (ids.length === 0) return ok({ retires: 0 });
+
+  await membre.supabase.storage
+    .from(BUCKET)
+    .remove(ids.map((id) => `${membre.org.id}/${id}`));
+
+  const { data } = await membre.supabase
+    .from("files")
+    .delete()
+    .in("id", ids)
+    .select("id");
+
+  return ok({ retires: data?.length ?? 0 });
+}

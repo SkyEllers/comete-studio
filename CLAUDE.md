@@ -21,6 +21,7 @@ Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventio
 | Backend | Supabase : Auth, Postgres + RLS, Realtime, Storage | Projet en région EU. Accès via `@supabase/ssr` (client serveur + client navigateur). |
 | Auth | Email + mot de passe. Pas d'inscription publique : invitation par Louis uniquement | Réinitialisation par email. Flux serveur : route `/auth/confirm` + `verifyOtp` (doc Supabase « server-side auth »). |
 | Drag & drop | `@dnd-kit/core` + `@dnd-kit/sortable` | Kanban, phase 2. |
+| Envois de fichiers | `tus-js-client` | Fichiers, phase 3 : envois reprenables du navigateur vers Storage, morceaux de 6 Mo imposés par Supabase. |
 | Validation | `zod` | Toute Server Action valide ses entrées avant de toucher la base. |
 | Icônes / toasts / markdown | `lucide-react` / `sonner` / `react-markdown` + `remark-gfm` | Markdown uniquement pour les descriptions de cartes (pas de HTML brut). |
 | Hébergement | Vercel, projet existant, domaine déjà lié | Variables d'env dans Vercel, jamais dans le repo. |
@@ -102,7 +103,7 @@ docs/                                 # briefs par phase + docs/legacy/ (textes 
 
 - Server Components par défaut ; `'use client'` seulement quand il y a de l'interactivité.
 - Mutations : Server Actions (`actions.ts` à côté de la page) validées par zod, qui renvoient `{ ok: true, data } | { ok: false, error: string }` avec un message en français. Jamais d'exception non gérée côté client.
-- Exception : les outils temps réel (kanban) lisent et écrivent via `supabase-js` côté navigateur, la RLS protège. Toute opération d'administration (créer un client, inviter, activer un outil) passe par une Server Action avec le client `admin.ts`, après `requireAdmin()`.
+- Exception : quand le navigateur doit parler à Supabase directement — les outils temps réel (kanban), et les envois de fichiers qui partent en TUS sans traverser Vercel — il lit et écrit via `supabase-js`, la RLS protège. Dans ces cas-là, une Server Action reste nécessaire pour `revalidatePath` : c'est le seul mécanisme qui traverse la frontière. Toute opération d'administration (créer un client, inviter, activer un outil) passe par une Server Action avec le client `admin.ts`, après `requireAdmin()`.
 - Toute nouvelle table : RLS activée + policies + index + test manuel avec deux comptes (membre / non-membre). Sans ça, le chantier n'est pas terminé.
 - Toute nouvelle fonction SQL : `revoke execute … from public, anon` puis `grant execute … to authenticated`, sinon elle est appelable sans session.
 - `has_tool()` renvoie `false` avec la clé service role : les Server Actions d'administration lisent `organization_tools` directement.
