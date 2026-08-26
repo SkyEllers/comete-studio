@@ -76,7 +76,8 @@ export function PrepareDialog({ orgSlug }: { orgSlug: string }) {
   const nomDestination =
     preparation.folderId === null
       ? "Hors dossier"
-      : (dossiers.find((d) => d.id === preparation.folderId)?.name ?? "Dossier");
+      : (dossiers.find((d) => d.id === preparation.folderId)?.name ??
+        "Dossier");
 
   /**
    * Entrée passe au champ suivant ; au dernier, elle envoie. Depuis le nom
@@ -112,28 +113,33 @@ export function PrepareDialog({ orgSlug }: { orgSlug: string }) {
           Le nom commun est une commande de lot : chaque frappe renomme toute
           la liste, sous les yeux. On le met en haut parce qu'on s'en sert
           d'abord, et qu'on retouche à la main ensuite.
+
+          En dessous de deux fichiers il ne sert à rien — numéroter un fichier
+          seul donnerait « Nom 01 » — et le champ du fichier suffit.
         */}
-        <div className="border-line space-y-2 border-t px-4 py-3 sm:px-6">
-          <Label htmlFor="nom-commun" className="text-muted-foreground">
-            Nom commun pour tout le lot
-          </Label>
-          <Input
-            id="nom-commun"
-            value={preparation.nomCommun}
-            onChange={(event) => appliquerNomCommun(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              auSuivant(-1);
-            }}
-            placeholder="Tournage octobre"
-            maxLength={180}
-            className="h-8"
-          />
-          <p className="text-muted-foreground font-mono text-xs">
-            Optionnel — chaque fichier prend ce nom suivi de son numéro.
-          </p>
-        </div>
+        {valides.length > 1 ? (
+          <div className="border-line space-y-2 border-t px-4 py-3 sm:px-6">
+            <Label htmlFor="nom-commun" className="text-muted-foreground">
+              Nom commun pour tout le lot
+            </Label>
+            <Input
+              id="nom-commun"
+              value={preparation.nomCommun}
+              onChange={(event) => appliquerNomCommun(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                auSuivant(-1);
+              }}
+              placeholder="Tournage octobre"
+              maxLength={180}
+              className="h-8"
+            />
+            <p className="text-muted-foreground font-mono text-xs">
+              Optionnel — chaque fichier prend ce nom suivi de son numéro.
+            </p>
+          </div>
+        ) : null}
 
         <div className="border-line flex items-center gap-2 border-y px-4 py-3 sm:px-6">
           <span className="text-muted-foreground text-sm">Destination</span>
