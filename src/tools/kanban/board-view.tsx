@@ -11,6 +11,7 @@ import {
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
+  type CollisionDetection,
   type DragStartEvent,
   type Over,
 } from "@dnd-kit/core";
@@ -69,6 +70,25 @@ import { PAS_POSITION, ecartTropPetit, positionEntre } from "./positions";
 import { cardsOfList, useBoardStore } from "./store";
 import type { BoardCard, BoardData } from "./types";
 import { useBoardRealtime } from "./use-board-realtime";
+
+/**
+ * Une liste qu'on déplace ne vise que des listes.
+ *
+ * Sans ce filtre, les cartes et les zones de dépôt entrent dans le calcul :
+ * la colonne saisie est plus proche de ses propres cartes que de la colonne
+ * d'en face, la cible résolue est donc elle-même, et le déplacement est
+ * ignoré. D'où un réordonnancement qui ne marchait qu'entre listes vides.
+ */
+const detecterCollision: CollisionDetection = (args) => {
+  if (args.active.data.current?.type !== "list") return closestCorners(args);
+
+  return closestCorners({
+    ...args,
+    droppableContainers: args.droppableContainers.filter(
+      (conteneur) => conteneur.data.current?.type === "list",
+    ),
+  });
+};
 
 /** Liste visée par un survol, quel que soit l'élément survolé. */
 function listeSurvolee(over: Over | null): string | null {
@@ -786,7 +806,7 @@ export function BoardView({
         // navigateur, et l'hydratation échoue.
         id="kanban-board"
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={detecterCollision}
         accessibility={{
           announcements: annonces,
           screenReaderInstructions: INSTRUCTIONS_DND,
