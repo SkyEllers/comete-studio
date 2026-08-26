@@ -34,3 +34,16 @@ export function compteFichiers(nombre: number): string {
   if (nombre === 0) return "Aucun fichier";
   return `${nombre} fichier${nombre > 1 ? "s" : ""}`;
 }
+
+/**
+ * Le nom sans son extension, et l'extension à part.
+ *
+ * Un point en tête ne compte pas — `.gitignore` est un nom, pas une extension.
+ * Séparer les deux est ce qui garantit qu'on ne perd jamais l'extension en
+ * renommant : le champ de saisie ne porte que la partie modifiable.
+ */
+export function couper(nom: string): { base: string; extension: string } {
+  const point = nom.lastIndexOf(".");
+  if (point <= 0) return { base: nom, extension: "" };
+  return { base: nom.slice(0, point), extension: nom.slice(point) };
+}

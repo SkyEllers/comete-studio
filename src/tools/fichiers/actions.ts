@@ -458,3 +458,19 @@ export async function apercuDuFichier(
 
   return ok({ apercu, original });
 }
+
+/** Les destinations possibles, pour le dialog de préparation. */
+export async function listerDossiers(
+  orgSlug: string,
+): Promise<ActionResult<{ id: string; name: string }[]>> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const { data } = await membre.supabase
+    .from("folders")
+    .select("id, name")
+    .eq("organization_id", membre.org.id)
+    .order("name");
+
+  return ok(data ?? []);
+}

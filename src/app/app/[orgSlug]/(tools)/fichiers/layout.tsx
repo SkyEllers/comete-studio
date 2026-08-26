@@ -1,4 +1,5 @@
 import { requireToolAccess } from "@/lib/access";
+import { PrepareDialog } from "@/tools/fichiers/prepare-dialog";
 import { FichiersProvider } from "@/tools/fichiers/upload-context";
 import { UploadPanel } from "@/tools/fichiers/upload-panel";
 
@@ -24,6 +25,7 @@ export default async function FichiersLayout({
       userId={userId}
     >
       {children}
+      <PrepareDialog orgSlug={orgSlug} />
       <UploadPanel />
     </FichiersProvider>
   );

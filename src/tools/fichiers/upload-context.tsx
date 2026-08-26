@@ -1,11 +1,13 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import * as tus from "tus-js-client";
 
 import { createClient } from "@/lib/supabase/client";
 
-import { nettoyerEnvoisAbandonnes, rafraichirApresLot } from "./actions";
+import { nettoyerEnvoisAbandonnes, rafraichirApresLot, renameFile } from "./actions";
+import { couper } from "./format";
 import { mesurer, posterVideo } from "./media";
 import { empreinte, memoriser, oublier, retrouver } from "./reprises";
 
@@ -50,9 +52,41 @@ export type Envoi = {
   fileId?: string;
 };
 
+/** Un fichier en attente d'être nommé et rangé. */
+export type EntreePreparation = {
+  cle: string;
+  fichier: File;
+  /** Le nom sans extension : la seule partie modifiable. */
+  base: string;
+  extension: string;
+  refus: string | null;
+};
+
+/**
+ * Le lot en cours de préparation.
+ *
+ * Il vit ici et non dans le dialog : déposer d'autres fichiers pendant qu'on
+ * nomme les premiers doit les ajouter au lot, sans effacer ce qui est déjà
+ * saisi. Le dialog n'a plus qu'à afficher et à rappeler.
+ */
+export type Preparation = {
+  entrees: EntreePreparation[];
+  folderId: string | null;
+  /** Vide tant que le lot n'a pas de nom commun. */
+  nomCommun: string;
+};
+
 type Contexte = {
   envois: Envoi[];
-  ajouter: (fichiers: File[], folderId: string | null) => void;
+  preparation: Preparation | null;
+  preparer: (fichiers: File[], folderId: string | null) => void;
+  renommerPreparation: (cle: string, base: string) => void;
+  retirerDePreparation: (cle: string) => void;
+  changerDestination: (folderId: string | null) => void;
+  appliquerNomCommun: (nomCommun: string) => void;
+  annulerPreparation: () => void;
+  envoyer: () => void;
+  renommer: (cle: string, nom: string) => void;
   annuler: (cle: string) => void;
   reprendre: (cle: string) => void;
   retirer: (cle: string) => void;
@@ -72,6 +106,40 @@ export function useEnvois(): Contexte {
 export const enCours = (envoi: Envoi) =>
   envoi.etat === "attente" || envoi.etat === "envoi";
 
+/**
+ * Applique le nom commun au lot : « Tournage octobre 01 », « 02 »…
+ *
+ * Seuls les fichiers qui partiront sont numérotés — compter les refusés
+ * laisserait des trous dans la série déposée. Un nom commun vidé rend à
+ * chacun son nom d'origine : c'est ce qui rend le champ sans risque à
+ * essayer, et l'inverse exact de l'avoir rempli.
+ *
+ * `depuis` protège les noms déjà posés : les entrées d'avant ne font que
+ * compter. C'est ce qui permet à un fichier ajouté en cours de route de
+ * prendre le numéro suivant sans réécrire les retouches faites à la main.
+ */
+function numeroter(
+  entrees: EntreePreparation[],
+  nomCommun: string,
+  depuis = 0,
+): EntreePreparation[] {
+  const propre = nomCommun.trim();
+  let rang = 0;
+
+  return entrees.map((entree, index) => {
+    if (entree.refus) return entree;
+    rang += 1;
+    if (index < depuis) return entree;
+
+    return {
+      ...entree,
+      base: propre
+        ? `${propre} ${String(rang).padStart(2, "0")}`
+        : couper(entree.fichier.name).base,
+    };
+  });
+}
+
 export function FichiersProvider({
   orgSlug,
   organizationId,
@@ -84,6 +152,7 @@ export function FichiersProvider({
   children: React.ReactNode;
 }) {
   const [envois, setEnvois] = useState<Envoi[]>([]);
+  const [preparation, setPreparation] = useState<Preparation | null>(null);
 
   /*
    * La file fait foi dans une ref, pas dans l'état : l'ordonnanceur décide de
@@ -222,7 +291,7 @@ export function FichiersProvider({
           .insert({
             organization_id: organizationId,
             folder_id: envoi.folderId,
-            name: fichier.name,
+            name: envoi.nom,
             size_bytes: fichier.size,
             mime_type: fichier.type || "application/octet-stream",
             uploaded_by: userId,
@@ -358,40 +427,172 @@ export function FichiersProvider({
 
   // -------------------------------- l'API ---------------------------------
 
-  const ajouter = useCallback(
-    (fichiers: File[], folderId: string | null) => {
-      const nouveaux: Envoi[] = [];
+  /**
+   * Déposer ouvre d'abord le dialog de préparation : on nomme et on range
+   * avant d'envoyer. Un lot déposé pendant qu'un autre se prépare vient s'y
+   * ajouter plutôt que de l'écraser — personne n'a envie de reperdre dix noms
+   * déjà saisis.
+   */
+  const preparer = useCallback((fichiers: File[], folderId: string | null) => {
+    if (fichiers.length === 0) return;
 
-      for (const fichier of fichiers) {
-        const cle = crypto.randomUUID();
-
-        const refus =
+    const nouvelles: EntreePreparation[] = fichiers.map((fichier) => {
+      const { base, extension } = couper(fichier.name);
+      return {
+        cle: crypto.randomUUID(),
+        fichier,
+        base,
+        extension,
+        refus:
           fichier.size === 0
-            ? "Ce fichier est vide."
+            ? "Fichier vide"
             : fichier.size > TAILLE_MAX
-              ? "Ce fichier dépasse 5 Go, la limite par fichier."
-              : null;
+              ? "Dépasse 5 Go"
+              : null,
+      };
+    });
 
-        if (!refus) fichiersRef.current.set(cle, fichier);
+    setPreparation((actuelle) => {
+      if (!actuelle) return { entrees: nouvelles, folderId, nomCommun: "" };
 
-        nouveaux.push({
-          cle,
-          nom: fichier.name,
-          taille: fichier.size,
-          folderId,
-          etat: refus ? "refuse" : "attente",
-          envoye: 0,
-          vitesse: 0,
-          message: refus ?? undefined,
-        });
-      }
+      const entrees = [...actuelle.entrees, ...nouvelles];
 
-      if (nouveaux.length === 0) return;
+      // Un lot déjà nommé absorbe les nouveaux venus dans la même série —
+      // sinon « Tournage octobre 04 » serait suivi d'un « IMG_5012 » orphelin —
+      // mais seuls les nouveaux sont nommés : les autres gardent leur nom.
+      return {
+        ...actuelle,
+        entrees: actuelle.nomCommun.trim()
+          ? numeroter(entrees, actuelle.nomCommun, actuelle.entrees.length)
+          : entrees,
+      };
+    });
+  }, []);
 
-      majFile((file) => [...file, ...nouveaux]);
-      demarrerSuivants();
+  const renommerPreparation = useCallback(
+    (cle: string, base: string) =>
+      setPreparation((actuelle) =>
+        actuelle
+          ? {
+              ...actuelle,
+              entrees: actuelle.entrees.map((entree) =>
+                entree.cle === cle ? { ...entree, base } : entree,
+              ),
+            }
+          : actuelle,
+      ),
+    [],
+  );
+
+  const retirerDePreparation = useCallback(
+    (cle: string) =>
+      setPreparation((actuelle) => {
+        if (!actuelle) return actuelle;
+        const restantes = actuelle.entrees.filter((entree) => entree.cle !== cle);
+        // Retirer le dernier ferme le dialog : il n'y a plus rien à préparer.
+        if (restantes.length === 0) return null;
+
+        // Pas de renumérotation ici : elle écraserait les retouches faites à
+        // la main. Retirer le deuxième de cinq laisse donc un trou entre 01 et
+        // 03 — une frappe dans le champ commun referme la série.
+        return { ...actuelle, entrees: restantes };
+      }),
+    [],
+  );
+
+  /**
+   * Le nom commun, appliqué à chaque frappe.
+   *
+   * C'est le seul geste qui renumérote : il réécrit tous les noms, y compris
+   * ceux qu'on aurait retouchés à la main. Rien ne se perd en silence — on voit
+   * la liste changer sous le champ — et c'est aussi ce qui referme la série
+   * après un retrait. Tout le reste laisse les noms tranquilles.
+   */
+  const appliquerNomCommun = useCallback(
+    (nomCommun: string) =>
+      setPreparation((actuelle) =>
+        actuelle
+          ? {
+              ...actuelle,
+              nomCommun,
+              entrees: numeroter(actuelle.entrees, nomCommun),
+            }
+          : actuelle,
+      ),
+    [],
+  );
+
+  const changerDestination = useCallback(
+    (folderId: string | null) =>
+      setPreparation((actuelle) => (actuelle ? { ...actuelle, folderId } : actuelle)),
+    [],
+  );
+
+  const annulerPreparation = useCallback(() => setPreparation(null), []);
+
+  const envoyer = useCallback(() => {
+    const lot = preparation;
+    if (!lot) return;
+
+    setPreparation(null);
+
+    const nouveaux: Envoi[] = [];
+
+    for (const entree of lot.entrees) {
+      if (entree.refus) continue;
+
+      const cle = crypto.randomUUID();
+      fichiersRef.current.set(cle, entree.fichier);
+
+      // Un nom vidé retombe sur celui d'origine : mieux vaut un nom de
+      // pellicule qu'un fichier appelé « .jpg ».
+      const base = entree.base.trim() || couper(entree.fichier.name).base;
+
+      nouveaux.push({
+        cle,
+        nom: `${base}${entree.extension}`,
+        taille: entree.fichier.size,
+        folderId: lot.folderId,
+        etat: "attente",
+        envoye: 0,
+        vitesse: 0,
+      });
+    }
+
+    if (nouveaux.length === 0) return;
+
+    majFile((file) => [...file, ...nouveaux]);
+    demarrerSuivants();
+  }, [demarrerSuivants, majFile, preparation]);
+
+  /**
+   * Renommer depuis la file, même en plein envoi.
+   *
+   * Le nom ne voyage pas dans le chemin de l'objet : le renommer ne coûte
+   * qu'une ligne modifiée, et n'interrompt rien. Tant que la ligne n'existe
+   * pas, le nouveau nom attend simplement d'être inscrit.
+   */
+  const renommer = useCallback(
+    (cle: string, nom: string) => {
+      const propre = nom.trim();
+      if (!propre) return;
+
+      const envoi = fileRef.current.find((e) => e.cle === cle);
+      if (!envoi || envoi.nom === propre) return;
+
+      patcher(cle, { nom: propre });
+
+      if (!envoi.fileId) return;
+
+      void (async () => {
+        const result = await renameFile(orgSlug, envoi.fileId!, propre);
+        if (!result.ok) {
+          patcher(cle, { nom: envoi.nom });
+          toast.error(result.error);
+        }
+      })();
     },
-    [demarrerSuivants, majFile],
+    [orgSlug, patcher],
   );
 
   const annuler = useCallback(
@@ -467,7 +668,22 @@ export function FichiersProvider({
 
   return (
     <ContexteEnvois.Provider
-      value={{ envois, ajouter, annuler, reprendre, retirer, vider }}
+      value={{
+        envois,
+        preparation,
+        preparer,
+        renommerPreparation,
+        retirerDePreparation,
+        changerDestination,
+        appliquerNomCommun,
+        annulerPreparation,
+        envoyer,
+        renommer,
+        annuler,
+        reprendre,
+        retirer,
+        vider,
+      }}
     >
       {children}
     </ContexteEnvois.Provider>

@@ -4,10 +4,11 @@ import { ChevronDown, RotateCcw, Upload, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
-import { tailleLisible } from "./format";
+import { couper, tailleLisible } from "./format";
 import { enCours, useEnvois, type Envoi } from "./upload-context";
 
 /**
@@ -17,7 +18,7 @@ import { enCours, useEnvois, type Envoi } from "./upload-context";
  * puisque c'est le même layout qui reste.
  */
 export function UploadPanel() {
-  const { envois, annuler, reprendre, retirer, vider } = useEnvois();
+  const { envois, renommer, annuler, reprendre, retirer, vider } = useEnvois();
   const [replie, setReplie] = useState(false);
 
   if (envois.length === 0) return null;
@@ -82,6 +83,7 @@ export function UploadPanel() {
             <LigneEnvoi
               key={envoi.cle}
               envoi={envoi}
+              onRenommer={(nom) => renommer(envoi.cle, nom)}
               onAnnuler={() => annuler(envoi.cle)}
               onReprendre={() => reprendre(envoi.cle)}
               onRetirer={() => retirer(envoi.cle)}
@@ -111,23 +113,83 @@ const LIBELLES: Record<Envoi["etat"], string> = {
 
 function LigneEnvoi({
   envoi,
+  onRenommer,
   onAnnuler,
   onReprendre,
   onRetirer,
 }: {
   envoi: Envoi;
+  onRenommer: (nom: string) => void;
   onAnnuler: () => void;
   onReprendre: () => void;
   onRetirer: () => void;
 }) {
   const part = envoi.taille > 0 ? (envoi.envoye / envoi.taille) * 100 : 0;
+  const { base, extension } = couper(envoi.nom);
+
+  const [edition, setEdition] = useState(false);
+  const [saisie, setSaisie] = useState(base);
+
+  /*
+   * Renommer en plein envoi ne coûte rien : le nom ne voyage pas dans le
+   * chemin de l'objet. Un envoi de vingt minutes peut donc être nommé pendant
+   * qu'il monte, plutôt qu'après.
+   */
+  const valider = () => {
+    setEdition(false);
+    const propre = saisie.trim();
+    if (propre && propre !== base) onRenommer(`${propre}${extension}`);
+  };
+
+  const modifiable = envoi.etat !== "refuse" && envoi.etat !== "annule";
 
   return (
     <li className="space-y-1.5 px-3 py-2.5">
       <div className="flex items-center gap-2">
-        <p className="min-w-0 flex-1 truncate text-sm" title={envoi.nom}>
-          {envoi.nom}
-        </p>
+        {edition ? (
+          <span className="flex min-w-0 flex-1 items-center gap-1">
+            <Input
+              autoFocus
+              value={saisie}
+              onChange={(event) => setSaisie(event.target.value)}
+              onBlur={valider}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  valider();
+                }
+                if (event.key === "Escape") {
+                  event.stopPropagation();
+                  setEdition(false);
+                }
+              }}
+              maxLength={200}
+              aria-label={`Nom de ${envoi.nom}`}
+              className="h-7 min-w-0 flex-1"
+            />
+            {extension ? (
+              <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                {extension}
+              </span>
+            ) : null}
+          </span>
+        ) : modifiable ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSaisie(base);
+              setEdition(true);
+            }}
+            title={`Renommer ${envoi.nom}`}
+            className="hover:bg-surface-2 focus-visible:ring-ring min-w-0 flex-1 truncate rounded-sm px-1 py-0.5 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {envoi.nom}
+          </button>
+        ) : (
+          <p className="min-w-0 flex-1 truncate text-sm" title={envoi.nom}>
+            {envoi.nom}
+          </p>
+        )}
 
         {envoi.etat === "echec" ? (
           <Button
