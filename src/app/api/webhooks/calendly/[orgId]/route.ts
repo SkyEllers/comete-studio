@@ -11,8 +11,10 @@ import {
 } from "@/tools/resultats/attribution";
 import {
   centimes,
+  champsPresents,
   cleInvite,
   messageCalendly,
+  type MessageCalendly,
   motifAnnulation,
   utmRetenus,
   verifierSignature,
@@ -49,6 +51,39 @@ const CREATION = "invitee.created";
 const ANNULATION = "invitee.canceled";
 
 const sansCorps = (code: number) => new Response(null, { status: code });
+
+/** Au-delà, on sait ce que ce client envoie : le relevé n'apprend plus rien. */
+const RELEVE_PREMIERS_APPELS = 50;
+
+/**
+ * Ce que Calendly envoie vraiment, relevé sur les cinquante premiers appels
+ * acceptés d'un client.
+ *
+ * Les noms de champs seulement, jamais les valeurs — le journal reste sans
+ * donnée personnelle. On saura ainsi, dès le premier rendez-vous réel, si
+ * `gclid` et `fbclid` arrivent dans le `tracking` ou s'il faut les traduire en
+ * `utm_*` depuis la landing.
+ *
+ * On demande la cinquantième ligne plutôt que de compter : un `count` exact
+ * balaierait tout l'historique du client à chaque appel, pour une information
+ * qui ne sert que les premiers jours.
+ */
+async function releveDesChamps(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  invite: MessageCalendly["payload"],
+): Promise<string | null> {
+  const { data: cinquantieme } = await admin
+    .from("radar_webhook_log")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("outcome", "accepted")
+    .range(RELEVE_PREMIERS_APPELS - 1, RELEVE_PREMIERS_APPELS - 1);
+
+  if (cinquantieme && cinquantieme.length > 0) return null;
+
+  return `tracking : ${champsPresents(invite.tracking)} — payment : ${champsPresents(invite.payment)}`;
+}
 
 type Journal = {
   event_kind?: string | null;
@@ -159,7 +194,12 @@ export async function POST(
         .from("radar_settings")
         .update({ last_webhook_at: new Date().toISOString() })
         .eq("organization_id", orgId);
-      await noter({ event_kind: kind, invitee_key, outcome: "accepted" });
+      await noter({
+        event_kind: kind,
+        invitee_key,
+        outcome: "accepted",
+        message: await releveDesChamps(admin, orgId, invite),
+      });
       return sansCorps(200);
     };
 

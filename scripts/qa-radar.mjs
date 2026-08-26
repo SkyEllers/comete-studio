@@ -942,6 +942,117 @@ try {
     gratuit?.invitee_key !== revenue?.invitee_key,
   );
 
+  // ------------------- Le relevé des champs de Calendly ---------------------
+
+  const accepte = (await journaux()).filter((l) => l.outcome === "accepted");
+  const releveChamps = accepte[0]?.message ?? "";
+
+  verifie(
+    "un appel accepté relève les champs reçus",
+    releveChamps.includes("tracking :") && releveChamps.includes("payment :"),
+    JSON.stringify(releveChamps),
+  );
+  verifie(
+    "les noms de champs du tracking y sont, renseignés et vides séparés",
+    releveChamps.includes("utm_medium") &&
+      releveChamps.includes("utm_source") &&
+      releveChamps.includes("vides :") &&
+      releveChamps.includes("utm_term"),
+    JSON.stringify(releveChamps),
+  );
+  verifie(
+    "salesforce_uuid est relevé comme présent, sans sa valeur",
+    releveChamps.includes("salesforce_uuid"),
+    JSON.stringify(releveChamps),
+  );
+  verifie(
+    "les champs de paiement y sont",
+    releveChamps.includes("external_id") && releveChamps.includes("successful") && releveChamps.includes("amount"),
+    JSON.stringify(releveChamps),
+  );
+
+  /*
+   * Le point qui compte : ce relevé nomme des champs, il n'en montre aucune
+   * valeur. Le journal doit rester lisible par Louis sans porter la moindre
+   * donnée du client de son client.
+   */
+  const tousLesReleves = accepte.map((l) => l.message ?? "").join(" ");
+  for (const [quoi, valeur] of [
+    ["la source", "google"],
+    ["le medium", "cpc"],
+    ["la campagne", "lancement-printemps"],
+    ["la référence Stripe", "ch_3PtestStripe"],
+    ["le numéro Salesforce", "0031t00000AbCdEf"],
+    ["le montant", "90"],
+    ["la devise", "EUR"],
+  ]) {
+    verifie(`${quoi} n'apparaît pas dans le relevé`, !tousLesReleves.includes(valeur));
+  }
+
+  verifie(
+    "une séance gratuite relève un paiement absent",
+    accepte.some((l) => (l.message ?? "").includes("payment : absent")),
+    JSON.stringify(accepte.map((l) => l.message)),
+  );
+
+  // Au-delà de cinquante appels acceptés, le relevé s'arrête : on sait ce que
+  // ce client envoie, et le journal n'a pas à le répéter pour toujours.
+  const dejaAcceptes = accepte.length;
+  const bouchon = [];
+  for (let n = dejaAcceptes; n < 49; n += 1) {
+    bouchon.push({
+      organization_id: orgC.id,
+      outcome: "accepted",
+      event_kind: "invitee.created",
+      message: "bouchon",
+    });
+  }
+  if (bouchon.length > 0) await srv("POST", "radar_webhook_log", bouchon);
+
+  const u6 = invitee("u6");
+  await poster(
+    gabarit("cree-paye.json", {
+      EMAIL: `dernier-${marque}@example.com`,
+      INVITEE_URI: u6,
+      EVENT_URI: uri("e6"),
+      START: dans(50),
+      END: dans(50),
+    }),
+  );
+  const cinquantieme = (await journaux())
+    .filter((l) => l.outcome === "accepted" && l.message !== "bouchon")
+    .at(-1);
+  verifie(
+    "le cinquantième appel relève encore",
+    (cinquantieme?.message ?? "").includes("tracking :"),
+    JSON.stringify(cinquantieme?.message),
+  );
+
+  const u7 = invitee("u7");
+  await poster(
+    gabarit("cree-paye.json", {
+      EMAIL: `apres-${marque}@example.com`,
+      INVITEE_URI: u7,
+      EVENT_URI: uri("e7"),
+      START: dans(55),
+      END: dans(55),
+    }),
+  );
+  const rdvApresCinquante = (await lignes(u7))[0];
+  const journalApres = (await journaux()).filter(
+    (l) => l.outcome === "accepted" && l.message !== "bouchon",
+  );
+  verifie(
+    "le cinquante-et-unième n'apprend plus rien et ne relève plus",
+    journalApres.at(-1)?.message === null,
+    JSON.stringify(journalApres.at(-1)),
+  );
+  verifie(
+    "… mais le rendez-vous est bien enregistré",
+    Boolean(rdvApresCinquante?.id),
+    JSON.stringify(rdvApresCinquante?.id),
+  );
+
 } finally {
   console.log("\n== Nettoyage ==");
 

@@ -180,6 +180,38 @@ export function utmRetenus(
 }
 
 /**
+ * Les noms des champs qu'un objet du payload porte — jamais leurs valeurs.
+ *
+ * La documentation de Calendly dit ce qu'il *peut* envoyer ; seul un vrai
+ * rendez-vous dit ce qu'il envoie. On veut notamment savoir si `gclid` et
+ * `fbclid` arrivent dans le `tracking`, parce que toute l'attribution par
+ * identifiant de clic en dépend.
+ *
+ * La distinction entre renseigné et vide compte autant que la liste : un champ
+ * présent mais toujours nul ne sert à rien, et se confondrait avec un champ
+ * absent si on ne comptait que les clés.
+ */
+export function champsPresents(objet: unknown): string {
+  if (objet === null || objet === undefined) return "absent";
+  if (typeof objet !== "object") return "forme inattendue";
+
+  const entrees = Object.entries(objet as Record<string, unknown>).slice(0, 40);
+  if (entrees.length === 0) return "vide";
+
+  const nom = ([cle]: [string, unknown]) => cle.slice(0, 40);
+  const rempli = (valeur: unknown) =>
+    valeur !== null && valeur !== undefined && valeur !== "";
+
+  const renseignes = entrees.filter(([, v]) => rempli(v)).map(nom).sort();
+  const vides = entrees.filter(([, v]) => !rempli(v)).map(nom).sort();
+
+  const morceaux = [renseignes.length > 0 ? renseignes.join(", ") : "aucun renseigné"];
+  if (vides.length > 0) morceaux.push(`(vides : ${vides.join(", ")})`);
+
+  return morceaux.join(" ");
+}
+
+/**
  * Pourquoi cette séance est tombée.
  *
  * Une catégorie, jamais le motif écrit par la personne : `cancellation.reason`
