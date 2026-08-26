@@ -40,9 +40,11 @@ npx supabase db push               # applique les migrations au projet lié
 npm run qa:isolation # bancs de QA : isolation entre organisations, via l'API REST
 npm run qa:routes    # gardes de routes ; demande un serveur (npx next start -p 3100)
 npm run qa:fichiers  # isolation de l'outil Capsule : tables et Storage
+npm run qa:notifications # registre des notifications et compteurs d'espace
+npm run qa:radar     # isolation de l'outil Radar : tables, vue, Vault, actions
 ```
 
-Les deux bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
+Les bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
 des comptes et des organisations préfixés `zz-qa-`, puis les suppriment et
 vérifient qu'il n'en reste rien. À rejouer avant chaque mise en production.
 

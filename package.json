@@ -11,7 +11,8 @@
     "qa:isolation": "node scripts/qa-isolation.mjs",
     "qa:routes": "node scripts/qa-routes.mjs",
     "qa:fichiers": "node scripts/qa-fichiers.mjs",
-    "qa:notifications": "node scripts/qa-notifications.mjs"
+    "qa:notifications": "node scripts/qa-notifications.mjs",
+    "qa:radar": "node scripts/qa-radar.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

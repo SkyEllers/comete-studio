@@ -790,6 +790,431 @@ export type Database = {
         }
         Relationships: []
       }
+      radar_booking_activities: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          payload: Json
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          payload?: Json
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          payload?: Json
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_booking_activities_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_booking_activities_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_booking_activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_booking_activities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_bookings: {
+        Row: {
+          amount_cents: number
+          attribution: Database["public"]["Enums"]["radar_attribution"]
+          attribution_note: string | null
+          canceled_at: string | null
+          channel_id: string | null
+          created_at: string
+          currency: string
+          declared_source: string | null
+          event_type_name: string
+          event_type_uri: string | null
+          event_uri: string
+          id: string
+          invitee_key: string
+          invitee_uri: string
+          organization_id: string
+          payment_ok: boolean
+          payment_ref: string | null
+          rescheduled_from: string | null
+          scheduled_end: string
+          scheduled_start: string
+          statement_id: string | null
+          status: Database["public"]["Enums"]["radar_status"]
+          status_note: string | null
+          status_origin: Database["public"]["Enums"]["radar_status_origin"]
+          updated_at: string
+          utm: Json
+        }
+        Insert: {
+          amount_cents?: number
+          attribution?: Database["public"]["Enums"]["radar_attribution"]
+          attribution_note?: string | null
+          canceled_at?: string | null
+          channel_id?: string | null
+          created_at?: string
+          currency?: string
+          declared_source?: string | null
+          event_type_name: string
+          event_type_uri?: string | null
+          event_uri: string
+          id?: string
+          invitee_key: string
+          invitee_uri: string
+          organization_id: string
+          payment_ok?: boolean
+          payment_ref?: string | null
+          rescheduled_from?: string | null
+          scheduled_end: string
+          scheduled_start: string
+          statement_id?: string | null
+          status?: Database["public"]["Enums"]["radar_status"]
+          status_note?: string | null
+          status_origin?: Database["public"]["Enums"]["radar_status_origin"]
+          updated_at?: string
+          utm?: Json
+        }
+        Update: {
+          amount_cents?: number
+          attribution?: Database["public"]["Enums"]["radar_attribution"]
+          attribution_note?: string | null
+          canceled_at?: string | null
+          channel_id?: string | null
+          created_at?: string
+          currency?: string
+          declared_source?: string | null
+          event_type_name?: string
+          event_type_uri?: string | null
+          event_uri?: string
+          id?: string
+          invitee_key?: string
+          invitee_uri?: string
+          organization_id?: string
+          payment_ok?: boolean
+          payment_ref?: string | null
+          rescheduled_from?: string | null
+          scheduled_end?: string
+          scheduled_start?: string
+          statement_id?: string | null
+          status?: Database["public"]["Enums"]["radar_status"]
+          status_note?: string | null
+          status_origin?: Database["public"]["Enums"]["radar_status_origin"]
+          updated_at?: string
+          utm?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_bookings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "radar_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_rescheduled_from_fkey"
+            columns: ["rescheduled_from"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_rescheduled_from_fkey"
+            columns: ["rescheduled_from"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_statement_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "radar_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_channel_entries: {
+        Row: {
+          channel_id: string
+          clicks: number
+          id: string
+          month: string
+          note: string | null
+          organization_id: string
+          spend_cents: number
+          visitors: number
+        }
+        Insert: {
+          channel_id: string
+          clicks?: number
+          id?: string
+          month: string
+          note?: string | null
+          organization_id: string
+          spend_cents?: number
+          visitors?: number
+        }
+        Update: {
+          channel_id?: string
+          clicks?: number
+          id?: string
+          month?: string
+          note?: string | null
+          organization_id?: string
+          spend_cents?: number
+          visitors?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_channel_entries_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "radar_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_channel_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_channels: {
+        Row: {
+          id: string
+          is_active: boolean
+          is_comete: boolean
+          key: string
+          label: string
+          organization_id: string
+          rules: Json
+          sort_order: number
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          is_comete?: boolean
+          key: string
+          label: string
+          organization_id: string
+          rules?: Json
+          sort_order?: number
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          is_comete?: boolean
+          key?: string
+          label?: string
+          organization_id?: string
+          rules?: Json
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_channels_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_settings: {
+        Row: {
+          calendly_org_uri: string | null
+          calendly_user_uri: string | null
+          calendly_webhook_uri: string | null
+          commission_rate: number
+          connected_at: string | null
+          created_at: string
+          currency: string
+          last_webhook_at: string | null
+          organization_id: string
+          updated_at: string
+          window_days: number
+        }
+        Insert: {
+          calendly_org_uri?: string | null
+          calendly_user_uri?: string | null
+          calendly_webhook_uri?: string | null
+          commission_rate?: number
+          connected_at?: string | null
+          created_at?: string
+          currency?: string
+          last_webhook_at?: string | null
+          organization_id: string
+          updated_at?: string
+          window_days?: number
+        }
+        Update: {
+          calendly_org_uri?: string | null
+          calendly_user_uri?: string | null
+          calendly_webhook_uri?: string | null
+          commission_rate?: number
+          connected_at?: string | null
+          created_at?: string
+          currency?: string
+          last_webhook_at?: string | null
+          organization_id?: string
+          updated_at?: string
+          window_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_statements: {
+        Row: {
+          base_cents: number
+          closed_at: string
+          commission_cents: number
+          commission_rate: number
+          id: string
+          lines: Json
+          month: string
+          organization_id: string
+          paid_at: string | null
+          review_comment: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["radar_statement_status"]
+          window_days: number
+        }
+        Insert: {
+          base_cents?: number
+          closed_at?: string
+          commission_cents?: number
+          commission_rate: number
+          id?: string
+          lines?: Json
+          month: string
+          organization_id: string
+          paid_at?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["radar_statement_status"]
+          window_days: number
+        }
+        Update: {
+          base_cents?: number
+          closed_at?: string
+          commission_cents?: number
+          commission_rate?: number
+          id?: string
+          lines?: Json
+          month?: string
+          organization_id?: string
+          paid_at?: string | null
+          review_comment?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["radar_statement_status"]
+          window_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_statements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_statements_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_webhook_log: {
+        Row: {
+          event_kind: string | null
+          id: string
+          invitee_key: string | null
+          message: string | null
+          organization_id: string | null
+          outcome: string
+          received_at: string
+        }
+        Insert: {
+          event_kind?: string | null
+          id?: string
+          invitee_key?: string | null
+          message?: string | null
+          organization_id?: string | null
+          outcome: string
+          received_at?: string
+        }
+        Update: {
+          event_kind?: string | null
+          id?: string
+          invitee_key?: string | null
+          message?: string | null
+          organization_id?: string | null
+          outcome?: string
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_webhook_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tools: {
         Row: {
           created_at: string
@@ -828,12 +1253,83 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      radar_bookings_effective: {
+        Row: {
+          amount_cents: number | null
+          attribution: Database["public"]["Enums"]["radar_attribution"] | null
+          attribution_note: string | null
+          canceled_at: string | null
+          channel_id: string | null
+          counts_for_commission: boolean | null
+          created_at: string | null
+          currency: string | null
+          declared_source: string | null
+          effective_status: Database["public"]["Enums"]["radar_status"] | null
+          event_type_name: string | null
+          event_type_uri: string | null
+          event_uri: string | null
+          id: string | null
+          invitee_key: string | null
+          invitee_uri: string | null
+          organization_id: string | null
+          payment_ok: boolean | null
+          payment_ref: string | null
+          rescheduled_from: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          statement_id: string | null
+          status: Database["public"]["Enums"]["radar_status"] | null
+          status_note: string | null
+          status_origin:
+            | Database["public"]["Enums"]["radar_status_origin"]
+            | null
+          updated_at: string | null
+          utm: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_bookings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "radar_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_rescheduled_from_fkey"
+            columns: ["rescheduled_from"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_rescheduled_from_fkey"
+            columns: ["rescheduled_from"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_statement_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "radar_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_access_board: { Args: { b: string }; Returns: boolean }
       can_access_files: { Args: { org: string }; Returns: boolean }
       can_access_files_path: { Args: { object_name: string }; Returns: boolean }
+      can_access_radar: { Args: { org: string }; Returns: boolean }
       est_auteur_objet: {
         Args: { owner: string; owner_id: string }
         Returns: boolean
@@ -843,6 +1339,29 @@ export type Database = {
       is_member: { Args: { org: string }; Returns: boolean }
       is_org_owner: { Args: { org: string }; Returns: boolean }
       org_du_chemin: { Args: { object_name: string }; Returns: string }
+      radar_clear_secrets: { Args: { org: string }; Returns: number }
+      radar_client_set_status: {
+        Args: {
+          booking_id: string
+          new_status: Database["public"]["Enums"]["radar_status"]
+          note?: string
+        }
+        Returns: undefined
+      }
+      radar_get_secret: { Args: { kind: string; org: string }; Returns: string }
+      radar_mois: { Args: { quand: string }; Returns: string }
+      radar_review_statement: {
+        Args: {
+          comment?: string
+          decision: Database["public"]["Enums"]["radar_statement_status"]
+          statement_id: string
+        }
+        Returns: undefined
+      }
+      radar_set_secret: {
+        Args: { kind: string; org: string; value: string }
+        Returns: undefined
+      }
       shares_org_with: { Args: { other: string }; Returns: boolean }
       stats_fichiers: {
         Args: { org?: string }
@@ -855,6 +1374,10 @@ export type Database = {
     Enums: {
       file_status: "uploading" | "ready"
       membership_role: "owner" | "member"
+      radar_attribution: "utm" | "recurrence" | "direct" | "manuel"
+      radar_statement_status: "cloture" | "conteste" | "valide" | "paye"
+      radar_status: "confirme" | "honore" | "annule" | "no_show"
+      radar_status_origin: "calendly" | "auto" | "client" | "admin"
       tool_kind: "internal" | "external"
     }
     CompositeTypes: {
@@ -988,6 +1511,10 @@ export const Constants = {
     Enums: {
       file_status: ["uploading", "ready"],
       membership_role: ["owner", "member"],
+      radar_attribution: ["utm", "recurrence", "direct", "manuel"],
+      radar_statement_status: ["cloture", "conteste", "valide", "paye"],
+      radar_status: ["confirme", "honore", "annule", "no_show"],
+      radar_status_origin: ["calendly", "auto", "client", "admin"],
       tool_kind: ["internal", "external"],
     },
   },
