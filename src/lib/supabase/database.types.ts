@@ -1383,6 +1383,11 @@ export type Database = {
       }
       radar_get_secret: { Args: { kind: string; org: string }; Returns: string }
       radar_mois: { Args: { quand: string }; Returns: string }
+      radar_purger_journal: { Args: { anciennete?: string }; Returns: number }
+      radar_purger_rendezvous: {
+        Args: { anciennete?: string }
+        Returns: number
+      }
       radar_review_statement: {
         Args: {
           comment?: string

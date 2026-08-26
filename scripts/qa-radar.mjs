@@ -1053,6 +1053,145 @@ try {
     JSON.stringify(rdvApresCinquante?.id),
   );
 
+
+  // ---------------------------- 11. Les purges ------------------------------
+
+  console.log("\n== 11. Les purges ==");
+
+  /*
+   * Un ménage se juge à ce qu'il laisse autant qu'à ce qu'il emporte. On pose
+   * donc les deux : ce qui doit partir, et ce qui doit rester à côté.
+   */
+  const ilYA = (jours) => new Date(Date.now() - jours * 86400000).toISOString();
+
+  await srv("POST", "radar_webhook_log", [
+    { organization_id: orgC.id, outcome: "accepted", received_at: ilYA(120) },
+    { organization_id: orgC.id, outcome: "accepted", received_at: ilYA(95) },
+    { organization_id: orgC.id, outcome: "accepted", received_at: ilYA(80) },
+  ]);
+
+  const avantJournal = (
+    await srv("GET", `radar_webhook_log?select=id&organization_id=eq.${orgC.id}&limit=500`)
+  ).data.length;
+
+  const purgeJournal = await srv("POST", "rpc/radar_purger_journal", {});
+  verifie(
+    "le journal purge les lignes de plus de quatre-vingt-dix jours",
+    Number(purgeJournal.data) === 2,
+    `${purgeJournal.data} ligne(s) effacée(s)`,
+  );
+
+  const restants = (
+    await srv(
+      "GET",
+      `radar_webhook_log?select=received_at&organization_id=eq.${orgC.id}&limit=500`,
+    )
+  ).data;
+  verifie(
+    "… et laisse tout le reste",
+    restants.length === avantJournal - 2,
+    `${avantJournal} avant, ${restants.length} après`,
+  );
+  verifie(
+    "aucune ligne de plus de quatre-vingt-dix jours ne subsiste",
+    restants.every((l) => Date.parse(l.received_at) > Date.now() - 90 * 86400000),
+  );
+
+  // Trois relevés : un payé et vieux, un payé mais récent, un contesté et vieux.
+  const relevePaye = await creer("radar_statements", {
+    organization_id: orgC.id,
+    month: "2024-01-01",
+    status: "paye",
+    commission_rate: 20,
+    window_days: 90,
+    closed_at: ilYA(500),
+  });
+  const releveRecent = await creer("radar_statements", {
+    organization_id: orgC.id,
+    month: "2026-01-01",
+    status: "paye",
+    commission_rate: 20,
+    window_days: 90,
+    closed_at: ilYA(60),
+  });
+  const releveConteste = await creer("radar_statements", {
+    organization_id: orgC.id,
+    month: "2024-02-01",
+    status: "conteste",
+    commission_rate: 20,
+    window_days: 90,
+    closed_at: ilYA(500),
+  });
+
+  const rdvDe = async (releve, suffixe) =>
+    creer("radar_bookings", {
+      organization_id: orgC.id,
+      invitee_uri: `https://api.calendly.com/invitees/purge-${marque}-${suffixe}`,
+      event_uri: `https://api.calendly.com/events/purge-${suffixe}`,
+      invitee_key: "cle-de-purge",
+      scheduled_start: ilYA(500),
+      scheduled_end: ilYA(500),
+      event_type_name: "Séance ancienne",
+      statement_id: releve.id,
+    });
+
+  const aPurger = await rdvDe(relevePaye, "vieux");
+  const aGarderRecent = await rdvDe(releveRecent, "recent");
+  const aGarderConteste = await rdvDe(releveConteste, "conteste");
+  const aGarderLibre = await creer("radar_bookings", {
+    organization_id: orgC.id,
+    invitee_uri: `https://api.calendly.com/invitees/purge-${marque}-libre`,
+    event_uri: "https://api.calendly.com/events/purge-libre",
+    invitee_key: "cle-de-purge",
+    scheduled_start: ilYA(500),
+    scheduled_end: ilYA(500),
+    event_type_name: "Séance sans relevé",
+  });
+
+  const purgeRdv = await srv("POST", "rpc/radar_purger_rendezvous", {});
+  verifie(
+    "un rendez-vous d'un relevé payé depuis plus de treize mois est purgé",
+    Number(purgeRdv.data) === 1,
+    `${purgeRdv.data} ligne(s) effacée(s)`,
+  );
+
+  const survivants = (
+    await srv(
+      "GET",
+      `radar_bookings?select=id,event_type_name&organization_id=eq.${orgC.id}&invitee_key=eq.cle-de-purge`,
+    )
+  ).data.map((l) => l.id);
+
+  verifie("… celui-là précisément", !survivants.includes(aPurger.id));
+  verifie(
+    "un relevé payé mais récent garde ses lignes",
+    survivants.includes(aGarderRecent.id),
+  );
+  verifie(
+    "un relevé contesté garde les siennes, si vieux soit-il",
+    survivants.includes(aGarderConteste.id),
+  );
+  verifie(
+    "un rendez-vous sans relevé n'est jamais purgé",
+    survivants.includes(aGarderLibre.id),
+  );
+
+  const relevesApres = (
+    await srv("GET", `radar_statements?select=id&organization_id=eq.${orgC.id}`)
+  ).data;
+  verifie(
+    "les relevés, eux, restent : c'est la trace comptable",
+    relevesApres.length === 3,
+    `${relevesApres.length} relevé(s)`,
+  );
+
+  const purgeMembre = await a1("POST", "rpc/radar_purger_journal", {});
+  verifie(
+    "un membre ne déclenche aucune purge",
+    refuse(purgeMembre),
+    `statut ${purgeMembre.status} ${motif(purgeMembre)}`,
+  );
+
 } finally {
   console.log("\n== Nettoyage ==");
 

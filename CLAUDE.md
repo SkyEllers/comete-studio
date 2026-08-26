@@ -83,11 +83,12 @@ src/
 │   ├── kanban/                       # Orbite, phase 2 : composants, mutations, hooks, palette
 │   └── resultats/                    # Radar, phase 4 : attribution, calendly, fixtures
 public/
+├── radar.js                          # Radar : script de landing, servi aux clients
 ├── fonts/  brand/  favicon.svg  favicon-16.png  favicon-32.png  apple-touch-icon.png  robots.txt
 supabase/
 ├── config.toml
 └── migrations/                       # 0001_socle.sql, 0002_kanban.sql, ...
-docs/                                 # briefs par phase + docs/legacy/ (textes légaux v1)
+docs/                                 # briefs par phase, RADAR-INSTALLATION.md, docs/legacy/
 ```
 
 ## 5. Charte (héritée de la v1, à respecter)
