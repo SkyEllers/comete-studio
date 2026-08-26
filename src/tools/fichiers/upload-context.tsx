@@ -72,6 +72,8 @@ export type EntreePreparation = {
 export type Preparation = {
   entrees: EntreePreparation[];
   folderId: string | null;
+  /** Vide tant que le lot n'a pas de nom commun. */
+  nomCommun: string;
 };
 
 type Contexte = {
@@ -81,6 +83,7 @@ type Contexte = {
   renommerPreparation: (cle: string, base: string) => void;
   retirerDePreparation: (cle: string) => void;
   changerDestination: (folderId: string | null) => void;
+  appliquerNomCommun: (nomCommun: string) => void;
   annulerPreparation: () => void;
   envoyer: () => void;
   renommer: (cle: string, nom: string) => void;
@@ -102,6 +105,40 @@ export function useEnvois(): Contexte {
 
 export const enCours = (envoi: Envoi) =>
   envoi.etat === "attente" || envoi.etat === "envoi";
+
+/**
+ * Applique le nom commun au lot : « Tournage octobre 01 », « 02 »…
+ *
+ * Seuls les fichiers qui partiront sont numérotés — compter les refusés
+ * laisserait des trous dans la série déposée. Un nom commun vidé rend à
+ * chacun son nom d'origine : c'est ce qui rend le champ sans risque à
+ * essayer, et l'inverse exact de l'avoir rempli.
+ *
+ * `depuis` protège les noms déjà posés : les entrées d'avant ne font que
+ * compter. C'est ce qui permet à un fichier ajouté en cours de route de
+ * prendre le numéro suivant sans réécrire les retouches faites à la main.
+ */
+function numeroter(
+  entrees: EntreePreparation[],
+  nomCommun: string,
+  depuis = 0,
+): EntreePreparation[] {
+  const propre = nomCommun.trim();
+  let rang = 0;
+
+  return entrees.map((entree, index) => {
+    if (entree.refus) return entree;
+    rang += 1;
+    if (index < depuis) return entree;
+
+    return {
+      ...entree,
+      base: propre
+        ? `${propre} ${String(rang).padStart(2, "0")}`
+        : couper(entree.fichier.name).base,
+    };
+  });
+}
 
 export function FichiersProvider({
   orgSlug,
@@ -415,11 +452,21 @@ export function FichiersProvider({
       };
     });
 
-    setPreparation((actuelle) =>
-      actuelle
-        ? { ...actuelle, entrees: [...actuelle.entrees, ...nouvelles] }
-        : { entrees: nouvelles, folderId },
-    );
+    setPreparation((actuelle) => {
+      if (!actuelle) return { entrees: nouvelles, folderId, nomCommun: "" };
+
+      const entrees = [...actuelle.entrees, ...nouvelles];
+
+      // Un lot déjà nommé absorbe les nouveaux venus dans la même série —
+      // sinon « Tournage octobre 04 » serait suivi d'un « IMG_5012 » orphelin —
+      // mais seuls les nouveaux sont nommés : les autres gardent leur nom.
+      return {
+        ...actuelle,
+        entrees: actuelle.nomCommun.trim()
+          ? numeroter(entrees, actuelle.nomCommun, actuelle.entrees.length)
+          : entrees,
+      };
+    });
   }, []);
 
   const renommerPreparation = useCallback(
@@ -443,8 +490,35 @@ export function FichiersProvider({
         if (!actuelle) return actuelle;
         const restantes = actuelle.entrees.filter((entree) => entree.cle !== cle);
         // Retirer le dernier ferme le dialog : il n'y a plus rien à préparer.
-        return restantes.length > 0 ? { ...actuelle, entrees: restantes } : null;
+        if (restantes.length === 0) return null;
+
+        // Pas de renumérotation ici : elle écraserait les retouches faites à
+        // la main. Retirer le deuxième de cinq laisse donc un trou entre 01 et
+        // 03 — une frappe dans le champ commun referme la série.
+        return { ...actuelle, entrees: restantes };
       }),
+    [],
+  );
+
+  /**
+   * Le nom commun, appliqué à chaque frappe.
+   *
+   * C'est le seul geste qui renumérote : il réécrit tous les noms, y compris
+   * ceux qu'on aurait retouchés à la main. Rien ne se perd en silence — on voit
+   * la liste changer sous le champ — et c'est aussi ce qui referme la série
+   * après un retrait. Tout le reste laisse les noms tranquilles.
+   */
+  const appliquerNomCommun = useCallback(
+    (nomCommun: string) =>
+      setPreparation((actuelle) =>
+        actuelle
+          ? {
+              ...actuelle,
+              nomCommun,
+              entrees: numeroter(actuelle.entrees, nomCommun),
+            }
+          : actuelle,
+      ),
     [],
   );
 
@@ -601,6 +675,7 @@ export function FichiersProvider({
         renommerPreparation,
         retirerDePreparation,
         changerDestination,
+        appliquerNomCommun,
         annulerPreparation,
         envoyer,
         renommer,

@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import { listerDossiers } from "./actions";
@@ -44,6 +45,7 @@ export function PrepareDialog({ orgSlug }: { orgSlug: string }) {
     renommerPreparation,
     retirerDePreparation,
     changerDestination,
+    appliquerNomCommun,
     annulerPreparation,
     envoyer,
   } = useEnvois();
@@ -76,11 +78,14 @@ export function PrepareDialog({ orgSlug }: { orgSlug: string }) {
       ? "Hors dossier"
       : (dossiers.find((d) => d.id === preparation.folderId)?.name ?? "Dossier");
 
-  /** Entrée passe au champ suivant ; au dernier, elle envoie. */
+  /**
+   * Entrée passe au champ suivant ; au dernier, elle envoie. Depuis le nom
+   * commun (rang -1), elle descend sur le premier fichier.
+   */
   const auSuivant = (rang: number) => {
     const suivante = valides[rang + 1];
     if (!suivante) {
-      envoyer();
+      if (valides.length > 0) envoyer();
       return;
     }
     const champ = champs.current.get(suivante.cle);
@@ -102,6 +107,33 @@ export function PrepareDialog({ orgSlug }: { orgSlug: string }) {
             envoie.
           </DialogDescription>
         </DialogHeader>
+
+        {/*
+          Le nom commun est une commande de lot : chaque frappe renomme toute
+          la liste, sous les yeux. On le met en haut parce qu'on s'en sert
+          d'abord, et qu'on retouche à la main ensuite.
+        */}
+        <div className="border-line space-y-2 border-t px-4 py-3 sm:px-6">
+          <Label htmlFor="nom-commun" className="text-muted-foreground">
+            Nom commun pour tout le lot
+          </Label>
+          <Input
+            id="nom-commun"
+            value={preparation.nomCommun}
+            onChange={(event) => appliquerNomCommun(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              auSuivant(-1);
+            }}
+            placeholder="Tournage octobre"
+            maxLength={180}
+            className="h-8"
+          />
+          <p className="text-muted-foreground font-mono text-xs">
+            Optionnel — chaque fichier prend ce nom suivi de son numéro.
+          </p>
+        </div>
 
         <div className="border-line flex items-center gap-2 border-y px-4 py-3 sm:px-6">
           <span className="text-muted-foreground text-sm">Destination</span>
