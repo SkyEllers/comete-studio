@@ -3,6 +3,7 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
 
+import { invalidateBoardList } from "./actions";
 import { tracer } from "./card-mutations";
 import { marquerEcriture } from "./echo";
 
@@ -90,11 +91,13 @@ export async function createBoard(input: {
   );
 
   if (erreurListes) {
+    await invalidateBoardList();
     return fail(
       "Le tableau est créé, mais ses trois listes n'ont pas pu l'être. Tu peux les ajouter à la main.",
     );
   }
 
+  await invalidateBoardList();
   return ok({ id: board.id });
 }
 
@@ -130,6 +133,8 @@ export async function updateBoard(input: {
     .eq("id", boardId);
 
   if (error) return fail("Impossible de modifier ce tableau pour le moment.");
+
+  await invalidateBoardList();
   return ok();
 }
 
@@ -155,6 +160,7 @@ async function basculerArchive(
     );
   }
 
+  await invalidateBoardList();
   return ok();
 }
 
@@ -179,6 +185,8 @@ export async function deleteBoard(boardId: string): Promise<ActionResult> {
   if (!data || data.length === 0) {
     return fail("Seul un responsable du client peut supprimer un tableau.");
   }
+
+  await invalidateBoardList();
   return ok();
 }
 

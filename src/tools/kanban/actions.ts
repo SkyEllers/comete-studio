@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { fail, ok, type ActionResult } from "@/lib/actions";
@@ -24,6 +25,25 @@ import type { BoardData } from "./types";
  */
 
 const identifiant = z.uuid({ error: "Élément introuvable." });
+
+/**
+ * Fait tomber la liste des tableaux du cache de navigation.
+ *
+ * Créer, renommer, archiver, restaurer ou supprimer un tableau se fait depuis
+ * le navigateur (RLS) : le serveur n'en sait rien, et la liste — rendue côté
+ * serveur — reste servie depuis le cache client au retour, jusqu'à un F5.
+ *
+ * `revalidatePath` dans une Server Action est ce qui vide ce cache : c'est le
+ * seul mécanisme qui traverse la frontière, et il vaut pour toutes les façons
+ * de revenir — lien, bouton précédent du navigateur, redirection.
+ *
+ * Appelée depuis les mutations elles-mêmes plutôt que depuis leurs appelants :
+ * une mutation qui change la liste ne peut pas oublier de la périmer.
+ */
+export async function invalidateBoardList(): Promise<void> {
+  await requireUser();
+  revalidatePath("/app/[orgSlug]/kanban", "page");
+}
 
 export async function renormalizeList(
   listId: string,
