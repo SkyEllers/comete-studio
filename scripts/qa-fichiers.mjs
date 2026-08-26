@@ -11,8 +11,13 @@
  * Comme les autres bancs : de vraies sessions, la clé secrète seulement pour
  * poser le décor et constater, et tout ce qui est créé est supprimé à la fin.
  *
- * Chantier 1 : tables, bucket et politiques. Le contrôle des URL signées
- * s'ajoutera au chantier 6, quand elles existeront.
+ * Une nuance mesurée au chantier 6, et qui explique la forme de certaines
+ * vérifications : le Storage de Supabase est servi derrière Cloudflare, et une
+ * lecture authentifiée déjà faite peut être resservie depuis le cache de bord
+ * (`cf-cache-status=HIT`) un court moment après que l'accès a été retiré. La
+ * base, elle, ferme instantanément. On interroge donc l'origine — un paramètre
+ * unique dans l'URL suffit à contourner le cache — plutôt que de mesurer un
+ * cache dont nous ne décidons pas.
  */
 import {
   annoncerCible,
@@ -46,6 +51,31 @@ const deposer = (jeton, chemin, { remplacer = false } = {}) =>
   });
 
 const lire = (jeton, chemin) => stockage(jeton, "GET", `object/${BUCKET}/${chemin}`);
+
+/*
+ * La même lecture, mais garantie servie par l'origine : le paramètre unique
+ * change la clé de cache. C'est ce qu'il faut interroger pour savoir si l'accès
+ * est réellement fermé — sans lui, ce contrôle échouait une fois sur cinq, non
+ * parce que la RLS flanchait, mais parce que Cloudflare resservait sa copie.
+ */
+const lireSansCache = (jeton, chemin) =>
+  stockage(jeton, "GET", `object/${BUCKET}/${chemin}?zz=${crypto.randomUUID()}`);
+
+/** Faire signer un objet : c'est ce que fait l'app pour afficher et télécharger. */
+const signer = (jeton, chemin) =>
+  stockage(jeton, "POST", `object/sign/${BUCKET}/${chemin}`, {
+    corps: JSON.stringify({ expiresIn: 3600 }),
+    entetes: { "Content-Type": "application/json" },
+  });
+
+/** La signature en lot, celle du téléchargement d'un dossier entier. */
+const signerLot = (jeton, chemins) =>
+  stockage(jeton, "POST", `object/sign/${BUCKET}`, {
+    corps: JSON.stringify({ expiresIn: 3600, paths: chemins }),
+    entetes: { "Content-Type": "application/json" },
+  });
+
+const ouvrir = (signedURL) => fetch(`${SUPABASE}/storage/v1${signedURL}`);
 
 const lister = (jeton, prefixe) =>
   stockage(jeton, "POST", `object/list/${BUCKET}`, {
@@ -169,7 +199,10 @@ try {
   verifie("outil coupé · A1 ne voit plus ses dossiers", vide(await a1("GET", `folders?select=id&organization_id=eq.${orgs.a.id}`)));
   verifie("outil coupé · A1 ne voit plus ses fichiers", vide(await a1("GET", `files?select=id&organization_id=eq.${orgs.a.id}`)));
   verifie("outil coupé · A1 ne liste plus ses objets", listeVide(await lister(jetonA1, orgs.a.id)));
-  verifie("outil coupé · A1 ne lit plus son objet", (await lire(jetonA1, objetA1)).status >= 400);
+  verifie(
+    "outil coupé · l'origine refuse la lecture de son objet",
+    (await lireSansCache(jetonA1, objetA1)).status >= 400,
+  );
   verifie(
     "outil coupé · A1 ne dépose plus",
     (await deposer(jetonA1, `${orgs.a.id}/${crypto.randomUUID()}`)).status >= 400,
@@ -222,7 +255,85 @@ try {
   verifie("A1 (responsable) · efface son objet", (await effacer(jetonA1, objetA1)).status === 200);
   verifie("A1 · le préfixe est vide", listeVide(await lister(jetonA1, orgs.a.id)));
 
-  console.log("\n== 6. Sans session ==");
+  console.log("\n== 6. URL signées ==");
+
+  /*
+   * Section autonome : elle dépose ses propres objets et les efface, pour ne
+   * pas dépendre de ce que les sections précédentes ont laissé derrière elles.
+   */
+  const objetSigne = `${orgs.a.id}/${crypto.randomUUID()}`;
+  const objetDeB = `${orgs.b.id}/${crypto.randomUUID()}`;
+  verifie("A1 · dépose un objet à signer", (await deposer(jetonA1, objetSigne)).status === 200);
+  verifie("B1 · dépose chez lui", (await deposer(jetonB1, objetDeB)).status === 200);
+
+  // Contrôle positif : sans lui, les refus qui suivent ne prouveraient rien.
+  const signature = await signer(jetonA1, objetSigne);
+  verifie(
+    "A1 · obtient une URL signée pour son objet",
+    signature.status === 200 && typeof signature.data?.signedURL === "string",
+    `statut ${signature.status} ${JSON.stringify(signature.data)}`,
+  );
+  verifie(
+    "l'URL signée s'ouvre sans session",
+    (await ouvrir(signature.data.signedURL)).status === 200,
+  );
+
+  // Le cœur du chantier : un client ne fait pas signer l'objet d'un autre.
+  const refusB = await signer(jetonB1, objetSigne);
+  verifie(
+    "B1 · ne fait pas signer l'objet de A",
+    refusB.status >= 400,
+    `statut ${refusB.status} ${JSON.stringify(refusB.data)}`,
+  );
+
+  /*
+   * La signature en lot répond 200 avec un verdict par chemin : c'est la voie
+   * qu'emprunte le téléchargement d'un dossier entier, et celle où un mélange
+   * de chemins pourrait passer inaperçu.
+   */
+  const lotB = await signerLot(jetonB1, [objetSigne, objetDeB]);
+  const verdict = (chemin) =>
+    (Array.isArray(lotB.data) ? lotB.data : []).find((e) => e.path === chemin);
+  verifie(
+    "B1 · en lot, rien pour l'objet de A",
+    verdict(objetSigne)?.signedURL === null && Boolean(verdict(objetSigne)?.error),
+    JSON.stringify(lotB.data),
+  );
+  verifie(
+    "B1 · en lot, contrôle : il obtient bien le sien",
+    typeof verdict(objetDeB)?.signedURL === "string",
+    JSON.stringify(lotB.data),
+  );
+
+  verifie("anon · ne fait signer aucun objet", (await signer(ANON, objetSigne)).status >= 400);
+
+  await basculer(orgs.a.id, false);
+  verifie(
+    "outil coupé · A1 n'obtient plus de nouvelle signature",
+    (await signer(jetonA1, objetSigne)).status >= 400,
+  );
+  verifie(
+    "outil coupé · l'origine refuse toujours la lecture directe",
+    (await lireSansCache(jetonA1, objetSigne)).status >= 400,
+  );
+  /*
+   * Consigné parce que c'est vrai, pas parce que c'est souhaitable : une URL
+   * signée est une capacité au porteur. Elle ne repasse pas par la RLS, et
+   * reste donc valable jusqu'à son expiration même après la coupure. La seule
+   * manette est sa durée de vie — `DUREE` dans src/tools/fichiers/liens.ts,
+   * une heure aujourd'hui. Si cette vérification tombe un jour, c'est que
+   * Supabase aura changé d'avis, et ce sera une bonne nouvelle.
+   */
+  verifie(
+    "URL signée déjà émise · reste valable après la coupure (capacité au porteur)",
+    (await ouvrir(signature.data.signedURL)).status === 200,
+  );
+  await basculer(orgs.a.id, true);
+
+  verifie("A1 · efface son objet signé", (await effacer(jetonA1, objetSigne)).status === 200);
+  verifie("B1 · efface le sien", (await effacer(jetonB1, objetDeB)).status === 200);
+
+  console.log("\n== 7. Sans session ==");
   const anonyme = await fetch(`${SUPABASE}/storage/v1/object/${BUCKET}/${objetA1}`, {
     headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
   });
