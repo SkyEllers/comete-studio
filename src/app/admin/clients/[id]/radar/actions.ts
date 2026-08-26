@@ -15,6 +15,14 @@ import {
   supprimerAbonnement,
 } from "@/tools/resultats/calendly-api";
 import { preparerRadar } from "@/tools/resultats/installation";
+import { moisCourant } from "@/tools/resultats/mois";
+import {
+  construireLignes,
+  estRevolu,
+  totaux,
+  type CanalDuReleve,
+  type SeanceDuMois,
+} from "@/tools/resultats/releve";
 
 /**
  * L'administration de Radar : brancher un Calendly, régler la commission,
@@ -487,6 +495,245 @@ export async function corrigerStatut(input: unknown): Promise<ActionResult> {
     type: "status.changed",
     payload: { from: avant.status, to: parsed.data.statut, origin: "admin", note: motif },
   });
+
+  rafraichir(parsed.data.organizationId);
+  return ok();
+}
+
+// ------------------------------ Les relevés ---------------------------------
+
+const clotureSchema = z.object({
+  organizationId: organisation,
+  mois: z.string().regex(/^\d{4}-\d{2}-01$/, { error: "Mois invalide." }),
+});
+
+/**
+ * Clôturer un mois.
+ *
+ * Le relevé est un instantané : il recopie les libellés de canaux et les
+ * montants tels qu'ils sont au moment de la clôture. Renommer un canal l'an
+ * prochain ne doit pas réécrire un relevé déjà validé, et une séance corrigée
+ * après coup ne doit pas changer une facture acceptée.
+ *
+ * Re-clôturer un relevé contesté garde le commentaire du client : c'est ce qui
+ * lui permet de vérifier que la correction porte sur ce qu'il avait signalé.
+ */
+export async function cloturerMois(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = clotureSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const { organizationId, mois } = parsed.data;
+
+  if (!estRevolu(mois, moisCourant())) {
+    return fail(
+      "Ce mois n'est pas terminé : il se clôture à partir du 1er du mois suivant.",
+    );
+  }
+
+  const admin = createAdminClient();
+
+  const [existant, reglages, canaux, seances] = await Promise.all([
+    admin
+      .from("radar_statements")
+      .select("id, status, review_comment, reviewed_at, reviewed_by")
+      .eq("organization_id", organizationId)
+      .eq("month", mois)
+      .maybeSingle(),
+    admin
+      .from("radar_settings")
+      .select("commission_rate, window_days")
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
+    admin
+      .from("radar_channels")
+      .select("id, label, is_comete")
+      .eq("organization_id", organizationId),
+    admin
+      .from("radar_bookings_effective")
+      .select(
+        "id, scheduled_start, event_type_name, channel_id, effective_status, counts_for_commission, amount_cents, currency, payment_ok",
+      )
+      .eq("organization_id", organizationId)
+      .eq("mois", mois)
+      .limit(1000),
+  ]);
+
+  if (existant.data && existant.data.status !== "conteste") {
+    return fail(
+      existant.data.status === "cloture"
+        ? "Ce mois est déjà clôturé et attend la réponse du client."
+        : "Ce relevé est déjà validé : il ne se re-clôture pas.",
+    );
+  }
+
+  const taux = Number(reglages.data?.commission_rate ?? 20);
+  const lignes = construireLignes(
+    (seances.data ?? []) as SeanceDuMois[],
+    (canaux.data ?? []) as CanalDuReleve[],
+  );
+  const { base_cents, commission_cents } = totaux(lignes, taux);
+
+  const { data: releve, error } = await admin
+    .from("radar_statements")
+    .upsert(
+      {
+        organization_id: organizationId,
+        month: mois,
+        status: "cloture",
+        commission_rate: taux,
+        window_days: reglages.data?.window_days ?? 90,
+        base_cents,
+        commission_cents,
+        lines: lignes,
+        closed_at: new Date().toISOString(),
+        review_comment: existant.data?.review_comment ?? null,
+        reviewed_at: existant.data?.reviewed_at ?? null,
+        reviewed_by: existant.data?.reviewed_by ?? null,
+      },
+      { onConflict: "organization_id,month" },
+    )
+    .select("id")
+    .single();
+
+  if (error || !releve) return fail("Impossible de clôturer ce mois pour le moment.");
+
+  /*
+   * Les lignes du mois pointent sur ce relevé. On délie d'abord : re-clôturer
+   * après une correction peut avoir changé l'ensemble, et une séance déplacée
+   * d'un mois à l'autre resterait sinon accrochée au mauvais relevé.
+   */
+  await admin
+    .from("radar_bookings")
+    .update({ statement_id: null })
+    .eq("statement_id", releve.id);
+
+  if (lignes.length > 0) {
+    await admin
+      .from("radar_bookings")
+      .update({ statement_id: releve.id })
+      .in(
+        "id",
+        lignes.map((ligne) => ligne.id),
+      );
+  }
+
+  rafraichir(organizationId);
+  return ok();
+}
+
+const paiementSchema = z.object({
+  organizationId: organisation,
+  statementId: z.uuid({ error: "Relevé introuvable." }),
+  note: z.string().trim().max(200).optional(),
+});
+
+/**
+ * Marquer un relevé payé.
+ *
+ * Sur un relevé validé, c'est la suite naturelle. Sur un relevé seulement
+ * clôturé, c'est un accord pris hors de l'outil : la note devient alors le
+ * seul endroit qui en garde trace, et elle est obligatoire.
+ */
+export async function marquerPaye(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = paiementSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const admin = createAdminClient();
+  const { data: releve } = await admin
+    .from("radar_statements")
+    .select("status, review_comment")
+    .eq("id", parsed.data.statementId)
+    .eq("organization_id", parsed.data.organizationId)
+    .maybeSingle();
+
+  if (!releve) return fail("Ce relevé n'existe plus.");
+  if (releve.status === "paye") return fail("Ce relevé est déjà marqué payé.");
+  if (releve.status === "conteste") {
+    return fail("Ce relevé est contesté : corrige-le et re-clôture-le d'abord.");
+  }
+
+  const note = parsed.data.note?.trim();
+  if (releve.status === "cloture" && !note) {
+    return fail(
+      "Ce relevé n'a pas été validé par le client. Dis en une ligne sur quoi vous vous êtes mis d'accord.",
+      "note",
+    );
+  }
+
+  const { error } = await admin
+    .from("radar_statements")
+    .update({
+      status: "paye",
+      paid_at: new Date().toISOString(),
+      review_comment: note ? note : releve.review_comment,
+    })
+    .eq("id", parsed.data.statementId);
+
+  if (error) return fail("Impossible de marquer ce relevé payé pour le moment.");
+
+  rafraichir(parsed.data.organizationId);
+  return ok();
+}
+
+// --------------------------- Saisies mensuelles -----------------------------
+
+const saisieSchema = z.object({
+  organizationId: organisation,
+  channelId: z.uuid({ error: "Canal introuvable." }),
+  mois: z.string().regex(/^\d{4}-\d{2}-01$/, { error: "Mois invalide." }),
+  spendCents: z.coerce
+    .number({ error: "La dépense doit être un nombre." })
+    .min(0, { error: "La dépense ne peut pas être négative." })
+    .max(100_000_000),
+  visitors: z.coerce
+    .number({ error: "Un nombre de visiteurs, entier." })
+    .int()
+    .min(0)
+    .max(10_000_000),
+  clicks: z.coerce
+    .number({ error: "Un nombre de clics, entier." })
+    .int()
+    .min(0)
+    .max(10_000_000),
+});
+
+/** Les dépenses de Louis : jamais visibles du client, c'est sa marge. */
+export async function enregistrerSaisie(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const euros = Number(String(formData.get("spend") ?? "0").replace(",", "."));
+
+  const parsed = saisieSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    channelId: formData.get("channelId"),
+    mois: formData.get("mois"),
+    spendCents: Number.isFinite(euros) ? Math.round(euros * 100) : Number.NaN,
+    visitors: formData.get("visitors"),
+    clicks: formData.get("clicks"),
+  });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("radar_channel_entries").upsert(
+    {
+      organization_id: parsed.data.organizationId,
+      channel_id: parsed.data.channelId,
+      month: parsed.data.mois,
+      spend_cents: parsed.data.spendCents,
+      visitors: parsed.data.visitors,
+      clicks: parsed.data.clicks,
+    },
+    { onConflict: "organization_id,month,channel_id" },
+  );
+
+  if (error) return fail("Impossible d'enregistrer cette saisie pour le moment.");
 
   rafraichir(parsed.data.organizationId);
   return ok();

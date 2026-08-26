@@ -10,6 +10,11 @@ import {
   ReglagesRadar,
   type CanalAdmin,
 } from "@/app/admin/clients/[id]/radar/radar-forms";
+import {
+  BoutonCloture,
+  BoutonPaiement,
+  FormulaireSaisie,
+} from "@/app/admin/clients/[id]/radar/radar-releves";
 import { ClientTabs } from "@/components/admin/client-tabs";
 import { EmptyState } from "@/components/app/empty-state";
 import { TableSkeleton } from "@/components/app/skeletons";
@@ -25,13 +30,18 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { cn } from "@/lib/utils";
 import {
   attributionLisible,
   dateHeure,
   depuis,
+  jour,
   montant,
   statutLisible,
 } from "@/tools/resultats/format";
+import { libelleMois, moisAOffrir, moisCourant, moisDemande } from "@/tools/resultats/mois";
+import { estRevolu } from "@/tools/resultats/releve";
+import { SelecteurMois } from "@/tools/resultats/tuiles";
 
 /**
  * L'onglet Radar d'un client.
@@ -233,6 +243,242 @@ async function SectionRendezVous({ organizationId }: { organizationId: string })
   );
 }
 
+
+/**
+ * Les relevés d'un client, et les saisies qui vont avec.
+ *
+ * Un seul mois à la fois — celui qu'on choisit dans l'URL — parce que la
+ * clôture, la saisie et l'entonnoir parlent tous du même mois, et qu'on les
+ * lit ensemble.
+ */
+async function SectionReleves({
+  organizationId,
+  mois,
+}: {
+  organizationId: string;
+  mois: string;
+}) {
+  const supabase = await createClient();
+
+  const [releves, reglages, canaux, seances, saisies, moisConnus] = await Promise.all([
+    supabase
+      .from("radar_statements")
+      .select("id, month, status, base_cents, commission_cents, closed_at, reviewed_at, review_comment, paid_at")
+      .eq("organization_id", organizationId)
+      .order("month", { ascending: false })
+      .limit(24),
+    supabase
+      .from("radar_settings")
+      .select("commission_rate, currency")
+      .eq("organization_id", organizationId)
+      .maybeSingle(),
+    supabase
+      .from("radar_channels")
+      .select("id, label, is_comete")
+      .eq("organization_id", organizationId)
+      .order("sort_order"),
+    supabase
+      .from("radar_bookings_effective")
+      .select("channel_id, counts_for_commission, amount_cents, mois")
+      .eq("organization_id", organizationId)
+      .eq("mois", mois)
+      .limit(1000),
+    supabase
+      .from("radar_channel_entries")
+      .select("channel_id, spend_cents, visitors, clicks")
+      .eq("organization_id", organizationId)
+      .eq("month", mois),
+    supabase
+      .from("radar_bookings_effective")
+      .select("mois")
+      .eq("organization_id", organizationId)
+      .limit(1000),
+  ]);
+
+  const taux = Number(reglages.data?.commission_rate ?? 20);
+  const devise = reglages.data?.currency ?? "EUR";
+  const parMois = new Map((releves.data ?? []).map((r) => [r.month, r]));
+  const cometeCanaux = (canaux.data ?? []).filter((canal) => canal.is_comete);
+  const parCanalSaisie = new Map((saisies.data ?? []).map((s) => [s.channel_id, s]));
+
+  const choix = moisAOffrir([
+    ...new Set([
+      ...((moisConnus.data ?? []).map((l) => l.mois).filter(Boolean) as string[]),
+      ...(releves.data ?? []).map((r) => r.month),
+    ]),
+  ]);
+
+  const releve = parMois.get(mois);
+  const revolu = estRevolu(mois, moisCourant());
+
+  // L'entonnoir : ce que Louis a dépensé, ce que ça a donné, ce qu'il gagne.
+  const entonnoir = cometeCanaux.map((canal) => {
+    const lignes = (seances.data ?? []).filter((l) => l.channel_id === canal.id);
+    const honorees = lignes.filter((l) => l.counts_for_commission);
+    const base = honorees.reduce((total, l) => total + (l.amount_cents ?? 0), 0);
+    const saisie = parCanalSaisie.get(canal.id) ?? null;
+    const depense = saisie?.spend_cents ?? 0;
+    const commission = Math.round((base * taux) / 100);
+
+    return {
+      canal,
+      saisie,
+      visiteurs: saisie?.visitors ?? 0,
+      clics: saisie?.clicks ?? 0,
+      reservations: lignes.length,
+      honorees: honorees.length,
+      depense,
+      commission,
+      marge: commission - depense,
+      coutParReservation: lignes.length > 0 ? Math.round(depense / lignes.length) : null,
+      coutParHonoree: honorees.length > 0 ? Math.round(depense / honorees.length) : null,
+    };
+  });
+
+  return (
+    <>
+      <SelecteurMois
+        mois={mois}
+        choix={choix}
+        href={(valeur) => `/admin/clients/${organizationId}/radar?mois=${valeur}`}
+      />
+
+      <div className="border-line bg-surface-1 space-y-4 rounded-lg border p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-medium">{libelleMois(mois)}</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {releve
+                ? `${montant(releve.commission_cents, devise)} sur ${montant(releve.base_cents, devise)} de base · clôturé le ${jour(releve.closed_at)}`
+                : revolu
+                  ? "Pas encore clôturé."
+                  : "Mois en cours : il se clôturera à partir du 1er du mois prochain."}
+            </p>
+            {releve?.review_comment ? (
+              <p className="text-warning mt-2 text-sm">
+                « {releve.review_comment} »
+                {releve.reviewed_at ? ` — le ${jour(releve.reviewed_at)}` : ""}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {releve ? (
+              <Badge variant={releve.status === "paye" ? "default" : "outline"}>
+                {releve.status}
+              </Badge>
+            ) : null}
+
+            {revolu && (!releve || releve.status === "conteste") ? (
+              <BoutonCloture
+                organizationId={organizationId}
+                mois={mois}
+                reCloture={Boolean(releve)}
+              />
+            ) : null}
+
+            {releve && (releve.status === "valide" || releve.status === "cloture") ? (
+              <BoutonPaiement
+                organizationId={organizationId}
+                statementId={releve.id}
+                valide={releve.status === "valide"}
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <section className="mt-8 space-y-4">
+        <div>
+          <h3 className="text-sm">Dépenses et audience</h3>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Ce que tu saisis ici ne sort jamais de l&apos;administration : c&apos;est
+            ta marge, pas la sienne.
+          </p>
+        </div>
+
+        <div className="border-line space-y-4 rounded-lg border p-4">
+          {cometeCanaux.map((canal) => (
+            <FormulaireSaisie
+              key={canal.id}
+              organizationId={organizationId}
+              mois={mois}
+              canal={canal}
+              saisie={parCanalSaisie.get(canal.id) ?? null}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-8 space-y-3">
+        <h3 className="text-sm">L&apos;entonnoir de {libelleMois(mois)}</h3>
+
+        <div className="border-line overflow-x-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Canal</TableHead>
+                <TableHead className="text-right">Visiteurs</TableHead>
+                <TableHead className="text-right">Clics</TableHead>
+                <TableHead className="text-right">Réservations</TableHead>
+                <TableHead className="text-right">Honorées</TableHead>
+                <TableHead className="text-right">Coût / résa</TableHead>
+                <TableHead className="text-right">Coût / honorée</TableHead>
+                <TableHead className="text-right">Dépense</TableHead>
+                <TableHead className="text-right">Commission</TableHead>
+                <TableHead className="text-right">Marge</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entonnoir.map((ligne) => (
+                <TableRow key={ligne.canal.id}>
+                  <TableCell className="font-medium">{ligne.canal.label}</TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {ligne.visiteurs || "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {ligne.clics || "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {ligne.reservations}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {ligne.honorees}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {ligne.coutParReservation === null
+                      ? "—"
+                      : montant(ligne.coutParReservation, devise)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {ligne.coutParHonoree === null
+                      ? "—"
+                      : montant(ligne.coutParHonoree, devise)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {montant(ligne.depense, devise)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs tabular-nums">
+                    {montant(ligne.commission, devise)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-mono text-xs tabular-nums",
+                      ligne.marge >= 0 ? "text-success" : "text-danger",
+                    )}
+                  >
+                    {montant(ligne.marge, devise)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+    </>
+  );
+}
+
 const RESULTATS = [
   "accepted",
   "duplicate",
@@ -334,7 +580,7 @@ export default async function RadarAdminPage({
   searchParams,
 }: PageProps<"/admin/clients/[id]/radar">) {
   const { id } = await params;
-  const { resultat } = await searchParams;
+  const { resultat, mois } = await searchParams;
   const filtre = Array.isArray(resultat) ? resultat[0] : resultat;
   await requireAdmin();
 
@@ -401,6 +647,13 @@ export default async function RadarAdminPage({
             <h2 className="text-lg">Rendez-vous</h2>
             <Suspense fallback={<TableSkeleton rows={3} />}>
               <SectionRendezVous organizationId={org.id} />
+            </Suspense>
+          </section>
+
+          <section className="mt-10 space-y-4">
+            <h2 className="text-lg">Relevés et saisies</h2>
+            <Suspense fallback={<TableSkeleton rows={3} />}>
+              <SectionReleves organizationId={org.id} mois={moisDemande(mois)} />
             </Suspense>
           </section>
 

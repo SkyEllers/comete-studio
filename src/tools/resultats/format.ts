@@ -68,6 +68,18 @@ export function depuis(iso: string | null): string {
   return `il y a ${jours} jours`;
 }
 
+/**
+ * Cet agenda s'est-il tu depuis trop longtemps ?
+ *
+ * Ici plutôt que dans la page : `Date.now()` appelé pendant le rendu est une
+ * impureté que le compilateur React refuse — à raison, puisque deux rendus du
+ * même composant donneraient deux résultats.
+ */
+export function silencieuxDepuis(iso: string | null, jours: number): boolean {
+  if (!iso) return false;
+  return Date.now() - Date.parse(iso) >= jours * 86_400_000;
+}
+
 const STATUTS: Record<string, string> = {
   confirme: "Confirmé",
   honore: "Honoré",

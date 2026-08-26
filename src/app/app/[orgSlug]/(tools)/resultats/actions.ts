@@ -54,3 +54,47 @@ export async function marquerStatut(
   revalidatePath(`/app/${orgSlug}/resultats/rendez-vous`);
   return ok();
 }
+
+/**
+ * Répondre à un relevé : le valider, ou le contester en disant pourquoi.
+ *
+ * Comme pour les statuts, c'est `radar_review_statement` qui décide — elle
+ * seule sait qu'un relevé déjà répondu ne se répond pas deux fois, et qu'une
+ * contestation sans motif n'apprend rien à Louis.
+ */
+const reponseSchema = z.object({
+  statementId: z.uuid({ error: "Relevé introuvable." }),
+  decision: z.enum(["valide", "conteste"], { error: "Décision inconnue." }),
+  commentaire: z.string().trim().max(1000).optional(),
+});
+
+export async function repondreReleve(
+  orgSlug: string,
+  input: unknown,
+): Promise<ActionResult> {
+  const membre = await getMembership(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = reponseSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("radar_review_statement", {
+    statement_id: parsed.data.statementId,
+    decision: parsed.data.decision,
+    comment: parsed.data.commentaire,
+  });
+
+  if (error) {
+    const lisible = error.message?.trim();
+    return fail(
+      lisible && lisible.endsWith(".")
+        ? lisible
+        : "Ta réponse n'a pas pu être enregistrée.",
+    );
+  }
+
+  revalidatePath(`/app/${orgSlug}/resultats`);
+  revalidatePath(`/app/${orgSlug}/resultats/releves`);
+  return ok();
+}

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/admin/clients", label: "Clients" },
   { href: "/admin/outils", label: "Outils" },
+  { href: "/admin/radar", label: "Radar" },
 ];
 
 export function AdminNav({ className }: { className?: string }) {

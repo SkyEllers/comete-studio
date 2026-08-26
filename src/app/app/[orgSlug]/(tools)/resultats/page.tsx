@@ -4,7 +4,9 @@ import {
   CalendarClock,
   CalendarX2,
   Coins,
+  FileText,
   Radar,
+  SlidersHorizontal,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -162,8 +164,13 @@ async function TableauDeBord({
                 : `${reglages.commission_rate} % de ${montant(courant.chiffreAffaires, courant.devise)}. Ce chiffre bouge encore : il se fige quand Louis clôture le mois.`}
             </p>
 
-            {/* Le lien vers le relevé détaillé arrive au chantier 5, avec la
-                page qui le porte. */}
+            {releve ? (
+              <Button asChild variant="outline" size="sm" className="mt-4">
+                <Link href={`/app/${orgSlug}/resultats/releves/${releve.id}`} prefetch>
+                  Voir le relevé
+                </Link>
+              </Button>
+            ) : null}
           </section>
 
           {aRegarder.length > 0 ? (
@@ -214,7 +221,19 @@ export default async function RadarPage({
             <Button asChild variant="outline">
               <Link href={`/app/${orgSlug}/resultats/rendez-vous`} prefetch>
                 <Radar aria-hidden="true" />
-                Tous les rendez-vous
+                Rendez-vous
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/app/${orgSlug}/resultats/releves`} prefetch>
+                <FileText aria-hidden="true" />
+                Relevés
+              </Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <Link href={`/app/${orgSlug}/resultats/reglages`} prefetch>
+                <SlidersHorizontal aria-hidden="true" />
+                Réglages
               </Link>
             </Button>
           </div>
