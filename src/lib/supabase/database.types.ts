@@ -643,6 +643,52 @@ export type Database = {
           },
         ]
       }
+      notification_batches: {
+        Row: {
+          folder_id: string | null
+          id: string
+          organization_id: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          folder_id?: string | null
+          id?: string
+          organization_id: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          folder_id?: string | null
+          id?: string
+          organization_id?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_batches_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_batches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_tools: {
         Row: {
           enabled: boolean
@@ -798,6 +844,13 @@ export type Database = {
       is_org_owner: { Args: { org: string }; Returns: boolean }
       org_du_chemin: { Args: { object_name: string }; Returns: string }
       shares_org_with: { Args: { other: string }; Returns: boolean }
+      stats_fichiers: {
+        Args: { org?: string }
+        Returns: {
+          fichiers: number
+          octets: number
+        }[]
+      }
     }
     Enums: {
       file_status: "uploading" | "ready"

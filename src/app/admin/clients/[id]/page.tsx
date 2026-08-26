@@ -1,4 +1,11 @@
-import { ArrowLeft, ExternalLink, TriangleAlert, UsersRound } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  HardDrive,
+  Images,
+  TriangleAlert,
+  UsersRound,
+} from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -12,8 +19,13 @@ import {
   InviteMemberDialog,
   MemberActions,
 } from "@/app/admin/clients/[id]/members-section";
+import { Counter } from "@/components/admin/counter";
 import { EmptyState } from "@/components/app/empty-state";
-import { TableSkeleton, ToolListSkeleton } from "@/components/app/skeletons";
+import {
+  CountersSkeleton,
+  TableSkeleton,
+  ToolListSkeleton,
+} from "@/components/app/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +39,7 @@ import {
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { tailleLisible } from "@/tools/fichiers/format";
 import { getToolMeta } from "@/tools/registry";
 
 const dateFormat = new Intl.DateTimeFormat("fr-FR", {
@@ -34,6 +47,36 @@ const dateFormat = new Intl.DateTimeFormat("fr-FR", {
   month: "2-digit",
   year: "numeric",
 });
+
+/**
+ * Ce que ce client occupe.
+ *
+ * Un seul aller-retour : `stats_fichiers` agrège en base plutôt que de faire
+ * descendre une ligne par fichier pour les additionner ici. Elle est soumise à
+ * la RLS de l'appelant, et Louis est admin — il voit donc bien ce client.
+ */
+async function StockageSection({ organizationId }: { organizationId: string }) {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("stats_fichiers", {
+    org: organizationId,
+  });
+  const stats = data?.[0] ?? { fichiers: 0, octets: 0 };
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Counter
+        icon={Images}
+        label="Fichiers"
+        value={stats.fichiers.toLocaleString("fr-FR")}
+      />
+      <Counter
+        icon={HardDrive}
+        label="Espace utilisé"
+        value={tailleLisible(stats.octets)}
+      />
+    </div>
+  );
+}
 
 /**
  * Section la plus lente de la page : `last_sign_in_at` vit dans auth.users et
@@ -233,6 +276,14 @@ export default async function ClientDetailPage({
       </div>
 
       <section className="space-y-4">
+        <h2 className="text-lg">Fichiers</h2>
+
+        <Suspense fallback={<CountersSkeleton compteurs={2} />}>
+          <StockageSection organizationId={org.id} />
+        </Suspense>
+      </section>
+
+      <section className="mt-10 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg">Membres</h2>
           <InviteMemberDialog organizationId={org.id} />

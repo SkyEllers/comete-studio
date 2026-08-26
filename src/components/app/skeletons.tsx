@@ -41,11 +41,17 @@ export function CardGridSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
-/** Compteurs du tableau de bord. */
-export function CountersSkeleton() {
+/** Compteurs du tableau de bord, ou d'une fiche client. */
+export function CountersSkeleton({ compteurs = 5 }: { compteurs?: number }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      {Array.from({ length: 3 }, (_, index) => (
+    <div
+      className={
+        compteurs > 2
+          ? "grid gap-4 sm:grid-cols-3 lg:grid-cols-5"
+          : "grid gap-4 sm:grid-cols-2"
+      }
+    >
+      {Array.from({ length: compteurs }, (_, index) => (
         <div
           key={index}
           className="border-line bg-surface-1 rounded-lg border p-5"
@@ -83,10 +89,7 @@ export function ToolListSkeleton({ rows = 2 }: { rows?: number }) {
   return (
     <div className="border-line divide-line divide-y rounded-lg border">
       {Array.from({ length: rows }, (_, index) => (
-        <div
-          key={index}
-          className="flex items-start justify-between gap-4 p-4"
-        >
+        <div key={index} className="flex items-start justify-between gap-4 p-4">
           <div className="space-y-2">
             <Skeleton className="h-5 w-40" />
             <Skeleton className="h-4 w-64" />

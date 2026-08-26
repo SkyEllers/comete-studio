@@ -5,8 +5,11 @@ import { z } from "zod";
 
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { getMembership } from "@/lib/access";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
+import { echapper, envoyer } from "./courriel";
+import { compteFichiers, tailleLisible } from "./format";
 import { apercuImage, lienOriginal } from "./liens";
 
 /**
@@ -42,7 +45,9 @@ async function acces(orgSlug: string) {
   if (!membre) return null;
 
   const supabase = await createClient();
-  const { data } = await supabase.rpc("can_access_files", { org: membre.org.id });
+  const { data } = await supabase.rpc("can_access_files", {
+    org: membre.org.id,
+  });
 
   return data === true ? { ...membre, supabase } : null;
 }
@@ -131,7 +136,8 @@ export async function deleteFolder(
   orgSlug: string,
   folderId: string,
 ): Promise<ActionResult> {
-  if (!identifiant.safeParse(folderId).success) return fail("Dossier introuvable.");
+  if (!identifiant.safeParse(folderId).success)
+    return fail("Dossier introuvable.");
 
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
@@ -157,7 +163,9 @@ export async function deleteFolder(
 
   if (error) return fail("Impossible de supprimer ce dossier.");
   if (!data || data.length === 0) {
-    return fail("Seul l'auteur du dossier ou un responsable peut le supprimer.");
+    return fail(
+      "Seul l'auteur du dossier ou un responsable peut le supprimer.",
+    );
   }
 
   rafraichir(orgSlug, folderId);
@@ -186,11 +194,16 @@ async function retirerObjets(
   // celles qui n'existent pas, elles ne faussent donc pas le compte ci-dessous.
   const { data, error } = await supabase.storage
     .from(BUCKET)
-    .remove([...chemins, ...fileIds.map((id) => `${organizationId}/${id}.poster.jpg`)]);
+    .remove([
+      ...chemins,
+      ...fileIds.map((id) => `${organizationId}/${id}.poster.jpg`),
+    ]);
 
   if (error) return fail("Impossible de retirer ces fichiers du stockage.");
 
-  const retires = (data ?? []).filter((objet) => !objet.name.endsWith(".poster.jpg"));
+  const retires = (data ?? []).filter(
+    (objet) => !objet.name.endsWith(".poster.jpg"),
+  );
 
   if (retires.length < chemins.length) {
     return fail(
@@ -216,7 +229,11 @@ export async function deleteFiles(
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
 
-  const retrait = await retirerObjets(membre.supabase, membre.org.id, parsed.data);
+  const retrait = await retirerObjets(
+    membre.supabase,
+    membre.org.id,
+    parsed.data,
+  );
   if (!retrait.ok) return retrait;
 
   const { data, error } = await membre.supabase
@@ -361,7 +378,8 @@ export async function lienDeTelechargement(
   orgSlug: string,
   fileId: string,
 ): Promise<ActionResult<string>> {
-  if (!identifiant.safeParse(fileId).success) return fail("Fichier introuvable.");
+  if (!identifiant.safeParse(fileId).success)
+    return fail("Fichier introuvable.");
 
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
@@ -374,7 +392,12 @@ export async function lienDeTelechargement(
 
   if (!data) return fail("Ce fichier n'existe plus.");
 
-  const lien = await lienOriginal(membre.supabase, membre.org.id, fileId, data.name);
+  const lien = await lienOriginal(
+    membre.supabase,
+    membre.org.id,
+    fileId,
+    data.name,
+  );
   if (!lien) return fail("Impossible de préparer ce téléchargement.");
 
   return ok(lien);
@@ -404,7 +427,8 @@ export async function liensDuLot(
     .in("id", parsed.data)
     .eq("status", "ready");
 
-  if (!lignes || lignes.length === 0) return fail("Ces fichiers n'existent plus.");
+  if (!lignes || lignes.length === 0)
+    return fail("Ces fichiers n'existent plus.");
 
   const { data: signes } = await membre.supabase.storage
     .from(BUCKET)
@@ -421,7 +445,8 @@ export async function liensDuLot(
     })
     .filter((lien) => lien !== null);
 
-  if (liens.length === 0) return fail("Impossible de préparer ce téléchargement.");
+  if (liens.length === 0)
+    return fail("Impossible de préparer ce téléchargement.");
   return ok(liens);
 }
 
@@ -430,7 +455,8 @@ export async function apercuDuFichier(
   orgSlug: string,
   fileId: string,
 ): Promise<ActionResult<{ apercu: string | null; original: string | null }>> {
-  if (!identifiant.safeParse(fileId).success) return fail("Fichier introuvable.");
+  if (!identifiant.safeParse(fileId).success)
+    return fail("Fichier introuvable.");
 
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
@@ -473,4 +499,124 @@ export async function listerDossiers(
     .order("name");
 
   return ok(data ?? []);
+}
+
+// ----------------------------- Notification ---------------------------------
+
+/** Deux lots rapprochés de la même personne, au même endroit, font un email. */
+const RETENUE_MS = 5 * 60 * 1000;
+
+/** Au-delà, l'email ne liste plus : il annonce un nombre. */
+const NOMS_LISTES = 10;
+
+/**
+ * Prévenir Louis qu'un dépôt vient d'arriver.
+ *
+ * Appelée par la file quand elle se vide, avec les fichiers réellement arrivés.
+ * Elle relit ces fichiers avec la session de qui a déposé : c'est la RLS qui
+ * décide de ce qui compte, et un identifiant glissé de l'extérieur ne donne
+ * rien de plus que ce que cette personne voit déjà.
+ *
+ * Le registre des emails déjà envoyés, lui, s'écrit avec la clé secrète. Il
+ * n'appartient pas au client — le laisser à sa portée lui donnerait de quoi
+ * étouffer ses propres notifications.
+ *
+ * Ne renvoie jamais d'échec au navigateur : un email raté n'est pas un dépôt
+ * raté, et la file n'a rien à en faire.
+ */
+export async function notifyBatch(
+  orgSlug: string,
+  fileIds: string[],
+): Promise<ActionResult<{ envoyes: number }>> {
+  const membre = await acces(orgSlug);
+  if (!membre) return ok({ envoyes: 0 });
+
+  // Louis dépose aussi chez ses clients : s'écrire à soi-même n'a pas de sens.
+  if (membre.profile.is_admin) return ok({ envoyes: 0 });
+
+  const ids = fileIds.filter((id) => identifiant.safeParse(id).success);
+  if (ids.length === 0) return ok({ envoyes: 0 });
+
+  const { data: fichiers } = await membre.supabase
+    .from("files")
+    .select("name, size_bytes, folder_id, folders(name)")
+    .in("id", ids)
+    .eq("organization_id", membre.org.id)
+    .eq("status", "ready")
+    .order("created_at");
+
+  if (!fichiers || fichiers.length === 0) return ok({ envoyes: 0 });
+
+  /*
+   * Un lot peut s'étaler sur plusieurs dossiers : on peut déposer, changer de
+   * dossier, redéposer, et la file ne se vide qu'une fois. Un email par
+   * dossier, parce que « 12 fichiers » sans dire où n'aide personne.
+   */
+  const parDossier = new Map<string | null, typeof fichiers>();
+  for (const fichier of fichiers) {
+    const lot = parDossier.get(fichier.folder_id) ?? [];
+    lot.push(fichier);
+    parDossier.set(fichier.folder_id, lot);
+  }
+
+  const admin = createAdminClient();
+  const depuis = new Date(Date.now() - RETENUE_MS).toISOString();
+  let envoyes = 0;
+
+  for (const [folderId, lot] of parDossier) {
+    const retenue = admin
+      .from("notification_batches")
+      .select("id")
+      .eq("organization_id", membre.org.id)
+      .eq("user_id", membre.userId)
+      .gt("sent_at", depuis)
+      .limit(1);
+
+    // `eq` sur une colonne nulle ne trouve rien : la racine se demande en `is`.
+    const { data: recent } = await (folderId === null
+      ? retenue.is("folder_id", null)
+      : retenue.eq("folder_id", folderId));
+
+    if (recent && recent.length > 0) continue;
+
+    const nomDossier = lot[0].folders?.name ?? null;
+    const ou = nomDossier ? `dans ${nomDossier}` : "à la racine";
+    const octets = lot.reduce((total, f) => total + f.size_bytes, 0);
+    const lien = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/app/${orgSlug}/fichiers${
+      folderId ? `/${folderId}` : ""
+    }`;
+
+    const noms = lot.slice(0, NOMS_LISTES).map((f) => f.name);
+    const reste = lot.length - noms.length;
+
+    const sujet = `${membre.profile.full_name} a déposé ${compteFichiers(lot.length)} ${ou}`;
+    const entete = `${membre.org.name} · ${compteFichiers(lot.length)} ${ou} · ${tailleLisible(octets)}`;
+    const suite = reste > 0 ? `\n… et ${compteFichiers(reste)} de plus.` : "";
+
+    const texte = `${entete}\n\n${noms.map((n) => `— ${n}`).join("\n")}${suite}\n\n${lien}`;
+
+    const html = [
+      `<p>${echapper(entete)}</p>`,
+      `<ul>${noms.map((n) => `<li>${echapper(n)}</li>`).join("")}</ul>`,
+      reste > 0
+        ? `<p>… et ${echapper(compteFichiers(reste))} de plus.</p>`
+        : "",
+      `<p><a href="${echapper(lien)}">Ouvrir ${echapper(nomDossier ?? "la médiathèque")}</a></p>`,
+    ].join("");
+
+    const parti = await envoyer({ sujet, texte, html });
+    if (!parti) continue;
+
+    // La ligne n'est posée que si l'email est parti : un envoi raté ne doit pas
+    // faire taire le suivant pendant cinq minutes.
+    await admin.from("notification_batches").insert({
+      organization_id: membre.org.id,
+      folder_id: folderId,
+      user_id: membre.userId,
+    });
+
+    envoyes += 1;
+  }
+
+  return ok({ envoyes });
 }

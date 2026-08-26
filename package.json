@@ -10,7 +10,8 @@
     "types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts",
     "qa:isolation": "node scripts/qa-isolation.mjs",
     "qa:routes": "node scripts/qa-routes.mjs",
-    "qa:fichiers": "node scripts/qa-fichiers.mjs"
+    "qa:fichiers": "node scripts/qa-fichiers.mjs",
+    "qa:notifications": "node scripts/qa-notifications.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

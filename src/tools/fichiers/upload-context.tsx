@@ -1,12 +1,24 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import * as tus from "tus-js-client";
 
 import { createClient } from "@/lib/supabase/client";
 
-import { nettoyerEnvoisAbandonnes, rafraichirApresLot, renameFile } from "./actions";
+import {
+  nettoyerEnvoisAbandonnes,
+  notifyBatch,
+  rafraichirApresLot,
+  renameFile,
+} from "./actions";
 import { couper } from "./format";
 import { mesurer, posterVideo } from "./media";
 import { empreinte, memoriser, oublier, retrouver } from "./reprises";
@@ -32,12 +44,7 @@ const PARALLELE = 3;
 const TAILLE_MAX = 5 * 1024 * 1024 * 1024;
 
 export type EtatEnvoi =
-  | "attente"
-  | "envoi"
-  | "termine"
-  | "echec"
-  | "annule"
-  | "refuse";
+  "attente" | "envoi" | "termine" | "echec" | "annule" | "refuse";
 
 export type Envoi = {
   cle: string;
@@ -164,6 +171,8 @@ export function FichiersProvider({
   const uploadsRef = useRef(new Map<string, tus.Upload>());
   const empreintesRef = useRef(new Map<string, string>());
   const dossiersTouchesRef = useRef(new Set<string | null>());
+  /** Les fichiers réellement arrivés : ce dont l'email de fin de lot parle. */
+  const arrivesRef = useRef<string[]>([]);
 
   const majFile = useCallback((maj: (file: Envoi[]) => Envoi[]) => {
     fileRef.current = maj(fileRef.current);
@@ -173,7 +182,9 @@ export function FichiersProvider({
   const patcher = useCallback(
     (cle: string, patch: Partial<Envoi>) =>
       majFile((file) =>
-        file.map((envoi) => (envoi.cle === cle ? { ...envoi, ...patch } : envoi)),
+        file.map((envoi) =>
+          envoi.cle === cle ? { ...envoi, ...patch } : envoi,
+        ),
       ),
     [majFile],
   );
@@ -189,12 +200,22 @@ export function FichiersProvider({
     if (fileRef.current.some(enCours)) return;
 
     const dossiers = [...dossiersTouchesRef.current];
+    const arrives = [...arrivesRef.current];
     dossiersTouchesRef.current.clear();
-    if (dossiers.length === 0) return;
+    arrivesRef.current = [];
+
+    if (dossiers.length === 0 && arrives.length === 0) return;
 
     for (const folderId of dossiers) {
       await rafraichirApresLot(orgSlug, folderId);
     }
+
+    /*
+     * Prévenir Louis vient après le rafraîchissement : le lien de l'email mène
+     * au dossier, et il doit y trouver les fichiers annoncés. L'action ne
+     * renvoie jamais d'échec — un email raté ne concerne pas qui dépose.
+     */
+    if (arrives.length > 0) await notifyBatch(orgSlug, arrives);
   }, [orgSlug]);
 
   // ---------------------------- ordonnancement ----------------------------
@@ -235,7 +256,10 @@ export function FichiersProvider({
 
       await supabase.storage
         .from(BUCKET)
-        .remove([`${organizationId}/${fileId}`, `${organizationId}/${fileId}.poster.jpg`]);
+        .remove([
+          `${organizationId}/${fileId}`,
+          `${organizationId}/${fileId}.poster.jpg`,
+        ]);
       await supabase.from("files").delete().eq("id", fileId);
     },
     [organizationId],
@@ -258,7 +282,10 @@ export function FichiersProvider({
       const { data: session } = await supabase.auth.getSession();
 
       if (!session.session) {
-        patcher(cle, { etat: "echec", message: "Session expirée. Reconnecte-toi." });
+        patcher(cle, {
+          etat: "echec",
+          message: "Session expirée. Reconnecte-toi.",
+        });
         demarrerSuivants();
         return;
       }
@@ -370,7 +397,10 @@ export function FichiersProvider({
         },
         onSuccess: () => {
           void (async () => {
-            await supabase.from("files").update({ status: "ready" }).eq("id", fileId);
+            await supabase
+              .from("files")
+              .update({ status: "ready" })
+              .eq("id", fileId);
 
             /*
              * L'image de couverture d'une vidéo, seul dérivé jamais stocké.
@@ -390,6 +420,7 @@ export function FichiersProvider({
             oublier(cleReprise);
             uploadsRef.current.delete(cle);
             fichiersRef.current.delete(cle);
+            if (fileId) arrivesRef.current.push(fileId);
 
             patcher(cle, { etat: "termine", envoye: fichier.size, vitesse: 0 });
             demarrerSuivants();
@@ -423,7 +454,6 @@ export function FichiersProvider({
     },
     [demarrerSuivants, organizationId, orgSlug, patcher, userId],
   );
-
 
   // -------------------------------- l'API ---------------------------------
 
@@ -488,7 +518,9 @@ export function FichiersProvider({
     (cle: string) =>
       setPreparation((actuelle) => {
         if (!actuelle) return actuelle;
-        const restantes = actuelle.entrees.filter((entree) => entree.cle !== cle);
+        const restantes = actuelle.entrees.filter(
+          (entree) => entree.cle !== cle,
+        );
         // Retirer le dernier ferme le dialog : il n'y a plus rien à préparer.
         if (restantes.length === 0) return null;
 
@@ -524,7 +556,9 @@ export function FichiersProvider({
 
   const changerDestination = useCallback(
     (folderId: string | null) =>
-      setPreparation((actuelle) => (actuelle ? { ...actuelle, folderId } : actuelle)),
+      setPreparation((actuelle) =>
+        actuelle ? { ...actuelle, folderId } : actuelle,
+      ),
     [],
   );
 
