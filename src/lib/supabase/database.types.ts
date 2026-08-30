@@ -1338,6 +1338,181 @@ export type Database = {
           },
         ]
       }
+      sonde_daily: {
+        Row: {
+          channel_bucket: string
+          channel_id: string | null
+          cta_clicks: number
+          day: string
+          organization_id: string
+          pageviews: number
+          site_id: string
+          visitors: number
+        }
+        Insert: {
+          channel_bucket: string
+          channel_id?: string | null
+          cta_clicks?: number
+          day: string
+          organization_id: string
+          pageviews?: number
+          site_id: string
+          visitors?: number
+        }
+        Update: {
+          channel_bucket?: string
+          channel_id?: string | null
+          cta_clicks?: number
+          day?: string
+          organization_id?: string
+          pageviews?: number
+          site_id?: string
+          visitors?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sonde_daily_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "radar_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sonde_daily_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sonde_daily_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sonde_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sonde_events: {
+        Row: {
+          channel_bucket: string
+          channel_id: string | null
+          id: number
+          kind: Database["public"]["Enums"]["sonde_event_kind"]
+          occurred_at: string
+          organization_id: string
+          path: string
+          referrer_host: string | null
+          site_id: string
+          utm: Json
+          visitor_key: string
+        }
+        Insert: {
+          channel_bucket?: string
+          channel_id?: string | null
+          id?: never
+          kind: Database["public"]["Enums"]["sonde_event_kind"]
+          occurred_at?: string
+          organization_id: string
+          path?: string
+          referrer_host?: string | null
+          site_id: string
+          utm?: Json
+          visitor_key: string
+        }
+        Update: {
+          channel_bucket?: string
+          channel_id?: string | null
+          id?: never
+          kind?: Database["public"]["Enums"]["sonde_event_kind"]
+          occurred_at?: string
+          organization_id?: string
+          path?: string
+          referrer_host?: string | null
+          site_id?: string
+          utm?: Json
+          visitor_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sonde_events_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "radar_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sonde_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sonde_events_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sonde_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sonde_salt: {
+        Row: {
+          day: string
+          salt: string
+        }
+        Insert: {
+          day: string
+          salt: string
+        }
+        Update: {
+          day?: string
+          salt?: string
+        }
+        Relationships: []
+      }
+      sonde_sites: {
+        Row: {
+          created_at: string
+          domains: string[]
+          id: string
+          is_active: boolean
+          last_event_at: string | null
+          name: string
+          organization_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          domains?: string[]
+          id?: string
+          is_active?: boolean
+          last_event_at?: string | null
+          name: string
+          organization_id: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          domains?: string[]
+          id?: string
+          is_active?: boolean
+          last_event_at?: string | null
+          name?: string
+          organization_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sonde_sites_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tools: {
         Row: {
           created_at: string
@@ -1470,6 +1645,7 @@ export type Database = {
       can_access_files_path: { Args: { object_name: string }; Returns: boolean }
       can_access_radar: { Args: { org: string }; Returns: boolean }
       can_access_sas: { Args: { org: string }; Returns: boolean }
+      can_access_sonde: { Args: { org: string }; Returns: boolean }
       est_auteur_objet: {
         Args: { owner: string; owner_id: string }
         Returns: boolean
@@ -1517,6 +1693,12 @@ export type Database = {
         }[]
       }
       shares_org_with: { Args: { other: string }; Returns: boolean }
+      sonde_agreger_jour: { Args: { cible?: string }; Returns: number }
+      sonde_purger_evenements: {
+        Args: { anciennete?: string }
+        Returns: number
+      }
+      sonde_tourner_sel: { Args: never; Returns: string }
       stats_fichiers: {
         Args: { org?: string }
         Returns: {
@@ -1533,6 +1715,7 @@ export type Database = {
       radar_status: "confirme" | "honore" | "annule" | "no_show"
       radar_status_origin: "calendly" | "auto" | "client" | "admin"
       sas_realm: "pro" | "perso"
+      sonde_event_kind: "pageview" | "cta"
       tool_kind: "internal" | "external"
     }
     CompositeTypes: {
@@ -1671,6 +1854,7 @@ export const Constants = {
       radar_status: ["confirme", "honore", "annule", "no_show"],
       radar_status_origin: ["calendly", "auto", "client", "admin"],
       sas_realm: ["pro", "perso"],
+      sonde_event_kind: ["pageview", "cta"],
       tool_kind: ["internal", "external"],
     },
   },

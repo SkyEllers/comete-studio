@@ -47,6 +47,7 @@ npm run test         # tests unitaires (node --test) : attribution Radar, classe
 npm run qa:radar     # Radar : tables, vue, Vault, actions, webhook ; demande un serveur
 npm run qa:sas       # Sas : isolation, porte d'entrée, contraintes des idées et des boîtes
 npm run qa:sas-ia    # Sas : le prompt contre la vraie API Anthropic (deux appels)
+npm run qa:sonde     # Sonde : isolation, sel hors de portée, tâches de nuit
 ```
 
 Les bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
