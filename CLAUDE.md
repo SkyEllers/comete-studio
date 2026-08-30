@@ -43,9 +43,10 @@ npm run qa:isolation # bancs de QA : isolation entre organisations, via l'API RE
 npm run qa:routes    # gardes de routes ; demande un serveur (npx next start -p 3100)
 npm run qa:fichiers  # isolation de l'outil Capsule : tables et Storage
 npm run qa:notifications # registre des notifications et compteurs d'espace
-npm run test         # tests unitaires (node --test) : le moteur d'attribution
+npm run test         # tests unitaires (node --test) : attribution Radar, classement Sas
 npm run qa:radar     # Radar : tables, vue, Vault, actions, webhook ; demande un serveur
 npm run qa:sas       # Sas : isolation, porte d'entrée, contraintes des idées et des boîtes
+npm run qa:sas-ia    # Sas : le prompt contre la vraie API Anthropic (deux appels)
 ```
 
 Les bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
@@ -83,7 +84,8 @@ src/
 ├── tools/
 │   ├── registry.ts                   # catalogue des outils internes : slug → nom, description, icône, href
 │   ├── kanban/                       # Orbite, phase 2 : composants, mutations, hooks, palette
-│   └── resultats/                    # Radar, phase 4 : attribution, calendly, fixtures
+│   ├── resultats/                    # Radar, phase 4 : attribution, calendly, fixtures
+│   └── sas/                          # Sas, phase 5 : classement, appel Anthropic, capture
 public/
 ├── radar.js                          # Radar : script de landing, servi aux clients
 ├── fonts/  brand/  favicon.svg  favicon-16.png  favicon-32.png  apple-touch-icon.png  robots.txt

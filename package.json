@@ -14,7 +14,8 @@
     "qa:fichiers": "node scripts/qa-fichiers.mjs",
     "qa:notifications": "node scripts/qa-notifications.mjs",
     "qa:radar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-radar.mjs",
-    "qa:sas": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas.mjs"
+    "qa:sas": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas.mjs",
+    "qa:sas-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas-ia.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
