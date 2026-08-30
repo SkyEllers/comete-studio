@@ -36,7 +36,18 @@ import {
   vide,
 } from "./qa-commun.mjs";
 
-annoncerCible("QA — Sonde");
+const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3100";
+
+annoncerCible(`QA — Sonde\nServeur visé : ${BASE}`);
+
+// Avant toute écriture : si le serveur ne répond pas, on s'arrête ici plutôt
+// que de créer un décor à nettoyer et d'afficher un bilan qui ne veut rien dire.
+if (!(await fetch(BASE, { redirect: "manual" }).catch(() => null))) {
+  console.error(
+    `${BASE} ne répond pas. Lance d'abord \`npm run build\`, puis \`npx next start -p 3100\` dans un autre terminal.`,
+  );
+  process.exit(1);
+}
 
 const { verifie, bilan } = journal();
 const marque = Math.random().toString(36).slice(2, 8);
@@ -528,9 +539,238 @@ try {
     `${retour.data?.length} site(s)`,
   );
 
-  // ------------------- 7. Aucune trace d'une personne -----------------------
+  // ---------------------- 7. Le point de collecte ---------------------------
 
-  console.log("\n== 7. Rien qui désigne quelqu'un ==");
+  console.log("\n== 7. Le point de collecte ==");
+
+  const NAVIGATEUR =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1";
+
+  /*
+   * Des adresses neuves à chaque exécution.
+   *
+   * Le limiteur de débit vit dans la mémoire du serveur, pas en base : deux
+   * passages du banc à moins d'une minute d'intervalle sur les mêmes adresses
+   * verraient le second entièrement refusé, et le banc accuserait la route
+   * d'un défaut qui serait le sien. C'est aussi ce qui rend les clés de
+   * visiteur comparables d'un passage à l'autre : deux exécutions ne jouent
+   * jamais le même visiteur.
+   */
+  const octet = () => Math.floor(Math.random() * 254) + 1;
+  const adresseNeuve = () => `10.${octet()}.${octet()}.${octet()}`;
+  const IP_PREMIER = adresseNeuve();
+  const IP_SECOND = adresseNeuve();
+  const IP_REJEU = adresseNeuve();
+
+  /*
+   * Un envoi tel que le fera `sonde.js` : `text/plain`, pas de prévol.
+   *
+   * L'adresse est fournie par `x-forwarded-for` — c'est ce que Vercel place
+   * devant la route, et c'est ce qui permet ici de jouer plusieurs visiteurs
+   * depuis une seule machine. Elle ne sert qu'en mémoire, jamais en base.
+   */
+  const envoyer = (
+    jeton,
+    corps,
+    { ip = IP_PREMIER, ua = NAVIGATEUR, origine = "https://exemple-a.test" } = {},
+  ) =>
+    fetch(`${BASE}/api/sonde/${jeton}`, {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain;charset=UTF-8",
+        // `fetch` de Node pose son propre user-agent quand on n'en donne
+        // pas : le seul « absent » qu'un banc puisse produire est un
+        // en-tête vide. Le cas vraiment absent est couvert par le test
+        // unitaire de `estRobot`, qui n'a pas cette contrainte.
+        "user-agent": ua ?? "",
+        ...(origine === null ? {} : { origin: origine }),
+        "x-forwarded-for": ip,
+      },
+      body: typeof corps === "string" ? corps : JSON.stringify(corps),
+    });
+
+  const compter = async () =>
+    (await srv("GET", `sonde_events?select=id&site_id=eq.${siteA.id}`)).data.length;
+
+  const derniere = async () =>
+    (
+      await srv(
+        "GET",
+        `sonde_events?select=kind,path,referrer_host,channel_bucket,visitor_key,utm&site_id=eq.${siteA.id}&order=id.desc&limit=1`,
+      )
+    ).data[0];
+
+  // Le chemin heureux d'abord : sans lui, tous les refus ne prouveraient rien.
+  const avantAccepte = await compter();
+  const accepte = await envoyer(siteA.token, {
+    e: "pageview",
+    p: "/tarifs?email=louis@exemple.fr",
+    r: "https://www.google.fr/search?q=therapeute",
+    u: { utm_campaign: "automne", ref: "ignore-moi" },
+  });
+
+  verifie(
+    "une page vue est acceptée, et la réponse est vide",
+    accepte.status === 204 && (await accepte.text()) === "",
+    `statut ${accepte.status}`,
+  );
+  verifie(
+    "la réponse porte l'en-tête CORS qui évite une erreur dans la console du client",
+    accepte.headers.get("access-control-allow-origin") === "*",
+    accepte.headers.get("access-control-allow-origin") ?? "absent",
+  );
+  verifie(
+    "et elle est arrivée en base",
+    (await compter()) === avantAccepte + 1,
+    `${await compter()} après ${avantAccepte}`,
+  );
+
+  const ligne = await derniere();
+  verifie(
+    "le chemin est entré sans sa query string",
+    ligne?.path === "/tarifs",
+    JSON.stringify(ligne?.path),
+  );
+  verifie(
+    "le référent est réduit à son hôte",
+    ligne?.referrer_host === "www.google.fr",
+    JSON.stringify(ligne?.referrer_host),
+  );
+  verifie(
+    "une recherche Google tombe dans le canal organique",
+    ligne?.channel_bucket === "canal",
+    JSON.stringify(ligne?.channel_bucket),
+  );
+  verifie(
+    "les `utm` sont filtrés : la campagne entre, le reste non",
+    JSON.stringify(ligne?.utm) === JSON.stringify({ utm_campaign: "automne" }),
+    JSON.stringify(ligne?.utm),
+  );
+  verifie(
+    "et la clé du visiteur est un HMAC, pas une adresse",
+    /^[0-9a-f]{64}$/.test(ligne?.visitor_key ?? ""),
+    JSON.stringify(ligne?.visitor_key),
+  );
+
+  const cle1 = ligne.visitor_key;
+  await envoyer(siteA.token, { e: "cta" });
+  const cle2 = (await derniere()).visitor_key;
+  verifie(
+    "le même navigateur, le même jour, garde la même clé",
+    cle1 === cle2,
+    `${cle1?.slice(0, 12)} / ${cle2?.slice(0, 12)}`,
+  );
+
+  await envoyer(siteA.token, { e: "pageview" }, { ip: IP_SECOND });
+  verifie("une autre adresse donne une autre clé", (await derniere()).visitor_key !== cle1);
+
+  // Tout ce qui doit repartir sans laisser de trace.
+  const refus = [
+    ["un jeton inconnu", () => envoyer("0".repeat(32), { e: "pageview" })],
+    [
+      "un jeton qui n'a pas la forme d'un jeton",
+      () => envoyer("pas-un-jeton", { e: "pageview" }),
+    ],
+    [
+      "une origine étrangère au site",
+      () => envoyer(siteA.token, { e: "pageview" }, { origine: "https://attaquant.test" }),
+    ],
+    [
+      "une origine qui se contente de finir comme le domaine",
+      () =>
+        envoyer(
+          siteA.token,
+          { e: "pageview" },
+          { origine: "https://exemple-a.test.attaquant.test" },
+        ),
+    ],
+    [
+      "un corps de plus d'un kilo-octet",
+      () => envoyer(siteA.token, { e: "pageview", p: `/${"a".repeat(1200)}` }),
+    ],
+    [
+      "un champ en trop dans l'enveloppe",
+      () => envoyer(siteA.token, { e: "pageview", visiteur: "Louis" }),
+    ],
+    ["un événement inconnu", () => envoyer(siteA.token, { e: "scroll" })],
+    ["un corps qui n'est pas du JSON", () => envoyer(siteA.token, "bonjour")],
+    [
+      "un robot déclaré",
+      () =>
+        envoyer(
+          siteA.token,
+          { e: "pageview" },
+          { ua: "Mozilla/5.0 (compatible; Googlebot/2.1)" },
+        ),
+    ],
+    ["un user-agent vide", () => envoyer(siteA.token, { e: "pageview" }, { ua: null })],
+  ];
+
+  for (const [libelle, envoi] of refus) {
+    const avant = await compter();
+    const reponse = await envoi();
+    const apres = await compter();
+    verifie(
+      `${libelle} : 204, et rien en base`,
+      reponse.status === 204 && apres === avant,
+      `statut ${reponse.status}, ${avant} → ${apres}`,
+    );
+  }
+
+  // Une origine absente est acceptée : `sendBeacon` peut l'omettre, et refuser
+  // reviendrait à sous-compter les navigateurs les plus discrets.
+  const avantSansOrigine = await compter();
+  const sansOrigine = await envoyer(siteA.token, { e: "pageview" }, { origine: null });
+  verifie(
+    "une origine absente est acceptée : sendBeacon peut l'omettre",
+    sansOrigine.status === 204 && (await compter()) === avantSansOrigine + 1,
+    `statut ${sansOrigine.status}`,
+  );
+
+  // Le référent interne n'est pas une provenance.
+  await envoyer(siteA.token, { e: "pageview", r: "https://www.exemple-a.test/accueil" });
+  const interne = await derniere();
+  verifie(
+    "un référent interne est effacé plutôt que compté comme provenance",
+    interne?.referrer_host === null && interne?.channel_bucket === "direct",
+    JSON.stringify({ r: interne?.referrer_host, seau: interne?.channel_bucket }),
+  );
+
+  // Un site éteint ne mesure plus rien, tout de suite : c'est ce qu'on promet
+  // en régénérant un jeton.
+  await srv("PATCH", `sonde_sites?id=eq.${siteA.id}`, { is_active: false });
+  const avantEteint = await compter();
+  const eteint = await envoyer(siteA.token, { e: "pageview" });
+  verifie(
+    "un site désactivé n'enregistre plus rien, dès la requête suivante",
+    eteint.status === 204 && (await compter()) === avantEteint,
+    `statut ${eteint.status}`,
+  );
+  await srv("PATCH", `sonde_sites?id=eq.${siteA.id}`, { is_active: true });
+
+  // Le rejeu : au-delà de soixante par minute et par adresse, plus rien.
+  const avantRejeu = await compter();
+  for (let i = 0; i < 75; i += 1) {
+    await envoyer(siteA.token, { e: "pageview", p: "/rejeu" }, { ip: IP_REJEU });
+  }
+  const ecrits = (await compter()) - avantRejeu;
+  verifie(
+    "soixante-quinze envois d'une même adresse n'en écrivent que soixante",
+    ecrits === 60,
+    `${ecrits} écrit(s) sur 75`,
+  );
+
+  const signal = (await srv("GET", `sonde_sites?select=last_event_at&id=eq.${siteA.id}`))
+    .data[0];
+  verifie(
+    "le site porte la trace de son dernier événement",
+    Boolean(signal?.last_event_at),
+    JSON.stringify(signal),
+  );
+
+  // ------------------- 8. Aucune trace d'une personne -----------------------
+
+  console.log("\n== 8. Rien qui désigne quelqu'un ==");
 
   /*
    * La vérification de fond : on relit tout ce que le banc a écrit et on
@@ -592,13 +832,37 @@ try {
     `${restes.length} restante(s)`,
   );
 
-  const sites = (await srv("GET", "sonde_sites?select=name")).data;
-  const evenements = (await srv("GET", "sonde_events?select=id&limit=1")).data;
-  verifie(
-    "les sites et les événements sont partis avec leur organisation",
-    sites.length === 0 && evenements.length === 0,
-    `${sites.length} site(s), ${evenements.length} événement(s)`,
-  );
+  /*
+   * Les restes se cherchent **dans le décor du banc**, jamais dans toute la
+   * table.
+   *
+   * La première version de ce contrôle cherchait un mot dans ``sonde_sites`` entier. Elle
+   * est passée au vert tant que la table était vide, puis a accusé le ménage
+   * d'un échec le jour où Louis a commencé à se servir de l'outil pour de bon.
+   * Un banc qui se met à échouer parce que le produit sert est pire qu'un banc
+   * absent : il apprend à ne plus le croire.
+   */
+  const cibles = Object.values(orgs)
+    .map((org) => org?.id)
+    .filter(Boolean);
+
+  if (cibles.length > 0) {
+    const sites = (
+      await srv("GET", `sonde_sites?select=id&organization_id=in.(${cibles.join(",")})`)
+    ).data;
+    const evenements = (
+      await srv("GET", `sonde_events?select=id&organization_id=in.(${cibles.join(",")})`)
+    ).data;
+    const agregats = (
+      await srv("GET", `sonde_daily?select=day&organization_id=in.(${cibles.join(",")})`)
+    ).data;
+
+    verifie(
+      "sites, événements et agrégats du décor sont partis avec leur organisation",
+      sites.length === 0 && evenements.length === 0 && agregats.length === 0,
+      `${sites.length} site(s), ${evenements.length} événement(s), ${agregats.length} agrégat(s)`,
+    );
+  }
 
   /*
    * Le sel : le banc en a fait tourner la rotation, ce qui est exactement ce

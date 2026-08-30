@@ -47,7 +47,12 @@ function normaliser(valeur: string): string {
     .toLowerCase();
 }
 
-function contient(liste: string[] | undefined, valeur: string | undefined): boolean {
+/**
+ * Exportée pour Sonde, qui pose la même question sur d'autres entrées : un
+ * hôte de référent plutôt qu'un `utm_source`. Recopier ces cinq lignes
+ * ailleurs, c'est se préparer à ce que deux normalisations divergent.
+ */
+export function contient(liste: string[] | undefined, valeur: string | undefined): boolean {
   if (!valeur || !liste || liste.length === 0) return false;
   const cible = normaliser(valeur);
   return liste.some((entree) => normaliser(entree) === cible);
@@ -80,7 +85,7 @@ export function porteUneCampagne(utm: Record<string, string>): boolean {
  *   gclid seul      → Ads : identifiant de clic présent              → oui
  *   google seul     → Ads : source d'accord, medium non porté        → oui
  */
-function canalReconnait(canal: Canal, utm: Record<string, string>): boolean {
+export function canalReconnait(canal: Canal, utm: Record<string, string>): boolean {
   const verdicts: boolean[] = [];
 
   if (canal.rules.sources?.length && utm.utm_source) {
@@ -98,8 +103,14 @@ function canalReconnait(canal: Canal, utm: Record<string, string>): boolean {
   return verdicts.length > 0 && verdicts.every(Boolean);
 }
 
-/** Les canaux qui comptent, dans l'ordre où on les interroge. */
-function actifsOrdonnes(channels: Canal[]): Canal[] {
+/**
+ * Les canaux qui comptent, dans l'ordre où on les interroge.
+ *
+ * L'ordre est la moitié de la règle — Google Ads avant SEO — et Sonde doit
+ * interroger les canaux dans le même, sans quoi une visite tomberait dans un
+ * canal chez Radar et dans un autre chez Sonde, pour la même personne.
+ */
+export function actifsOrdonnes(channels: Canal[]): Canal[] {
   return channels
     .filter((canal) => canal.is_active)
     .sort((a, b) => a.sort_order - b.sort_order || a.key.localeCompare(b.key));

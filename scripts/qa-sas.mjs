@@ -664,14 +664,34 @@ try {
     `${restes.length} restante(s)`,
   );
 
-  const notesRestantes = (
-    await srv("GET", "sas_notes?select=id,content&content=like.*Jonathan*")
-  ).data;
-  verifie(
-    "les idées du décor sont parties avec leur organisation",
-    notesRestantes.length === 0,
-    `${notesRestantes.length} restante(s)`,
-  );
+  /*
+   * Les restes se cherchent **dans le décor du banc**, jamais dans toute la
+   * table.
+   *
+   * La première version de ce contrôle cherchait un mot dans ``sas_notes`` entier. Elle
+   * est passée au vert tant que la table était vide, puis a accusé le ménage
+   * d'un échec le jour où Louis a commencé à se servir de l'outil pour de bon.
+   * Un banc qui se met à échouer parce que le produit sert est pire qu'un banc
+   * absent : il apprend à ne plus le croire.
+   */
+  const cibles = Object.values(orgs)
+    .map((org) => org?.id)
+    .filter(Boolean);
+
+  if (cibles.length > 0) {
+    const notesRestantes = (
+      await srv("GET", `sas_notes?select=id&organization_id=in.(${cibles.join(",")})`)
+    ).data;
+    const boitesRestantes = (
+      await srv("GET", `sas_boxes?select=id&organization_id=in.(${cibles.join(",")})`)
+    ).data;
+
+    verifie(
+      "les idées et les boîtes du décor sont parties avec leur organisation",
+      notesRestantes.length === 0 && boitesRestantes.length === 0,
+      `${notesRestantes.length} idée(s), ${boitesRestantes.length} boîte(s)`,
+    );
+  }
 
   bilan();
 }
