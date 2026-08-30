@@ -58,11 +58,20 @@ function adresseWebhook(organizationId: string): ActionResult<string> {
 
 const connexionSchema = z.object({
   organizationId: organisation,
+  // Calendly a changé la forme de ses jetons personnels — chaîne courte hier,
+  // JWT de trois blocs et quelques centaines de caractères aujourd'hui, autre
+  // chose demain. On ne juge donc plus de leur allure : on écarte seulement ce
+  // qui ne peut pas partir dans un en-tête HTTP (une espace, un retour à la
+  // ligne — un copier-coller de travers) et ce qui déborde de toute mesure.
+  // Le seul verdict qui compte est celui de `/users/me`, juste en dessous.
   token: z
     .string({ error: "Colle le jeton d'accès personnel du client." })
     .trim()
-    .min(20, { error: "Ce jeton semble trop court pour en être un." })
-    .max(500, { error: "Ce jeton semble trop long pour en être un." }),
+    .min(1, { error: "Colle le jeton d'accès personnel du client." })
+    .regex(/^\S+$/, {
+      error: "Ce jeton contient une espace. Recopie-le en entier, d'un seul tenant.",
+    })
+    .max(4096, { error: "Ce jeton semble trop long pour en être un." }),
 });
 
 /**
