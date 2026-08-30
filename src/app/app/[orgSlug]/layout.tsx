@@ -15,6 +15,7 @@ export default async function OrgLayout({
   return (
     <AppShell
       orgName={org.name}
+      orgSlug={org.slug}
       user={{
         name: profile.full_name,
         email: profile.email,

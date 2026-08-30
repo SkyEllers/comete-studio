@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { Building2, Check, LayoutGrid, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 
 import { signOut } from "@/components/app/actions";
@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { Espace } from "@/lib/access";
 
 function initials(name: string, email: string) {
   const source = name.trim() || email;
@@ -25,9 +26,28 @@ type UserMenuProps = {
   name: string;
   email: string;
   isAdmin: boolean;
+  /** Les organisations dont l'utilisateur est membre, par ordre alphabétique. */
+  espaces?: Espace[];
+  /** L'espace ouvert en ce moment, coché dans la liste. */
+  orgSlug?: string;
 };
 
-export function UserMenu({ name, email, isAdmin }: UserMenuProps) {
+export function UserMenu({
+  name,
+  email,
+  isAdmin,
+  espaces = [],
+  orgSlug,
+}: UserMenuProps) {
+  /*
+   * Un client qui n'a qu'un espace n'a nulle part où aller : lui montrer une
+   * liste d'un seul élément, coché, n'ajouterait qu'une ligne à lire. Louis,
+   * lui, voit toujours la section — c'est par là qu'il passe d'un client à
+   * l'autre, et « Tous les clients » y a sa place même s'il n'est membre de
+   * rien.
+   */
+  const montrerEspaces = isAdmin || espaces.length >= 2;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -57,6 +77,49 @@ export function UserMenu({ name, email, isAdmin }: UserMenuProps) {
         </DropdownMenuLabel>
 
         <DropdownMenuSeparator />
+
+        {montrerEspaces ? (
+          <>
+            {espaces.length > 0 ? (
+              <>
+                <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                  Mes espaces
+                </DropdownMenuLabel>
+
+                {espaces.map((espace) => {
+                  const courant = espace.slug === orgSlug;
+
+                  return (
+                    <DropdownMenuItem key={espace.id} asChild>
+                      <Link
+                        href={`/app/${espace.slug}`}
+                        prefetch
+                        aria-current={courant ? "page" : undefined}
+                      >
+                        <Building2 aria-hidden="true" />
+                        <span className="truncate">{espace.name}</span>
+                        {courant ? (
+                          <Check aria-hidden="true" className="ml-auto shrink-0" />
+                        ) : null}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </>
+            ) : null}
+
+            {isAdmin ? (
+              <DropdownMenuItem asChild>
+                <Link href="/app" prefetch>
+                  <LayoutGrid aria-hidden="true" />
+                  Tous les clients
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
 
         <DropdownMenuItem asChild>
           <Link href="/app/profil" prefetch>

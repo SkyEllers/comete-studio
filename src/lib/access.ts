@@ -109,3 +109,33 @@ export async function requireToolAccess(
 
   return access;
 }
+
+/** Une organisation telle qu'elle apparaît dans le menu du compte. */
+export type Espace = Pick<Organization, "id" | "name" | "slug">;
+
+/**
+ * Les organisations dont l'utilisateur est **réellement membre**.
+ *
+ * La distinction compte pour Louis, et pour lui seul : la RLS lui montre
+ * toutes les organisations, si bien qu'une lecture de `organizations` lui
+ * rendrait la liste entière des clients. Ce n'est pas ce que « mes espaces »
+ * veut dire — on part donc de `memberships`, filtré sur son identité, et le
+ * menu lui offre « Tous les clients » à part.
+ *
+ * Mémoïsé par requête : la coquille l'appelle à chaque rendu de page, et
+ * `requireUser()` l'est déjà pour la même raison.
+ */
+export const getMesEspaces = cache(async (): Promise<Espace[]> => {
+  const session = await requireUser();
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("memberships")
+    .select("organizations(id, name, slug)")
+    .eq("user_id", session.userId);
+
+  return (data ?? [])
+    .map((ligne) => ligne.organizations)
+    .filter((org): org is Espace => Boolean(org))
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+});

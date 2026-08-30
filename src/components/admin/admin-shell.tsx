@@ -3,14 +3,23 @@ import Link from "next/link";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { Logo } from "@/components/app/logo";
 import { UserMenu } from "@/components/app/user-menu";
+import { getMesEspaces } from "@/lib/access";
 
 type AdminShellProps = {
   user: { name: string; email: string; isAdmin: boolean };
   children: React.ReactNode;
 };
 
-/** Coquille de l'administration : même barre haute, navigation en plus. */
-export function AdminShell({ user, children }: AdminShellProps) {
+/**
+ * Coquille de l'administration : même barre haute, navigation en plus.
+ *
+ * Le menu du compte y porte les mêmes « Mes espaces » qu'ailleurs : c'est
+ * depuis l'administration que Louis a le plus souvent besoin d'aller voir un
+ * espace client tel que le client le voit.
+ */
+export async function AdminShell({ user, children }: AdminShellProps) {
+  const espaces = await getMesEspaces();
+
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-line bg-void/95 supports-[backdrop-filter]:bg-void/75 sticky top-0 z-40 border-b backdrop-blur">
@@ -35,6 +44,7 @@ export function AdminShell({ user, children }: AdminShellProps) {
               name={user.name}
               email={user.email}
               isAdmin={user.isAdmin}
+              espaces={espaces}
             />
           </div>
         </div>
