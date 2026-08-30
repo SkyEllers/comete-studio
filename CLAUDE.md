@@ -24,6 +24,7 @@ Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventio
 | Envois de fichiers | `tus-js-client` | Capsule, phase 3 : envois reprenables du navigateur vers Storage, morceaux de 6 Mo imposés par Supabase. |
 | Archives zip | `client-zip` | Capsule, phase 3 : zip construit en flux dans le navigateur, jamais en mémoire entière. |
 | Calendly | `fetch` natif | Radar, phase 4 : trois appels (identité, abonnement, désabonnement). Pas de paquet pour si peu — et celui-ci porterait le jeton d'accès au calendrier d'un client. |
+| IA | API Anthropic en `fetch` natif, sans SDK | Sas, phase 5 : un seul appel (`POST /v1/messages`), modèle Haiku, température 0, réponse en JSON validée par zod. `ANTHROPIC_API_KEY` côté serveur uniquement. |
 | Validation | `zod` | Toute Server Action valide ses entrées avant de toucher la base. |
 | Icônes / toasts / markdown | `lucide-react` / `sonner` / `react-markdown` + `remark-gfm` | Markdown uniquement pour les descriptions de cartes (pas de HTML brut). |
 | Hébergement | Vercel, projet existant, domaine déjà lié | Variables d'env dans Vercel, jamais dans le repo. |
@@ -44,6 +45,7 @@ npm run qa:fichiers  # isolation de l'outil Capsule : tables et Storage
 npm run qa:notifications # registre des notifications et compteurs d'espace
 npm run test         # tests unitaires (node --test) : le moteur d'attribution
 npm run qa:radar     # Radar : tables, vue, Vault, actions, webhook ; demande un serveur
+npm run qa:sas       # Sas : isolation, porte d'entrée, contraintes des idées et des boîtes
 ```
 
 Les bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
@@ -129,6 +131,7 @@ docs/                                 # briefs par phase, RADAR-INSTALLATION.md,
 - Ajouter une bibliothèque UI en plus de shadcn/ui, ou une lib d'animation.
 - Ouvrir l'inscription publique dans Supabase.
 - Retirer le `noindex`.
+- Faire sortir `ANTHROPIC_API_KEY` du serveur (jamais `NEXT_PUBLIC_`, jamais un appel à l'API depuis le navigateur), ou rendre un outil dépendant de l'IA : toute panne, lenteur ou réponse incohérente doit laisser un mode manuel utilisable de bout en bout.
 
 ## 9. Définition de « terminé » pour un chantier
 

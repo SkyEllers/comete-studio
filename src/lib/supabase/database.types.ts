@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -1232,6 +1232,112 @@ export type Database = {
           },
         ]
       }
+      sas_boxes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sas_boxes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sas_boxes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sas_notes: {
+        Row: {
+          archived_at: string | null
+          box_id: string | null
+          captured_at: string
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_archived: boolean
+          organization_id: string
+          realm: Database["public"]["Enums"]["sas_realm"]
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          box_id?: string | null
+          captured_at?: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_archived?: boolean
+          organization_id: string
+          realm: Database["public"]["Enums"]["sas_realm"]
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          box_id?: string | null
+          captured_at?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_archived?: boolean
+          organization_id?: string
+          realm?: Database["public"]["Enums"]["sas_realm"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sas_notes_box_id_fkey"
+            columns: ["box_id"]
+            isOneToOne: false
+            referencedRelation: "sas_boxes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sas_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sas_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tools: {
         Row: {
           created_at: string
@@ -1363,6 +1469,7 @@ export type Database = {
       can_access_files: { Args: { org: string }; Returns: boolean }
       can_access_files_path: { Args: { object_name: string }; Returns: boolean }
       can_access_radar: { Args: { org: string }; Returns: boolean }
+      can_access_sas: { Args: { org: string }; Returns: boolean }
       est_auteur_objet: {
         Args: { owner: string; owner_id: string }
         Returns: boolean
@@ -1416,6 +1523,7 @@ export type Database = {
       radar_statement_status: "cloture" | "conteste" | "valide" | "paye"
       radar_status: "confirme" | "honore" | "annule" | "no_show"
       radar_status_origin: "calendly" | "auto" | "client" | "admin"
+      sas_realm: "pro" | "perso"
       tool_kind: "internal" | "external"
     }
     CompositeTypes: {
@@ -1553,6 +1661,7 @@ export const Constants = {
       radar_statement_status: ["cloture", "conteste", "valide", "paye"],
       radar_status: ["confirme", "honore", "annule", "no_show"],
       radar_status_origin: ["calendly", "auto", "client", "admin"],
+      sas_realm: ["pro", "perso"],
       tool_kind: ["internal", "external"],
     },
   },
