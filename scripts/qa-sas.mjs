@@ -542,6 +542,109 @@ try {
     vide(chezB),
     `statut ${chezB.status}, ${JSON.stringify(chezB.data)}`,
   );
+
+  // ------------------------- 8. La vie d'une idée ----------------------------
+
+  console.log("\n== 8. Archiver, restaurer, déplacer, supprimer ==");
+
+  const etat = async () =>
+    (await jetonA("GET", `sas_notes?select=id,realm,box_id,is_archived,archived_at&id=eq.${noteProId}`))
+      .data?.[0];
+
+  // Archiver, c'est ranger de côté, pas effacer.
+  const archivage = await jetonA("PATCH", `sas_notes?id=eq.${noteProId}&select=id`, {
+    is_archived: true,
+    archived_at: new Date().toISOString(),
+  });
+  verifie("A archive une idée", archivage.status < 300, `statut ${archivage.status}`);
+
+  const archivee = await etat();
+  verifie(
+    "elle est toujours là, marquée archivée et datée",
+    archivee?.is_archived === true && Boolean(archivee?.archived_at),
+    JSON.stringify(archivee),
+  );
+
+  const actives = await jetonA(
+    "GET",
+    `sas_notes?select=id&organization_id=eq.${orgs.a.id}&is_archived=eq.false&id=eq.${noteProId}`,
+  );
+  verifie(
+    "et elle ne figure plus parmi les actives",
+    vide(actives),
+    JSON.stringify(actives.data),
+  );
+
+  // Restaurer, c'est effacer la date en même temps que l'état : une idée
+  // restaurée qui garderait sa date d'archivage mentirait sur ce qu'elle a vécu.
+  await jetonA("PATCH", `sas_notes?id=eq.${noteProId}&select=id`, {
+    is_archived: false,
+    archived_at: null,
+  });
+  const restauree = await etat();
+  verifie(
+    "restaurée, elle perd sa date d'archivage",
+    restauree?.is_archived === false && restauree?.archived_at === null,
+    JSON.stringify(restauree),
+  );
+
+  // Déplacement : d'« À ranger » vers une boîte, puis vers Perso, puis retour.
+  const cycle = await jetonA("POST", "sas_boxes?select=id", {
+    organization_id: orgs.a.id,
+    name: "Cycle",
+    created_by: comptes.a,
+  });
+  const cycleId = cycle.data?.[0]?.id;
+
+  await jetonA("PATCH", `sas_notes?id=eq.${noteProId}&select=id`, { box_id: cycleId });
+  verifie(
+    "« À ranger » → une boîte",
+    (await etat())?.box_id === cycleId,
+    JSON.stringify(await etat()),
+  );
+
+  /*
+   * Vers Perso, l'univers et la boîte partent dans la même écriture. Les
+   * séparer ferait exister, entre les deux, une note perso rangée dans une
+   * boîte — ce que la contrainte refuse, et c'est ce qu'on vérifie ici.
+   */
+  const versPerso = await jetonA("PATCH", `sas_notes?id=eq.${noteProId}&select=id`, {
+    realm: "perso",
+    box_id: null,
+  });
+  verifie(
+    "une boîte → Perso, en une seule écriture",
+    versPerso.status < 300 && (await etat())?.realm === "perso",
+    `statut ${versPerso.status}, ${JSON.stringify(await etat())}`,
+  );
+
+  const versBoite = await jetonA("PATCH", `sas_notes?id=eq.${noteProId}&select=id`, {
+    realm: "pro",
+    box_id: cycleId,
+  });
+  const revenue = await etat();
+  verifie(
+    "Perso → une boîte, de même",
+    versBoite.status < 300 && revenue?.realm === "pro" && revenue?.box_id === cycleId,
+    `statut ${versBoite.status}, ${JSON.stringify(revenue)}`,
+  );
+
+  // La suppression, elle, est définitive.
+  const avant = (await jetonA("GET", "sas_notes?select=id")).data.length;
+  const effacee = await jetonA("DELETE", `sas_notes?id=eq.${noteProId}&select=id`);
+  verifie("A supprime son idée", effacee.status < 300, `statut ${effacee.status}`);
+
+  const apresSuppression = await jetonA("GET", `sas_notes?select=id&id=eq.${noteProId}`);
+  verifie(
+    "elle n'existe plus nulle part",
+    vide(apresSuppression),
+    JSON.stringify(apresSuppression.data),
+  );
+  verifie(
+    "et une seule idée est partie",
+    (await jetonA("GET", "sas_notes?select=id")).data.length === avant - 1,
+    `${avant} avant`,
+  );
 } finally {
   // ------------------------------ Nettoyage --------------------------------
 

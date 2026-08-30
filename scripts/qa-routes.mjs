@@ -102,6 +102,19 @@ try {
     position: 1024,
   });
 
+  // Sas pour A aussi : ses quatre écrans se gardent comme le reste, et
+  // « À ranger » est une route en toutes lettres qu'il faut éprouver comme
+  // les autres — un segment fixe placé à côté d'un segment dynamique est
+  // exactement le genre d'adresse qui se met à répondre 404 sans prévenir.
+  const sasId = (await srv("GET", "tools?select=id&slug=eq.sas")).data[0].id;
+  await creer("organization_tools", { organization_id: orgs.a.id, tool_id: sasId, enabled: true });
+
+  const boite = await creer("sas_boxes", {
+    organization_id: orgs.a.id,
+    name: "Boîte QA",
+    created_by: comptes.a,
+  });
+
   const ca = await cookiesDeSession(emails.a);
   const cb = await cookiesDeSession(emails.b);
   const sa = `/app/${orgs.a.slug}`;
@@ -123,6 +136,20 @@ try {
   verifie("A · /admin → 404", (await visite(ca, "/admin")).status === 404);
   verifie("A · /admin/clients → 404", (await visite(ca, "/admin/clients")).status === 404);
 
+  console.log("\n== 1 bis. Les écrans de Sas ==");
+  for (const chemin of ["/sas", "/sas/boites", "/sas/perso", "/sas/boites/a-ranger"]) {
+    verifie(`A · ${sa}${chemin}`, (await visite(ca, `${sa}${chemin}`)).status === 200);
+  }
+  verifie("A · sa boîte", (await visite(ca, `${sa}/sas/boites/${boite.id}`)).status === 200);
+  verifie(
+    "A · une boîte qui n'existe pas → 404",
+    (await visite(ca, `${sa}/sas/boites/00000000-0000-0000-0000-000000000000`)).status === 404,
+  );
+  verifie(
+    "A · un identifiant de boîte qui n'en est pas un → 404",
+    (await visite(ca, `${sa}/sas/boites/pas-un-uuid`)).status === 404,
+  );
+
   console.log("\n== 2. Le membre de B, sans Orbite ==");
   verifie(`B · ${sb}`, (await visite(cb, sb)).status === 200);
   verifie(`B · ${sb}/kanban → 404 (outil non activé)`, (await visite(cb, `${sb}/kanban`)).status === 404);
@@ -130,6 +157,16 @@ try {
   verifie(`B · ${sa}/kanban → 404`, (await visite(cb, `${sa}/kanban`)).status === 404);
   verifie("B · le tableau de A → 404", (await visite(cb, `${sa}/kanban/${board.id}`)).status === 404);
   verifie("B · le tableau de A sous son propre espace → 404", (await visite(cb, `${sb}/kanban/${board.id}`)).status === 404);
+  verifie(`B · ${sb}/sas → 404 (outil non activé)`, (await visite(cb, `${sb}/sas`)).status === 404);
+  verifie(`B · ${sa}/sas → 404`, (await visite(cb, `${sa}/sas`)).status === 404);
+  verifie(
+    "B · la boîte de A → 404",
+    (await visite(cb, `${sa}/sas/boites/${boite.id}`)).status === 404,
+  );
+  verifie(
+    "B · la boîte de A sous son propre espace → 404",
+    (await visite(cb, `${sb}/sas/boites/${boite.id}`)).status === 404,
+  );
   verifie("B · /admin → 404", (await visite(cb, "/admin")).status === 404);
 
   console.log("\n== 3. Orbite coupé pour A, sans reconnexion ==");
@@ -145,6 +182,23 @@ try {
   verifie("A · kanban revient", (await visite(ca, `${sa}/kanban`)).status === 200);
   verifie("A · son tableau revient", (await visite(ca, `${sa}/kanban/${board.id}`)).status === 200);
   verifie("cartes toujours là", (await srv("GET", `cards?select=id&board_id=eq.${board.id}`)).data.length === 1);
+
+  console.log("\n== 3 bis. Sas coupé pour A ==");
+  const basculerSas = (enabled) =>
+    srv("PATCH", `organization_tools?organization_id=eq.${orgs.a.id}&tool_id=eq.${sasId}`, { enabled });
+
+  await basculerSas(false);
+  for (const chemin of ["/sas", "/sas/boites", "/sas/perso", "/sas/boites/a-ranger"]) {
+    verifie(`A · ${chemin} → 404 immédiatement`, (await visite(ca, `${sa}${chemin}`)).status === 404);
+  }
+  verifie("A · sa boîte → 404", (await visite(ca, `${sa}/sas/boites/${boite.id}`)).status === 404);
+
+  await basculerSas(true);
+  verifie("A · Sas revient", (await visite(ca, `${sa}/sas`)).status === 200);
+  verifie(
+    "sa boîte est toujours là",
+    (await srv("GET", `sas_boxes?select=id&id=eq.${boite.id}`)).data.length === 1,
+  );
 
   console.log("\n== 4. Membre retiré de son organisation ==");
   await srv("DELETE", `memberships?organization_id=eq.${orgs.a.id}&user_id=eq.${comptes.a}`);
@@ -173,6 +227,8 @@ try {
     ["/mentions-legales", null],
     [sa, ca],
     [`${sa}/kanban`, ca],
+    [`${sa}/sas`, ca],
+    [`${sa}/sas/boites`, ca],
   ]) {
     const reponse = await visite(cookie, chemin);
     const entete = reponse.headers.get("x-robots-tag") ?? "absent";
