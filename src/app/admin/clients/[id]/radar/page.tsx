@@ -40,6 +40,8 @@ import {
   statutLisible,
 } from "@/tools/resultats/format";
 import { libelleMois, moisAOffrir, moisCourant, moisDemande } from "@/tools/resultats/mois";
+import { jourEnLettres } from "@/tools/sonde/mesure";
+import { getMesureMois } from "@/tools/sonde/queries";
 import { estRevolu } from "@/tools/resultats/releve";
 import { SelecteurMois } from "@/tools/resultats/tuiles";
 
@@ -260,7 +262,7 @@ async function SectionReleves({
 }) {
   const supabase = await createClient();
 
-  const [releves, reglages, canaux, seances, saisies, moisConnus] = await Promise.all([
+  const [releves, reglages, canaux, seances, saisies, moisConnus, sonde] = await Promise.all([
     supabase
       .from("radar_statements")
       .select("id, month, status, base_cents, commission_cents, closed_at, reviewed_at, review_comment, paid_at")
@@ -293,6 +295,9 @@ async function SectionReleves({
       .select("mois")
       .eq("organization_id", organizationId)
       .limit(1000),
+    /* Ce que Sonde mesure de ce mois, ou `null` si elle n'est pas là : dans ce
+       cas Radar ne change pas d'un pouce. */
+    getMesureMois(organizationId, mois),
   ]);
 
   const taux = Number(reglages.data?.commission_rate ?? 20);
@@ -320,11 +325,18 @@ async function SectionReleves({
     const depense = saisie?.spend_cents ?? 0;
     const commission = Math.round((base * taux) / 100);
 
+    /* Mesuré l'emporte sur saisi, sans jamais s'y additionner : deux moitiés
+       venues de deux sources donneraient un nombre que personne ne pourrait
+       vérifier. Le mois de la bascule affiche donc ce qui a été mesuré, et
+       l'écran dit à partir de quel jour. */
+    const mesure = sonde?.mesure ? (sonde.parCanal.get(canal.id) ?? null) : null;
+
     return {
       canal,
       saisie,
-      visiteurs: saisie?.visitors ?? 0,
-      clics: saisie?.clicks ?? 0,
+      mesure: Boolean(sonde?.mesure),
+      visiteurs: mesure ? mesure.visiteurs : (saisie?.visitors ?? 0),
+      clics: mesure ? mesure.clics : (saisie?.clicks ?? 0),
       reservations: lignes.length,
       honorees: honorees.length,
       depense,
@@ -394,6 +406,9 @@ async function SectionReleves({
           <p className="text-muted-foreground mt-1 text-sm">
             Ce que tu saisis ici ne sort jamais de l&apos;administration : c&apos;est
             ta marge, pas la sienne.
+            {sonde?.mesure
+              ? " Les visiteurs et les clics sont mesurés par Sonde : il ne reste que la dépense à saisir."
+              : ""}
           </p>
         </div>
 
@@ -405,13 +420,34 @@ async function SectionReleves({
               mois={mois}
               canal={canal}
               saisie={parCanalSaisie.get(canal.id) ?? null}
+              mesure={
+                sonde?.mesure ? (sonde.parCanal.get(canal.id) ?? { visiteurs: 0, clics: 0 }) : null
+              }
+              depuis={sonde?.depuis ? jourEnLettres(sonde.depuis) : null}
+              partielle={Boolean(sonde?.partielle)}
             />
           ))}
         </div>
       </section>
 
       <section className="mt-8 space-y-3">
-        <h3 className="text-sm">L&apos;entonnoir de {libelleMois(mois)}</h3>
+        <div>
+          <h3 className="text-sm">L&apos;entonnoir de {libelleMois(mois)}</h3>
+          {sonde?.mesure ? (
+            <p className="text-muted-foreground mt-1 text-sm">
+              Visiteurs et clics mesurés par Sonde
+              {sonde.partielle && sonde.depuis
+                ? ` à partir du ${jourEnLettres(sonde.depuis)} — le début du mois n'est pas compté`
+                : ""}
+              .
+            </p>
+          ) : sonde?.depuis ? (
+            <p className="text-muted-foreground mt-1 text-sm">
+              Saisis à la main : Sonde ne mesure ce client que depuis le{" "}
+              {jourEnLettres(sonde.depuis)}.
+            </p>
+          ) : null}
+        </div>
 
         <div className="border-line overflow-x-auto rounded-lg border">
           <Table>

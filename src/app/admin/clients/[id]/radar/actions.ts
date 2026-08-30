@@ -680,16 +680,24 @@ const saisieSchema = z.object({
     .number({ error: "La dépense doit être un nombre." })
     .min(0, { error: "La dépense ne peut pas être négative." })
     .max(100_000_000),
+  /*
+   * Absents quand Sonde mesure le mois : le formulaire ne porte alors plus ces
+   * deux champs. `null` ne vaut pas zéro — il vaut « ne touche pas à ce qui
+   * est en base », sans quoi enregistrer une dépense effacerait les valeurs
+   * saisies avant la mise en route de Sonde.
+   */
   visitors: z.coerce
     .number({ error: "Un nombre de visiteurs, entier." })
     .int()
     .min(0)
-    .max(10_000_000),
+    .max(10_000_000)
+    .nullable(),
   clicks: z.coerce
     .number({ error: "Un nombre de clics, entier." })
     .int()
     .min(0)
-    .max(10_000_000),
+    .max(10_000_000)
+    .nullable(),
 });
 
 /** Les dépenses de Louis : jamais visibles du client, c'est sa marge. */
@@ -706,8 +714,8 @@ export async function enregistrerSaisie(
     channelId: formData.get("channelId"),
     mois: formData.get("mois"),
     spendCents: Number.isFinite(euros) ? Math.round(euros * 100) : Number.NaN,
-    visitors: formData.get("visitors"),
-    clicks: formData.get("clicks"),
+    visitors: formData.has("visitors") ? formData.get("visitors") : null,
+    clicks: formData.has("clicks") ? formData.get("clicks") : null,
   });
   if (!parsed.success) return failFromZod(parsed.error);
 
@@ -718,8 +726,10 @@ export async function enregistrerSaisie(
       channel_id: parsed.data.channelId,
       month: parsed.data.mois,
       spend_cents: parsed.data.spendCents,
-      visitors: parsed.data.visitors,
-      clicks: parsed.data.clicks,
+      // Omises quand le formulaire ne les portait pas : l'`upsert` laisse alors
+      // en place ce que la ligne contenait déjà.
+      ...(parsed.data.visitors === null ? {} : { visitors: parsed.data.visitors }),
+      ...(parsed.data.clicks === null ? {} : { clicks: parsed.data.clicks }),
     },
     { onConflict: "organization_id,month,channel_id" },
   );

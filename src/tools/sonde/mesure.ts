@@ -76,6 +76,17 @@ const NOM_DU_MOIS = new Intl.DateTimeFormat("fr-FR", {
   timeZone: "UTC",
 });
 
+const JOUR_EN_LETTRES = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "long",
+});
+
+/** « 2026-08-16 » → « 16 août ». Le mois porte l'année, la phrase n'en a pas besoin. */
+export function jourEnLettres(jour: string): string {
+  return JOUR_EN_LETTRES.format(new Date(`${jour}T00:00:00Z`));
+}
+
 /** « 2026-08-01 » → « août 2026 ». */
 export function libelleMois(mois: string): string {
   return NOM_DU_MOIS.format(new Date(`${mois}T00:00:00Z`));
@@ -287,4 +298,62 @@ export function taux(numerateur: number, denominateur: number): string {
 export function compte(nombre: number, singulier: string, pluriel = `${singulier}s`): string {
   if (nombre === 0) return `Aucun ${singulier}`;
   return `${nombre.toLocaleString("fr-FR")} ${nombre > 1 ? pluriel : singulier}`;
+}
+
+// --------------------------- La jonction avec Radar --------------------------
+
+/** Le dernier jour attendu d'un mois : sa fin, ou aujourd'hui s'il court encore. */
+export function finAttendue(mois: string, aujourdhui = jourParis()): string {
+  const fin = finDuMois(mois);
+  return fin > aujourdhui ? aujourdhui : fin;
+}
+
+export type Couverture = {
+  /** Sonde a-t-elle mesuré quelque chose de ce mois ? */
+  mesure: boolean;
+  /** La mesure commence après le premier du mois : le début manque. */
+  partielle: boolean;
+  /** Le premier jour jamais mesuré pour ce client, à afficher. */
+  depuis: string | null;
+};
+
+/**
+ * Ce que Sonde couvre d'un mois donné.
+ *
+ * La question n'est pas « y a-t-il des lignes ce mois-ci » — un mois entier
+ * peut être mesuré sans qu'une seule visite arrive un jour de week-end, et
+ * l'absence de ligne ne distingue pas un jour creux d'un jour non mesuré. La
+ * bonne question est « depuis quand ce client est-il mesuré », à laquelle
+ * répond le tout premier jour agrégé, quel que soit le mois.
+ *
+ * De là, trois cas :
+ *
+ *   la mesure commence après ce mois        → rien de mesuré, la saisie reste
+ *   elle commence avant le premier du mois  → le mois est couvert
+ *   elle commence pendant le mois           → couvert à partir de ce jour-là,
+ *                                             et l'écran doit le dire
+ *
+ * Une interruption au milieu d'un mois n'est pas détectée ici, et c'est
+ * délibéré : elle ressemblerait à une semaine calme. C'est l'alerte « aucun
+ * événement depuis sept jours » de l'administration qui la voit.
+ */
+export function couvertureDuMois(
+  mois: string,
+  premierJourMesure: string | null,
+  aujourdhui = jourParis(),
+): Couverture {
+  if (!premierJourMesure) return { mesure: false, partielle: false, depuis: null };
+
+  const fin = finAttendue(mois, aujourdhui);
+
+  // Le mois s'est terminé avant que la mesure ne commence.
+  if (premierJourMesure > fin) {
+    return { mesure: false, partielle: false, depuis: premierJourMesure };
+  }
+
+  return {
+    mesure: true,
+    partielle: premierJourMesure > mois,
+    depuis: premierJourMesure,
+  };
 }

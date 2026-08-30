@@ -20,7 +20,10 @@ import { describe, it } from "node:test";
 
 import {
   agregerBruts,
+  couvertureDuMois,
   depuisQuandRelire,
+  finAttendue,
+  jourEnLettres,
   joursDe,
   jourSuivant,
   mesurer,
@@ -274,5 +277,68 @@ describe("taux", () => {
   it("25. et il ne divise jamais par rien", () => {
     assert.equal(taux(0, 0), "—");
     assert.equal(taux(5, 0), "—");
+  });
+});
+
+describe("la jonction avec Radar", () => {
+  const AUJOURD_HUI = "2026-08-30";
+
+  it("26. la fin attendue d'un mois passé est son dernier jour", () => {
+    assert.equal(finAttendue("2026-07-01", AUJOURD_HUI), "2026-07-31");
+  });
+
+  it("27. celle du mois en cours s'arrête à aujourd'hui", () => {
+    assert.equal(finAttendue("2026-08-01", AUJOURD_HUI), AUJOURD_HUI);
+  });
+
+  it("28. sans une seule journée mesurée, rien ne bascule", () => {
+    assert.deepEqual(couvertureDuMois("2026-08-01", null, AUJOURD_HUI), {
+      mesure: false,
+      partielle: false,
+      depuis: null,
+    });
+  });
+
+  it("29. un mois entièrement antérieur à la mise en route reste saisi", () => {
+    // Sonde mesure depuis le 16 août : juillet garde ses valeurs saisies, et
+    // l'écran peut dire depuis quand.
+    assert.deepEqual(couvertureDuMois("2026-07-01", "2026-08-16", AUJOURD_HUI), {
+      mesure: false,
+      partielle: false,
+      depuis: "2026-08-16",
+    });
+  });
+
+  it("30. un mois postérieur à la mise en route est couvert en entier", () => {
+    assert.deepEqual(couvertureDuMois("2026-08-01", "2026-06-04", AUJOURD_HUI), {
+      mesure: true,
+      partielle: false,
+      depuis: "2026-06-04",
+    });
+  });
+
+  it("31. le mois de la bascule est mesuré, et se dit partiel", () => {
+    // Le cas mixte : quinze jours saisis, quinze jours mesurés. C'est la mesure
+    // qui s'affiche, et l'écran annonce à partir de quel jour.
+    assert.deepEqual(couvertureDuMois("2026-08-01", "2026-08-16", AUJOURD_HUI), {
+      mesure: true,
+      partielle: true,
+      depuis: "2026-08-16",
+    });
+  });
+
+  it("32. une mise en route le premier du mois n'est pas partielle", () => {
+    assert.equal(couvertureDuMois("2026-08-01", "2026-08-01", AUJOURD_HUI).partielle, false);
+  });
+
+  it("33. et une mise en route aujourd'hui bascule quand même le mois", () => {
+    const couverture = couvertureDuMois("2026-08-01", AUJOURD_HUI, AUJOURD_HUI);
+    assert.equal(couverture.mesure, true);
+    assert.equal(couverture.partielle, true);
+  });
+
+  it("34. le jour de mise en route s'écrit en toutes lettres", () => {
+    assert.equal(jourEnLettres("2026-08-16"), "16 août");
+    assert.equal(jourEnLettres("2026-01-01"), "1 janvier");
   });
 });

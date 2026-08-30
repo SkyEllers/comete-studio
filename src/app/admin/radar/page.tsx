@@ -20,6 +20,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { depuis, montant, silencieuxDepuis } from "@/tools/resultats/format";
 import { libelleMois, moisCourant } from "@/tools/resultats/mois";
+import { getSitesMuets } from "@/tools/sonde/queries";
 
 /**
  * Radar vu de haut : tous les clients d'un coup d'œil.
@@ -33,6 +34,14 @@ import { libelleMois, moisCourant } from "@/tools/resultats/mois";
 /** Au-delà, un agenda silencieux n'est plus une accalmie mais une panne. */
 const SILENCE_ALERTE = 14;
 
+/*
+ * Sept jours pour une landing, contre quatorze pour un agenda : ce ne sont pas
+ * les mêmes silences. Deux semaines sans réservation arrivent à tout le monde ;
+ * une semaine sans une seule page vue sur une page en ligne, non — c'est une
+ * balise tombée à la refonte, ou une page dépubliée.
+ */
+const SILENCE_SONDE = 7;
+
 const ETATS: Record<string, string> = {
   cloture: "attend sa réponse",
   conteste: "contesté",
@@ -44,7 +53,7 @@ async function Tableau() {
   const supabase = await createClient();
   const mois = moisCourant();
 
-  const [reglages, clients, brouillons, releves] = await Promise.all([
+  const [reglages, clients, brouillons, releves, sondes] = await Promise.all([
     supabase
       .from("radar_settings")
       .select("organization_id, commission_rate, currency, connected_at, last_webhook_at"),
@@ -60,6 +69,7 @@ async function Tableau() {
       .in("status", ["cloture", "conteste", "valide"])
       .order("month", { ascending: false })
       .limit(200),
+    getSitesMuets(),
   ]);
 
   const parClient = new Map((clients.data ?? []).map((org) => [org.id, org]));
@@ -88,6 +98,7 @@ async function Tableau() {
         enAttente: (releves.data ?? []).filter(
           (releve) => releve.organization_id === reglage.organization_id,
         ),
+        sites: sondes.get(reglage.organization_id) ?? [],
       };
     })
     .filter((ligne) => ligne !== null)
@@ -110,6 +121,7 @@ async function Tableau() {
           <TableRow>
             <TableHead>Client</TableHead>
             <TableHead>Calendly</TableHead>
+            <TableHead>Sonde</TableHead>
             <TableHead className="text-right">
               Commission de {libelleMois(mois)}
             </TableHead>
@@ -145,6 +157,35 @@ async function Tableau() {
                         ? `dernier appel ${depuis(ligne.dernierAppel)}`
                         : "aucun appel reçu"}
                     </span>
+                  )}
+                </TableCell>
+
+                <TableCell>
+                  {ligne.sites.length === 0 ? (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  ) : (
+                    <ul className="space-y-1">
+                      {ligne.sites.map((site) => {
+                        const muetSonde = silencieuxDepuis(site.dernier, SILENCE_SONDE);
+                        return (
+                          <li
+                            key={site.nom}
+                            className={cn(
+                              "flex items-center gap-1.5 text-xs",
+                              muetSonde ? "text-danger" : "text-muted-foreground",
+                            )}
+                          >
+                            {muetSonde ? (
+                              <CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />
+                            ) : null}
+                            <span className="truncate">{site.nom}</span>
+                            <span className="shrink-0">
+                              {site.dernier ? depuis(site.dernier) : "jamais rien reçu"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
                 </TableCell>
 

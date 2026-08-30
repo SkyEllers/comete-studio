@@ -5,8 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 
 import {
   agregerBruts,
+  couvertureDuMois,
   depuisQuandRelire,
   mesurer,
+  periodeDemandee,
+  type Couverture,
   type EvenementBrut,
   type LigneJour,
   type Mesure,
@@ -265,4 +268,103 @@ export async function getReservations(
     const jour = jourParis(rdv.scheduled_start);
     return jour >= periode.debut && jour <= periode.fin;
   }).length;
+}
+
+// --------------------------- La jonction avec Radar --------------------------
+
+export type MesureMois = Couverture & {
+  /** Par identifiant de canal : ce que Sonde a mesuré sur le mois. */
+  parCanal: Map<string, { visiteurs: number; clics: number }>;
+};
+
+/**
+ * Ce que Sonde sait d'un mois, pour l'entonnoir de Radar.
+ *
+ * `null` quand la jonction ne s'applique pas : outil coupé, ou aucun site
+ * actif déclaré. Dans ce cas Radar ne change pas d'un pouce — la saisie à la
+ * main reste ce qu'elle a toujours été.
+ *
+ * La mesure passe par `getMesure`, la même fonction que le tableau de bord du
+ * client. Ce n'est pas une commodité : deux chemins de calcul finiraient par
+ * afficher deux nombres différents pour le même mois, l'un chez le client,
+ * l'autre chez Louis, et il n'y aurait aucun moyen de savoir lequel croire.
+ */
+export async function getMesureMois(
+  organizationId: string,
+  mois: string,
+): Promise<MesureMois | null> {
+  const supabase = await createClient();
+
+  const [{ data: outil }, { data: sites }] = await Promise.all([
+    supabase.rpc("has_tool", { org: organizationId, tool_slug: "sonde" }),
+    supabase
+      .from("sonde_sites")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .limit(1),
+  ]);
+
+  if (outil !== true || (sites ?? []).length === 0) return null;
+
+  // Le tout premier jour agrégé : c'est lui qui dit depuis quand ce client est
+  // mesuré, et donc quels mois basculent.
+  const { data: premier } = await supabase
+    .from("sonde_daily")
+    .select("day")
+    .eq("organization_id", organizationId)
+    .order("day")
+    .limit(1)
+    .maybeSingle();
+
+  const couverture = couvertureDuMois(mois, premier?.day ?? null);
+  const parCanal = new Map<string, { visiteurs: number; clics: number }>();
+
+  if (!couverture.mesure) return { ...couverture, parCanal };
+
+  const { mesure } = await getMesure(organizationId, periodeDemandee(mois));
+
+  for (const part of mesure.parCanal) {
+    if (!part.channelId) continue;
+    parCanal.set(part.channelId, { visiteurs: part.visiteurs, clics: part.clics });
+  }
+
+  return { ...couverture, parCanal };
+}
+
+/**
+ * Les sites actifs restés muets, tous clients confondus.
+ *
+ * Un script tombé lors d'une refonte, une balise oubliée en recopiant une
+ * page : rien ne le signale, la mesure s'arrête simplement. C'est exactement
+ * la panne que l'administration doit voir sans qu'on la cherche.
+ */
+export type SiteMuet = {
+  organizationId: string;
+  nom: string;
+  dernier: string | null;
+};
+
+export async function getSitesMuets(): Promise<Map<string, SiteMuet[]>> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("sonde_sites")
+    .select("organization_id, name, last_event_at")
+    .eq("is_active", true)
+    .limit(500);
+
+  const parClient = new Map<string, SiteMuet[]>();
+
+  for (const site of data ?? []) {
+    const liste = parClient.get(site.organization_id) ?? [];
+    liste.push({
+      organizationId: site.organization_id,
+      nom: site.name,
+      dernier: site.last_event_at,
+    });
+    parClient.set(site.organization_id, liste);
+  }
+
+  return parClient;
 }

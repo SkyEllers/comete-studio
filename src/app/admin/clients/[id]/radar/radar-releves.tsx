@@ -146,16 +146,36 @@ export function BoutonPaiement({
 }
 
 /** Dépense, visiteurs et clics d'un canal Comète, pour un mois. */
+/**
+ * La saisie mensuelle d'un canal.
+ *
+ * Quand Sonde mesure le mois, les deux champs d'audience disparaissent et
+ * laissent la place aux nombres mesurés : les laisser vides inviterait à
+ * ressaisir par-dessus une mesure, et les laisser remplis ferait croire que
+ * c'est ce qu'on affiche. La dépense, elle, reste à saisir — aucune mesure ne
+ * la connaît.
+ *
+ * Le formulaire n'envoie alors plus ces deux champs, et l'action laisse en
+ * base ce qui y était : le mois où l'on repasserait à la main retrouverait ses
+ * valeurs d'avant.
+ */
 export function FormulaireSaisie({
   organizationId,
   mois,
   canal,
   saisie,
+  mesure,
+  depuis,
+  partielle,
 }: {
   organizationId: string;
   mois: string;
   canal: { id: string; label: string };
   saisie: { spend_cents: number; visitors: number; clicks: number } | null;
+  /** Ce que Sonde a mesuré pour ce canal, ou `null` si le mois est saisi. */
+  mesure?: { visiteurs: number; clics: number } | null;
+  depuis?: string | null;
+  partielle?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(enregistrerSaisie, null);
   const router = useRouter();
@@ -190,35 +210,46 @@ export function FormulaireSaisie({
         />
       </div>
 
-      <div className="space-y-1">
-        <Label htmlFor={`${canal.id}-visitors`} className="text-muted-foreground text-xs">
-          Visiteurs
-        </Label>
-        <Input
-          id={`${canal.id}-visitors`}
-          name="visitors"
-          type="number"
-          min="0"
-          defaultValue={saisie?.visitors ?? ""}
-          placeholder="0"
-          className="h-8 w-28"
-        />
-      </div>
+      {mesure ? (
+        <p className="text-muted-foreground pb-1.5 text-xs">
+          <span className="font-mono tabular-nums">{mesure.visiteurs}</span> visiteurs
+          · <span className="font-mono tabular-nums">{mesure.clics}</span> clics,
+          mesurés par Sonde
+          {partielle && depuis ? ` depuis le ${depuis}` : ""}
+        </p>
+      ) : (
+        <>
+          <div className="space-y-1">
+            <Label htmlFor={`${canal.id}-visitors`} className="text-muted-foreground text-xs">
+              Visiteurs
+            </Label>
+            <Input
+              id={`${canal.id}-visitors`}
+              name="visitors"
+              type="number"
+              min="0"
+              defaultValue={saisie?.visitors ?? ""}
+              placeholder="0"
+              className="h-8 w-28"
+            />
+          </div>
 
-      <div className="space-y-1">
-        <Label htmlFor={`${canal.id}-clicks`} className="text-muted-foreground text-xs">
-          Clics
-        </Label>
-        <Input
-          id={`${canal.id}-clicks`}
-          name="clicks"
-          type="number"
-          min="0"
-          defaultValue={saisie?.clicks ?? ""}
-          placeholder="0"
-          className="h-8 w-28"
-        />
-      </div>
+          <div className="space-y-1">
+            <Label htmlFor={`${canal.id}-clicks`} className="text-muted-foreground text-xs">
+              Clics
+            </Label>
+            <Input
+              id={`${canal.id}-clicks`}
+              name="clicks"
+              type="number"
+              min="0"
+              defaultValue={saisie?.clicks ?? ""}
+              placeholder="0"
+              className="h-8 w-28"
+            />
+          </div>
+        </>
+      )}
 
       <Button type="submit" variant="outline" size="sm" disabled={pending}>
         {pending ? "…" : "Enregistrer"}
