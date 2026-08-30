@@ -86,9 +86,10 @@ src/
 │   ├── registry.ts                   # catalogue des outils internes : slug → nom, description, icône, href
 │   ├── kanban/                       # Orbite, phase 2 : composants, mutations, hooks, palette
 │   ├── resultats/                    # Radar, phase 4 : attribution, calendly, fixtures
-│   └── sas/                          # Sas, phase 5 : classement, appel Anthropic, capture, boîtes
+│   ├── sas/                          # Sas, phase 5 : classement, appel Anthropic, capture, boîtes
+│   └── sonde/                        # Sonde, phase 6 : canaux, collecte, mesure, tableau de bord
 public/
-├── radar.js                          # Radar : script de landing, servi aux clients
+├── radar.js  sonde.js                # Radar et Sonde : scripts de landing, servis aux clients
 ├── fonts/  brand/  favicon.svg  favicon-16.png  favicon-32.png  apple-touch-icon.png  robots.txt
 supabase/
 ├── config.toml

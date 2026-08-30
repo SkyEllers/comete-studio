@@ -1,4 +1,11 @@
-import { FolderOpen, Inbox, Radar, SquareKanban, type LucideIcon } from "lucide-react";
+import {
+  Activity,
+  FolderOpen,
+  Inbox,
+  Radar,
+  SquareKanban,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
  * Catalogue des outils internes.
@@ -50,6 +57,13 @@ export const TOOL_REGISTRY: Record<string, ToolMeta> = {
     description: "Vide ta tête : note tout, l'IA range, tu valides.",
     icon: Inbox,
     href: (orgSlug) => `/app/${orgSlug}/sas`,
+  },
+  sonde: {
+    slug: "sonde",
+    name: "Sonde",
+    description: "Qui visite tes pages, d'où, et qui clique pour réserver.",
+    icon: Activity,
+    href: (orgSlug) => `/app/${orgSlug}/sonde`,
   },
 };
 

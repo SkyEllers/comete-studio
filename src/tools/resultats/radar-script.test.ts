@@ -203,7 +203,16 @@ describe("ce qu'il touche, et ce qu'il ne touche pas", () => {
     assert.match(page.popup(CALENDLY), /utm_source=instagram/);
   });
 
-  it("13. un stockage refusé ne casse pas la page", () => {
+  it("13. un paramètre nommé comme une propriété héritée n'est pas retenu", () => {
+    // Sans `hasOwnProperty`, `constructor` serait pris pour un identifiant de
+    // clic et recopié sur le lien Calendly. Sans conséquence chez le client,
+    // mais c'est la même garde que dans sonde.js : deux rigueurs différentes
+    // sur le même motif finissent par se copier dans le mauvais sens.
+    const page = charger({ recherche: "?constructor=1&toString=2" });
+    assert.equal(page.clic(CALENDLY), CALENDLY);
+  });
+
+  it("14. un stockage refusé ne casse pas la page", () => {
     // Navigation privée, réglages restrictifs : la visite perd son attribution,
     // elle ne perd pas son bouton de réservation.
     const page = charger({ recherche: "?utm_source=google", stockageCasse: true });

@@ -70,7 +70,11 @@
 
     params.forEach(function (valeur, cle) {
       if (!valeur) return;
-      if (cle.indexOf("utm_") === 0 || REGIES[cle]) {
+      // `hasOwnProperty` : sans lui, `?constructor=1` passerait pour une régie,
+      // l'objet héritant de la propriété. Même garde que dans sonde.js — deux
+      // rigueurs différentes sur le même motif, et le prochain copier-coller
+      // hérite de la mauvaise.
+      if (cle.indexOf("utm_") === 0 || Object.prototype.hasOwnProperty.call(REGIES, cle)) {
         trouve[cle] = String(valeur).slice(0, 200);
       }
     });

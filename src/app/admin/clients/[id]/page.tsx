@@ -249,12 +249,20 @@ export default async function ClientDetailPage({
 
   // Une requête de plus hors `<Suspense>`, mais minuscule : l'onglet Radar doit
   // être décidé avant que la page commence à se rendre.
-  const { data: radar } = await supabase
-    .from("organization_tools")
-    .select("enabled, tools!inner(slug)")
-    .eq("organization_id", org.id)
-    .eq("tools.slug", "resultats")
-    .maybeSingle();
+  const [{ data: radar }, { data: sonde }] = await Promise.all([
+    supabase
+      .from("organization_tools")
+      .select("enabled, tools!inner(slug)")
+      .eq("organization_id", org.id)
+      .eq("tools.slug", "resultats")
+      .maybeSingle(),
+    supabase
+      .from("organization_tools")
+      .select("enabled, tools!inner(slug)")
+      .eq("organization_id", org.id)
+      .eq("tools.slug", "sonde")
+      .maybeSingle(),
+  ]);
 
   return (
     <>
@@ -289,6 +297,7 @@ export default async function ClientDetailPage({
         organizationId={org.id}
         actif="fiche"
         radarActif={Boolean(radar?.enabled)}
+        sondeActif={Boolean(sonde?.enabled)}
       />
 
       <section className="mt-8 space-y-4">

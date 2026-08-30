@@ -1,3 +1,24 @@
+const JOUR_PARIS = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Paris",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * Le jour d'un instant, en heure de Paris : « 2026-08-30 ».
+ *
+ * Le hub découpe ses journées ici et nulle part ailleurs. Une idée notée à
+ * 00 h 30, une visite à 23 h 50, un rendez-vous du 1er du mois : tous
+ * tomberaient dans le mauvais jour si on les lisait en UTC, et chaque outil
+ * qui referait ce calcul chez lui finirait par le refaire un peu autrement.
+ */
+export function jourParis(instant: string | number | Date = new Date()): string {
+  return JOUR_PARIS.format(
+    instant instanceof Date ? instant : new Date(instant),
+  );
+}
+
 const relative = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
 
 const PALIERS: {

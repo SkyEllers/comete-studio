@@ -1,3 +1,5 @@
+import { jourParis } from "../../lib/dates.ts";
+
 /**
  * Le temps, tel qu'une liste d'idées le montre.
  *
@@ -13,14 +15,6 @@
  */
 
 const FUSEAU = "Europe/Paris";
-
-/** `2026-08-30` en heure de Paris, quoi qu'en dise le fuseau de la machine. */
-const jourParis = new Intl.DateTimeFormat("en-CA", {
-  timeZone: FUSEAU,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
 
 /** `mardi 12 août` — l'année n'apparaît que si elle n'est pas la courante. */
 const libelleJour = new Intl.DateTimeFormat("fr-FR", {
@@ -46,7 +40,7 @@ const heureParis = new Intl.DateTimeFormat("fr-FR", {
 });
 
 export function cleJour(iso: string): string {
-  return jourParis.format(new Date(iso));
+  return jourParis(iso);
 }
 
 export function heure(iso: string): string {

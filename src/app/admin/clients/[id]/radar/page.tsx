@@ -594,12 +594,22 @@ export default async function RadarAdminPage({
 
   if (!org) notFound();
 
-  const { data: actif } = await supabase
-    .from("organization_tools")
-    .select("enabled, tools!inner(slug)")
-    .eq("organization_id", org.id)
-    .eq("tools.slug", OUTIL)
-    .maybeSingle();
+  const [{ data: actif }, { data: sonde }] = await Promise.all([
+    supabase
+      .from("organization_tools")
+      .select("enabled, tools!inner(slug)")
+      .eq("organization_id", org.id)
+      .eq("tools.slug", OUTIL)
+      .maybeSingle(),
+    // L'onglet Sonde doit apparaître ici aussi : les deux outils se lisent
+    // ensemble, et passer de l'un à l'autre par la fiche serait un détour.
+    supabase
+      .from("organization_tools")
+      .select("enabled, tools!inner(slug)")
+      .eq("organization_id", org.id)
+      .eq("tools.slug", "sonde")
+      .maybeSingle(),
+  ]);
 
   return (
     <>
@@ -618,7 +628,12 @@ export default async function RadarAdminPage({
           <p className="text-muted-foreground font-mono text-xs">{org.slug} · Radar</p>
         </div>
 
-        <ClientTabs organizationId={org.id} actif="radar" radarActif />
+        <ClientTabs
+          organizationId={org.id}
+          actif="radar"
+          radarActif
+          sondeActif={Boolean(sonde?.enabled)}
+        />
       </div>
 
       {!actif?.enabled ? (
