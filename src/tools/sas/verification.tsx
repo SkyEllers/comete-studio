@@ -92,7 +92,10 @@ export function Verification({
         </p>
       ) : null}
 
-      <div className="border-line bg-void/95 supports-[backdrop-filter]:bg-void/75 sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-lg sm:border sm:px-3">
+      {/* `bottom-14` sur téléphone : la barre de navigation de l'outil occupe
+          déjà le bas de l'écran, et deux barres l'une sur l'autre en cacheraient
+          une. */}
+      <div className="border-line bg-void/95 supports-[backdrop-filter]:bg-void/75 sticky bottom-14 -mx-4 flex flex-wrap items-center gap-2 border-t px-4 py-3 backdrop-blur sm:mx-0 sm:bottom-0 sm:rounded-lg sm:border sm:px-3">
         <Button onClick={onEnregistrer} disabled={pending || idees.length === 0}>
           {pending
             ? "J'enregistre…"

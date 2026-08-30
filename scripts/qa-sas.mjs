@@ -428,6 +428,120 @@ try {
     total.data?.length === 3,
     `${total.data?.length} idée(s)`,
   );
+
+  // ---------------------------- 6. Les compteurs -----------------------------
+
+  console.log("\n== 6. sas_compteurs ==");
+
+  // À ce stade, A porte deux idées pro sans boîte et une perso.
+  const lire = (lignes, realm) =>
+    (lignes ?? []).find((l) => l.realm === realm && l.box_id === null);
+
+  const compteursA = await jetonA("POST", "rpc/sas_compteurs", { org: orgs.a.id });
+  verifie(
+    "A compte ses deux idées « À ranger »",
+    Number(lire(compteursA.data, "pro")?.notes) === 2,
+    JSON.stringify(compteursA.data),
+  );
+  verifie(
+    "A compte son idée perso",
+    Number(lire(compteursA.data, "perso")?.notes) === 1,
+    JSON.stringify(compteursA.data),
+  );
+  verifie(
+    "et la date de la dernière est renseignée",
+    Boolean(lire(compteursA.data, "pro")?.derniere),
+    JSON.stringify(compteursA.data),
+  );
+
+  const compteursBversA = await jetonB("POST", "rpc/sas_compteurs", {
+    org: orgs.a.id,
+  });
+  verifie(
+    "B ne compte rien chez A — pas même le volume",
+    (compteursBversA.data ?? []).length === 0,
+    JSON.stringify(compteursBversA.data),
+  );
+
+  // Une idée archivée sort des compteurs : ils disent ce qu'il reste à faire.
+  await srv("PATCH", `sas_notes?id=eq.${noteProId}`, {
+    is_archived: true,
+    archived_at: new Date().toISOString(),
+  });
+  const compteursArchive = await jetonA("POST", "rpc/sas_compteurs", {
+    org: orgs.a.id,
+  });
+  verifie(
+    "une idée archivée ne compte plus",
+    Number(lire(compteursArchive.data, "pro")?.notes) === 1,
+    JSON.stringify(compteursArchive.data),
+  );
+  await srv("PATCH", `sas_notes?id=eq.${noteProId}`, {
+    is_archived: false,
+    archived_at: null,
+  });
+
+  await allumer(orgs.a.id, false);
+  const compteursCoupes = await jetonA("POST", "rpc/sas_compteurs", {
+    org: orgs.a.id,
+  });
+  verifie(
+    "outil coupé, les compteurs sont vides",
+    (compteursCoupes.data ?? []).length === 0,
+    JSON.stringify(compteursCoupes.data),
+  );
+  await allumer(orgs.a.id, true);
+
+  // ---------------------------- 7. La recherche ------------------------------
+
+  console.log("\n== 7. Recherche ==");
+
+  // Deux idées piégées : l'une contient un caractère que SQL prend pour un
+  // joker, l'autre est ce que ce joker ramènerait s'il n'était pas désarmé.
+  await jetonA("POST", "sas_notes", {
+    organization_id: orgs.a.id,
+    realm: "pro",
+    content: "marge de 50 % sur ce devis",
+    created_by: comptes.a,
+  });
+  await jetonA("POST", "sas_notes", {
+    organization_id: orgs.a.id,
+    realm: "pro",
+    content: "50 euros de courses",
+    created_by: comptes.a,
+  });
+
+  /*
+   * Le motif part encodé, comme le fait `supabase-js` dans l'application :
+   * un `%` posé tel quel dans une URL est un début d'octet échappé, et le
+   * serveur rejette la requête avant même de la lire.
+   *
+   * Ces deux motifs sont exactement ceux que `motifRecherche` fabrique.
+   */
+  const ilike = (motif) =>
+    `sas_notes?select=content&content=ilike.${encodeURIComponent(motif)}`;
+
+  const litteral = await jetonA("GET", ilike("%50 \\%%"));
+  verifie(
+    "chercher « 50 % » ne ramène que le pourcentage, pas « 50 euros »",
+    litteral.data?.length === 1 &&
+      litteral.data[0].content === "marge de 50 % sur ce devis",
+    `statut ${litteral.status}, ${JSON.stringify(litteral.data)?.slice(0, 200)}`,
+  );
+
+  const large = await jetonA("GET", ilike("%50%"));
+  verifie(
+    "contrôle : sans échappement, « 50 » ramène bien les deux",
+    large.data?.length === 2,
+    JSON.stringify(large.data)?.slice(0, 200),
+  );
+
+  const chezB = await jetonB("GET", ilike("%50%"));
+  verifie(
+    "la recherche de B ne sort jamais de son organisation",
+    vide(chezB),
+    `statut ${chezB.status}, ${JSON.stringify(chezB.data)}`,
+  );
 } finally {
   // ------------------------------ Nettoyage --------------------------------
 

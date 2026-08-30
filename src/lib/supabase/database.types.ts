@@ -1507,6 +1507,15 @@ export type Database = {
         Args: { kind: string; org: string; value: string }
         Returns: undefined
       }
+      sas_compteurs: {
+        Args: { org: string }
+        Returns: {
+          box_id: string
+          derniere: string
+          notes: number
+          realm: Database["public"]["Enums"]["sas_realm"]
+        }[]
+      }
       shares_org_with: { Args: { other: string }; Returns: boolean }
       stats_fichiers: {
         Args: { org?: string }

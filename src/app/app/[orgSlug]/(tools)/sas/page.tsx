@@ -1,9 +1,6 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
 import { requireMembership } from "@/lib/access";
 import { Capture } from "@/tools/sas/capture";
+import { EnteteSas } from "@/tools/sas/entete";
 import { getBoites } from "@/tools/sas/queries";
 
 /**
@@ -22,17 +19,8 @@ export default async function SasPage({ params }: PageProps<"/app/[orgSlug]/sas"
   const boites = await getBoites(org.id);
 
   return (
-    <div className="mx-auto flex min-h-[70svh] w-full max-w-2xl flex-col">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-2xl">Sas</h1>
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/app/${orgSlug}`} prefetch>
-            <ArrowLeft aria-hidden="true" />
-            Tes outils
-          </Link>
-        </Button>
-      </div>
-
+    <div className="flex min-h-[65svh] flex-col">
+      <EnteteSas orgSlug={orgSlug} titre="Sas" courant="capture" />
       <Capture orgSlug={orgSlug} boites={boites} />
     </div>
   );

@@ -9,6 +9,12 @@ import { createClient } from "@/lib/supabase/server";
 import { demanderClassement } from "@/tools/sas/anthropic";
 import { cleNom, reconcilier, trouverBoite } from "@/tools/sas/classement";
 import { ideesManuelles } from "@/tools/sas/decoupage";
+import {
+  identifiant,
+  nomBoiteSchema,
+  placeSchema,
+  texteIdeeSchema,
+} from "@/tools/sas/mutations-schema";
 import { getBoites } from "@/tools/sas/queries";
 import {
   LIMITE_CAPTURE,
@@ -236,8 +242,18 @@ export async function enregistrer(
     return fail("Rien n'a été enregistré. Réessaie dans un instant.");
   }
 
-  revalidatePath(`/app/${orgSlug}/sas`);
+  rafraichir(orgSlug);
   return ok({ rangees: lignes.length });
+}
+
+/**
+ * Une idée qui bouge change plusieurs écrans à la fois : sa boîte, la liste
+ * des boîtes et son compteur, « À ranger », Perso, et jusqu'à la recherche.
+ * Les énumérer un par un serait un oubli qui attend son heure — `"layout"`
+ * balaie l'outil entier, et l'outil entier est petit.
+ */
+function rafraichir(orgSlug: string) {
+  revalidatePath(`/app/${orgSlug}/sas`, "layout");
 }
 
 /** Les boîtes créées pour rien, retirées : l'échec ne laisse pas de trace. */
@@ -253,4 +269,246 @@ async function defaire(
       "id",
       creees.map((boite) => boite.id),
     );
+}
+
+// --------------------------------- Les boîtes --------------------------------
+
+/**
+ * Créer une boîte à la main, sans passer par une capture.
+ *
+ * L'unicité est portée par la base — `unique (organization_id, name)`. On la
+ * devance quand même par un `trouverBoite` souple, parce que la contrainte,
+ * elle, distingue « Flora » de « flora » : deux boîtes qui se ressemblent
+ * seraient acceptées par Postgres et confondues par Louis.
+ */
+export async function creerBoite(
+  orgSlug: string,
+  nom: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = nomBoiteSchema.safeParse(nom);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const boites = await getBoites(membre.org.id);
+  if (trouverBoite(parsed.data, boites)) {
+    return fail("Une boîte porte déjà ce nom.");
+  }
+
+  const { data, error } = await membre.supabase
+    .from("sas_boxes")
+    .insert({
+      organization_id: membre.org.id,
+      name: parsed.data,
+      created_by: membre.userId,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) return fail("Cette boîte n'a pas pu être créée.");
+
+  rafraichir(orgSlug);
+  return ok({ id: data.id });
+}
+
+export async function renommerBoite(
+  orgSlug: string,
+  boxId: unknown,
+  nom: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const cible = identifiant.safeParse(boxId);
+  if (!cible.success) return fail("Cette boîte est introuvable.");
+
+  const parsed = nomBoiteSchema.safeParse(nom);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const boites = await getBoites(membre.org.id);
+  const homonyme = trouverBoite(parsed.data, boites);
+  if (homonyme && homonyme.id !== cible.data) {
+    return fail("Une autre boîte porte déjà ce nom.");
+  }
+
+  const { data, error } = await membre.supabase
+    .from("sas_boxes")
+    .update({ name: parsed.data })
+    .eq("id", cible.data)
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    return fail("Cette boîte n'a pas pu être renommée.");
+  }
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+/**
+ * Supprimer une boîte n'efface aucune idée : `on delete set null` les rend à
+ * « À ranger ». C'est la migration qui le garantit, pas cette fonction — on
+ * n'a donc rien à faire ici qu'à supprimer la ligne.
+ */
+export async function supprimerBoite(
+  orgSlug: string,
+  boxId: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const cible = identifiant.safeParse(boxId);
+  if (!cible.success) return fail("Cette boîte est introuvable.");
+
+  const { data, error } = await membre.supabase
+    .from("sas_boxes")
+    .delete()
+    .eq("id", cible.data)
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    return fail("Cette boîte n'a pas pu être supprimée.");
+  }
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+// --------------------------------- Les idées ---------------------------------
+
+export async function modifierNote(
+  orgSlug: string,
+  noteId: unknown,
+  texte: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const cible = identifiant.safeParse(noteId);
+  if (!cible.success) return fail("Cette idée est introuvable.");
+
+  const parsed = texteIdeeSchema.safeParse(texte);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const { data, error } = await membre.supabase
+    .from("sas_notes")
+    .update({ content: parsed.data })
+    .eq("id", cible.data)
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    return fail("Cette idée n'a pas pu être modifiée.");
+  }
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+/**
+ * Archiver, ou restaurer. `archived_at` suit l'état : une idée restaurée ne
+ * garde pas la date de son archivage, sinon la colonne mentirait sur ce
+ * qu'elle raconte.
+ */
+export async function archiverNote(
+  orgSlug: string,
+  noteId: unknown,
+  archiver: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const cible = identifiant.safeParse(noteId);
+  if (!cible.success) return fail("Cette idée est introuvable.");
+
+  const etat = z.boolean().safeParse(archiver);
+  if (!etat.success) return fail("Geste inconnu.");
+
+  const { data, error } = await membre.supabase
+    .from("sas_notes")
+    .update({
+      is_archived: etat.data,
+      archived_at: etat.data ? new Date().toISOString() : null,
+    })
+    .eq("id", cible.data)
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    return fail(
+      etat.data
+        ? "Cette idée n'a pas pu être archivée."
+        : "Cette idée n'a pas pu être restaurée.",
+    );
+  }
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+export async function supprimerNote(
+  orgSlug: string,
+  noteId: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const cible = identifiant.safeParse(noteId);
+  if (!cible.success) return fail("Cette idée est introuvable.");
+
+  const { data, error } = await membre.supabase
+    .from("sas_notes")
+    .delete()
+    .eq("id", cible.data)
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    return fail("Cette idée n'a pas pu être supprimée.");
+  }
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+/**
+ * Déplacer une idée d'une place à l'autre.
+ *
+ * L'univers et la boîte partent dans la même écriture : les séparer ferait
+ * exister, entre les deux, une note perso rangée dans une boîte — que la
+ * contrainte de table refuse, et à juste titre.
+ */
+export async function deplacerNote(
+  orgSlug: string,
+  noteId: unknown,
+  place: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const cible = identifiant.safeParse(noteId);
+  if (!cible.success) return fail("Cette idée est introuvable.");
+
+  const parsed = placeSchema.safeParse(place);
+  if (!parsed.success) return fail("Destination inconnue.");
+
+  const destination = parsed.data;
+
+  const champs =
+    destination.type === "perso"
+      ? { realm: "perso" as const, box_id: null }
+      : destination.type === "aranger"
+        ? { realm: "pro" as const, box_id: null }
+        : { realm: "pro" as const, box_id: destination.boiteId };
+
+  const { data, error } = await membre.supabase
+    .from("sas_notes")
+    .update(champs)
+    .eq("id", cible.data)
+    .select("id");
+
+  if (error || !data || data.length === 0) {
+    return fail("Cette idée n'a pas pu être déplacée.");
+  }
+
+  rafraichir(orgSlug);
+  return ok();
 }
