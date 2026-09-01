@@ -28,6 +28,7 @@ import {
   moisDeLaVente,
   montant,
   nomComplet,
+  origineLisible,
   statutLisible,
   venteEncoreImpossible,
 } from "./format";
@@ -72,31 +73,6 @@ const LIBELLES_ACTIVITE: Record<string, string> = {
  * anonymes ; le dire est plus honnête que de laisser croire à un bug.
  */
 const AVANT_IDENTITE = "Reçu avant l'identité";
-
-/** « Google Ads, via récurrence : séance du 12 mars ». */
-function origine(
-  rdv: RendezVous,
-  canal: Canal | null,
-  sources: Map<string, string>,
-): string {
-  const nom = canal?.label ?? "Sans canal";
-
-  if (rdv.attribution === "manuel") {
-    return `${nom}, corrigé par Louis${rdv.attribution_note ? ` : ${rdv.attribution_note}` : ""}`;
-  }
-
-  if (rdv.attribution === "recurrence") {
-    const depuis = rdv.attribution_source_id
-      ? sources.get(rdv.attribution_source_id)
-      : null;
-    return depuis
-      ? `${nom}, via récurrence : séance du ${jour(depuis)}`
-      : `${nom}, via récurrence`;
-  }
-
-  if (rdv.attribution === "utm") return `${nom}, via la campagne d'origine`;
-  return `${nom} : aucune campagne, aucune séance récente`;
-}
 
 export function ListeRendezVous({
   orgSlug,
@@ -401,7 +377,7 @@ function FicheRendezVous({
 
         <dl className="divide-line divide-y">
           <Ligne label="Statut" valeur={statutLisible(rdv.effective_status)} />
-          <Ligne label="D'où elle vient" valeur={origine(rdv, canal, sources)} />
+          <Ligne label="D'où elle vient" valeur={origineLisible(rdv, canal, sources)} />
           {rdv.declared_source ? (
             <Ligne label="Réponse à « comment m'avez-vous connu ? »" valeur={rdv.declared_source} />
           ) : null}

@@ -32,6 +32,8 @@ export type RendezVous = {
   channel_id: string | null;
   attribution: string;
   attribution_note: string | null;
+  /** Les `utm_*` retenus de la réservation : la fiche y lit le nom de campagne. */
+  utm: Record<string, string>;
   declared_source: string | null;
   status: string;
   status_origin: string;
@@ -58,7 +60,7 @@ export type RendezVous = {
 export type Canal = { id: string; label: string; is_comete: boolean };
 
 const COLONNES =
-  "id, scheduled_start, scheduled_end, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, mois, sale_amount_cents, sale_date, sale_note, has_sale, commission_basis, commission_month";
+  "id, scheduled_start, scheduled_end, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, utm, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, mois, sale_amount_cents, sale_date, sale_note, has_sale, commission_basis, commission_month";
 
 export async function getCanaux(organizationId: string): Promise<Canal[]> {
   const supabase = await createClient();

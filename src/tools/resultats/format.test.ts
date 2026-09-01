@@ -12,6 +12,7 @@ import {
   moisDeLaVente,
   montant,
   nomComplet,
+  origineLisible,
   venteEncoreImpossible,
 } from "./format.ts";
 
@@ -187,5 +188,115 @@ describe("quand une vente peut être déclarée", () => {
   it("26. et après, évidemment", () => {
     assert.equal(venteEncoreImpossible(`${jourParis(-1)}T10:00:00+02:00`), false);
     assert.equal(venteEncoreImpossible("2026-01-05T10:00:00+01:00"), false);
+  });
+});
+
+describe("d'où vient un rendez-vous", () => {
+  /*
+   * C'est la ligne qui rend une commission défendable. Le défaut qu'elle
+   * corrige : « via la campagne d'origine » servait pour l'attribution par
+   * campagne *et* se confondait avec la récurrence, si bien qu'on ne pouvait
+   * ni retrouver la campagne dans Google Ads, ni distinguer les deux raisons.
+   */
+  const ADS = { label: "Google Ads" };
+  const SOURCES = new Map([["rdv-12-mars", "2026-03-12T09:00:00+01:00"]]);
+
+  it("27. utm avec campagne : elle se nomme", () => {
+    assert.equal(
+      origineLisible(
+        { attribution: "utm", utm: { utm_source: "google", utm_campaign: "test-audit" } },
+        ADS,
+        SOURCES,
+      ),
+      "Google Ads, campagne test-audit",
+    );
+  });
+
+  it("28. utm sans campagne : on dit d'où vient l'information", () => {
+    const sansCampagne: (Record<string, string> | null | undefined)[] = [
+      { utm_source: "google" },
+      {},
+      undefined,
+      null,
+    ];
+
+    for (const utm of sansCampagne) {
+      assert.equal(
+        origineLisible({ attribution: "utm", utm }, ADS, SOURCES),
+        "Google Ads, via les paramètres de la visite",
+        JSON.stringify(utm),
+      );
+    }
+    // Une campagne vide ou blanche n'est pas une campagne.
+    assert.equal(
+      origineLisible({ attribution: "utm", utm: { utm_campaign: "   " } }, ADS, SOURCES),
+      "Google Ads, via les paramètres de la visite",
+    );
+  });
+
+  it("29. récurrence : elle se dit « par récurrence », et nomme sa séance", () => {
+    assert.equal(
+      origineLisible(
+        { attribution: "recurrence", attribution_source_id: "rdv-12-mars" },
+        ADS,
+        SOURCES,
+      ),
+      "Google Ads, par récurrence : séance du 12/03/2026",
+    );
+  });
+
+  it("30. récurrence sans séance retrouvée : la formule courte", () => {
+    assert.equal(
+      origineLisible({ attribution: "recurrence", attribution_source_id: null }, ADS, SOURCES),
+      "Google Ads, par récurrence",
+    );
+    assert.equal(
+      origineLisible(
+        { attribution: "recurrence", attribution_source_id: "disparu" },
+        ADS,
+        SOURCES,
+      ),
+      "Google Ads, par récurrence",
+    );
+  });
+
+  it("31. les trois cas ne se ressemblent pas", () => {
+    const phrases = [
+      origineLisible({ attribution: "utm", utm: { utm_campaign: "test-audit" } }, ADS, SOURCES),
+      origineLisible({ attribution: "utm", utm: {} }, ADS, SOURCES),
+      origineLisible(
+        { attribution: "recurrence", attribution_source_id: "rdv-12-mars" },
+        ADS,
+        SOURCES,
+      ),
+    ];
+    assert.equal(new Set(phrases).size, 3);
+    // « la campagne d'origine » ne doit plus apparaître nulle part : c'était
+    // elle qui servait pour deux raisons différentes.
+    for (const phrase of phrases) {
+      assert.equal(phrase.includes("via la campagne d'origine"), false);
+    }
+  });
+
+  it("32. les deux autres attributions n'ont pas bougé", () => {
+    assert.equal(
+      origineLisible({ attribution: "manuel", attribution_note: "vu avec elle" }, ADS, SOURCES),
+      "Google Ads, corrigé par Louis : vu avec elle",
+    );
+    assert.equal(
+      origineLisible({ attribution: "manuel" }, ADS, SOURCES),
+      "Google Ads, corrigé par Louis",
+    );
+    assert.equal(
+      origineLisible({ attribution: "direct" }, ADS, SOURCES),
+      "Google Ads : aucune campagne, aucune séance récente",
+    );
+  });
+
+  it("33. sans canal, la phrase tient quand même", () => {
+    assert.equal(
+      origineLisible({ attribution: "utm", utm: { utm_campaign: "test-audit" } }, null, SOURCES),
+      "Sans canal, campagne test-audit",
+    );
   });
 });

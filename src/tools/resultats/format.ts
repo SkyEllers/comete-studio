@@ -187,6 +187,66 @@ export function attributionADire(
 }
 
 /**
+ * « D'où elle vient », en une phrase, sur la fiche d'un rendez-vous.
+ *
+ * Quatre attributions, quatre phrases, et l'enjeu est qu'elles ne se
+ * ressemblent pas : c'est cette ligne qui rend une commission défendable, et
+ * un client qui lit deux fois la même formule pour deux raisons différentes
+ * n'a rien vérifié du tout.
+ *
+ *   `utm`         La campagne se nomme quand elle est là — « campagne
+ *                 test-audit » se retrouve dans Google Ads, ce qu'une formule
+ *                 générique ne permettait pas. Sans `utm_campaign`, on dit
+ *                 d'où vient l'information plutôt que d'inventer un nom : les
+ *                 paramètres étaient sur le lien, ils n'ont simplement pas
+ *                 nommé la campagne.
+ *   `recurrence`  « par récurrence », et la séance qui a transmis le canal.
+ *                 C'est ce qui rend la récurrence vérifiable dans l'agenda du
+ *                 client, plutôt qu'à croire sur parole.
+ *   `manuel`      Louis a tranché, avec son motif s'il en a laissé un.
+ *   sinon         Ni campagne ni séance récente : c'est du direct, et le dire
+ *                 ainsi vaut mieux que de laisser une case vide.
+ *
+ * Vit ici plutôt que dans le composant : c'est une phrase que quatre cas se
+ * partagent, et on veut pouvoir les dérouler tous les quatre en une seconde.
+ */
+export function origineLisible(
+  rdv: {
+    attribution: string;
+    attribution_note?: string | null;
+    attribution_source_id?: string | null;
+    utm?: Record<string, string> | null;
+  },
+  canal: { label: string } | null,
+  /** La date de la séance qui a transmis son canal, par identifiant. */
+  sources: Map<string, string>,
+): string {
+  const nom = canal?.label ?? "Sans canal";
+
+  if (rdv.attribution === "manuel") {
+    return `${nom}, corrigé par Louis${rdv.attribution_note ? ` : ${rdv.attribution_note}` : ""}`;
+  }
+
+  if (rdv.attribution === "recurrence") {
+    const depuis = rdv.attribution_source_id
+      ? sources.get(rdv.attribution_source_id)
+      : null;
+    return depuis
+      ? `${nom}, par récurrence : séance du ${jour(depuis)}`
+      : `${nom}, par récurrence`;
+  }
+
+  if (rdv.attribution === "utm") {
+    const campagne = (rdv.utm?.utm_campaign ?? "").trim();
+    return campagne
+      ? `${nom}, campagne ${campagne}`
+      : `${nom}, via les paramètres de la visite`;
+  }
+
+  return `${nom} : aucune campagne, aucune séance récente`;
+}
+
+/**
  * Une vente peut-elle déjà être déclarée sur cette séance ?
  *
  * Non tant que la séance n'a pas eu lieu, au jour près. C'est exactement la
