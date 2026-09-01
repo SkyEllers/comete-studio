@@ -150,6 +150,55 @@ export async function removeMember(input: {
 }
 
 /**
+ * Changer le rôle de quelqu'un dans un client : membre ou responsable.
+ *
+ * Le rôle se choisissait à l'invitation et ne bougeait plus, ce qui obligeait
+ * à retirer la personne et à la réinviter pour la promouvoir — en lui faisant
+ * perdre au passage la date à laquelle elle était arrivée.
+ *
+ * Ce que le rôle décide, et rien d'autre : supprimer un tableau dans Orbite,
+ * et supprimer les fichiers des autres dans Capsule. C'est un pouvoir à
+ * l'intérieur d'un client.
+ *
+ * **`is_admin` n'est jamais touché ici.** C'est une colonne de `profiles`, pas
+ * de `memberships` : elle donne accès à toute l'administration, à tous les
+ * clients, et elle ne se règle pas depuis la fiche d'un client. La requête ne
+ * nomme d'ailleurs qu'une seule colonne, `role`, sur une seule table — il n'y
+ * a pas de chemin par lequel un `is_admin` pourrait s'y glisser.
+ */
+const roleSchema = memberSchema.extend({ role: membershipRoleSchema });
+
+export async function changeMemberRole(input: {
+  organizationId: string;
+  userId: string;
+  role: string;
+}): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = roleSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("memberships")
+    .update({ role: parsed.data.role })
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("user_id", parsed.data.userId)
+    .select("user_id");
+
+  if (error) return fail("Impossible de changer ce rôle pour le moment.");
+
+  // Zéro ligne touchée : la personne n'est plus membre de ce client. Le dire
+  // vaut mieux qu'un succès silencieux qui n'a rien fait.
+  if (!data || data.length === 0) {
+    return fail("Cette personne n'est plus membre de ce client.");
+  }
+
+  refresh(parsed.data.organizationId);
+  return ok();
+}
+
+/**
  * Renvoi d'invitation, pour un compte qui ne s'est jamais connecté.
  *
  * Supabase refuse une seconde invitation quand le compte existe déjà : on

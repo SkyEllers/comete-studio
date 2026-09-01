@@ -308,6 +308,106 @@ try {
   verifie("A (responsable) · delete board", (await jetons.a("DELETE", `boards?id=eq.${A.board.id}`)).data.length === 1);
   verifie("A · cascade : plus de cartes", (await srv("GET", `cards?select=id&board_id=eq.${A.board.id}`)).data.length === 0);
   verifie("A · cascade : plus de commentaires", (await srv("GET", `comments?select=id&board_id=eq.${A.board.id}`)).data.length === 0);
+  console.log("\n== 10. Le rôle se change après l'invitation ==");
+
+  /*
+   * Le rôle se choisissait à l'invitation et ne bougeait plus. L'action
+   * d'administration `changeMemberRole` le fait maintenant basculer — et c'est
+   * ce basculement, sur une même personne, que ces vérifications suivent.
+   *
+   * Le banc ne peut pas appeler une Server Action : il éprouve ce qu'elle
+   * écrit — une seule colonne, `memberships.role` — et ce que ce rôle change
+   * pour de vrai, la suppression d'un tableau. La garde `requireAdmin()` de
+   * l'action, elle, est couverte par `qa:routes` sur `/admin`.
+   */
+  const avantBascule = (
+    await srv("GET", `profiles?select=is_admin&id=eq.${comptes.c}`)
+  ).data[0].is_admin;
+
+  const premier = await creer("boards", {
+    organization_id: orgs.a.id, name: "Tableau du rôle", color: "ember", position: 2048,
+  });
+
+  verifie(
+    "C, membre, ne supprime pas ce tableau",
+    refuse(await jetons.c("DELETE", `boards?id=eq.${premier.id}`)),
+  );
+
+  // Ce que fait l'action, et rien d'autre : une colonne, une table.
+  const promotion = await srv(
+    "PATCH",
+    `memberships?organization_id=eq.${orgs.a.id}&user_id=eq.${comptes.c}`,
+    { role: "owner" },
+  );
+  verifie(
+    "le rôle bascule en responsable",
+    promotion.status < 300,
+    `statut ${promotion.status} ${JSON.stringify(promotion.data)}`,
+  );
+  verifie(
+    "… et `is_admin` n'a pas bougé",
+    (await srv("GET", `profiles?select=is_admin&id=eq.${comptes.c}`)).data[0].is_admin ===
+      avantBascule && avantBascule === false,
+  );
+
+  verifie(
+    "C, promu responsable, supprime le tableau",
+    (await jetons.c("DELETE", `boards?id=eq.${premier.id}`)).data.length === 1,
+  );
+
+  const second = await creer("boards", {
+    organization_id: orgs.a.id, name: "Tableau du retour", color: "ember", position: 2049,
+  });
+
+  await srv(
+    "PATCH",
+    `memberships?organization_id=eq.${orgs.a.id}&user_id=eq.${comptes.c}`,
+    { role: "member" },
+  );
+  verifie(
+    "C, redescendu membre, ne supprime plus rien",
+    refuse(await jetons.c("DELETE", `boards?id=eq.${second.id}`)),
+  );
+  verifie(
+    "… et le tableau est toujours là",
+    (await srv("GET", `boards?select=id&id=eq.${second.id}`)).data.length === 1,
+  );
+
+  /*
+   * La porte de derrière : un membre qui se promeut lui-même par l'API REST.
+   * C'est elle qui compte — l'action est protégée par `requireAdmin()`, mais
+   * si la RLS laissait passer, la garde de l'application ne servirait à rien.
+   */
+  verifie(
+    "C ne se promeut pas responsable tout seul",
+    refuse(
+      await jetons.c(
+        "PATCH",
+        `memberships?organization_id=eq.${orgs.a.id}&user_id=eq.${comptes.c}&select=role`,
+        { role: "owner" },
+      ),
+    ),
+  );
+  verifie(
+    "… et il est toujours simple membre",
+    (
+      await srv(
+        "GET",
+        `memberships?select=role&organization_id=eq.${orgs.a.id}&user_id=eq.${comptes.c}`,
+      )
+    ).data[0].role === "member",
+  );
+  verifie(
+    "un responsable non plus ne distribue pas les rôles",
+    refuse(
+      await jetons.a(
+        "PATCH",
+        `memberships?organization_id=eq.${orgs.a.id}&user_id=eq.${comptes.c}&select=role`,
+        { role: "owner" },
+      ),
+    ),
+  );
+
 } finally {
   console.log("\n== Nettoyage ==");
   for (const org of Object.values(orgs)) {

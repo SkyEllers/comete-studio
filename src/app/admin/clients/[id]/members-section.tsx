@@ -1,10 +1,11 @@
 "use client";
 
-import { MailPlus, Send, UserMinus } from "lucide-react";
+import { MailPlus, Send, ShieldCheck, UserMinus } from "lucide-react";
 import { useActionState, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
+  changeMemberRole,
   inviteMember,
   removeMember,
   resendInvitation,
@@ -134,6 +135,74 @@ export function InviteMemberDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Le rôle d'une personne dans ce client, et de quoi le changer.
+ *
+ * Deux valeurs, donc pas de menu : un bouton qui dit ce qu'il va faire. Le
+ * libellé courant est à gauche, l'action à droite — « Responsable · Passer en
+ * membre » se lit sans avoir à ouvrir quoi que ce soit.
+ *
+ * Ce que ce bouton change tient à l'intérieur du client : supprimer un tableau
+ * dans Orbite, supprimer les fichiers des autres dans Capsule. Il ne donne
+ * jamais accès à l'administration — ça, c'est `is_admin`, qui vit ailleurs et
+ * ne se règle pas depuis cet écran.
+ */
+export function MemberRole({
+  organizationId,
+  userId,
+  name,
+  role,
+}: {
+  organizationId: string;
+  userId: string;
+  name: string;
+  role: "owner" | "member";
+}) {
+  const [pending, startTransition] = useTransition();
+
+  const owner = role === "owner";
+  const cible = owner ? "member" : "owner";
+
+  const changer = () =>
+    startTransition(async () => {
+      const result = await changeMemberRole({ organizationId, userId, role: cible });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(
+        cible === "owner"
+          ? `${name} est responsable de ce client`
+          : `${name} redevient membre`,
+      );
+    });
+
+  return (
+    <span className="flex items-center gap-2">
+      <span className="text-sm">{owner ? "Responsable" : "Membre"}</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={changer}
+        disabled={pending}
+        title={
+          owner
+            ? "Retirer à cette personne le droit de supprimer tableaux et fichiers"
+            : "Donner à cette personne le droit de supprimer tableaux et fichiers"
+        }
+      >
+        <ShieldCheck aria-hidden="true" />
+        <span className="hidden sm:inline">
+          {owner ? "Passer en membre" : "Passer en responsable"}
+        </span>
+        <span className="sr-only sm:hidden">
+          {owner ? `Passer ${name} en membre` : `Passer ${name} en responsable`}
+        </span>
+      </Button>
+    </span>
   );
 }
 

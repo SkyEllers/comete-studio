@@ -18,6 +18,7 @@ import {
 import {
   InviteMemberDialog,
   MemberActions,
+  MemberRole,
 } from "@/app/admin/clients/[id]/members-section";
 import { ClientTabs } from "@/components/admin/client-tabs";
 import { Counter } from "@/components/admin/counter";
@@ -142,8 +143,13 @@ async function MembersSection({ organizationId }: { organizationId: string }) {
                 <TableCell className="text-muted-foreground font-mono text-xs">
                   {member.profiles?.email}
                 </TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {member.role === "owner" ? "Responsable" : "Membre"}
+                <TableCell className="text-muted-foreground">
+                  <MemberRole
+                    organizationId={organizationId}
+                    userId={member.user_id}
+                    name={name}
+                    role={member.role === "owner" ? "owner" : "member"}
+                  />
                 </TableCell>
                 <TableCell className="text-muted-foreground font-mono text-xs">
                   {dateFormat.format(new Date(member.created_at))}
