@@ -39,7 +39,9 @@ import {
   montant,
   statutLisible,
 } from "@/tools/resultats/format";
+import { ChercherNom } from "@/tools/resultats/chercher-nom";
 import { libelleMois, moisAOffrir, moisCourant, moisDemande } from "@/tools/resultats/mois";
+import { nettoyerRecherche } from "@/tools/resultats/recherche";
 import { jourEnLettres } from "@/tools/sonde/mesure";
 import { getMesureMois } from "@/tools/sonde/queries";
 import { estRevolu } from "@/tools/resultats/releve";
@@ -135,18 +137,40 @@ async function SectionReglages({ organizationId }: { organizationId: string }) {
   );
 }
 
-async function SectionRendezVous({ organizationId }: { organizationId: string }) {
+async function SectionRendezVous({
+  organizationId,
+  recherche,
+  caches,
+}: {
+  organizationId: string;
+  recherche: string | null;
+  /** Le mois des relevés et le filtre du journal, que la recherche ne doit pas effacer. */
+  caches: Record<string, string | undefined>;
+}) {
   const supabase = await createClient();
 
+  /*
+   * Sans recherche, les cinquante derniers : c'est ce qu'on regarde en
+   * arrivant. Avec, toute l'histoire du client — Louis cherche un nom pour la
+   * même raison que le client, parce qu'il ne sait plus quand la personne est
+   * venue.
+   */
+  let requete = supabase
+    .from("radar_bookings_effective")
+    .select(
+      "id, scheduled_start, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, declared_source, status, effective_status, amount_cents, currency, payment_ok, counts_for_commission",
+    )
+    .eq("organization_id", organizationId);
+
+  if (recherche) {
+    const motif = `%${recherche}%`;
+    requete = requete.or(
+      `invitee_first_name.ilike.${motif},invitee_last_name.ilike.${motif}`,
+    );
+  }
+
   const [rdv, canaux] = await Promise.all([
-    supabase
-      .from("radar_bookings_effective")
-      .select(
-        "id, scheduled_start, event_type_name, channel_id, attribution, attribution_note, declared_source, status, effective_status, amount_cents, currency, payment_ok, counts_for_commission",
-      )
-      .eq("organization_id", organizationId)
-      .order("scheduled_start", { ascending: false })
-      .limit(50),
+    requete.order("scheduled_start", { ascending: false }).limit(recherche ? 200 : 50),
     supabase
       .from("radar_channels")
       .select("id, label, is_comete")
@@ -157,18 +181,41 @@ async function SectionRendezVous({ organizationId }: { organizationId: string })
   const lignes = rdv.data ?? [];
   const parCanal = new Map((canaux.data ?? []).map((canal) => [canal.id, canal]));
 
+  const chemin = `/admin/clients/${organizationId}/radar`;
+  const garde = new URLSearchParams(
+    Object.entries(caches).filter(([, valeur]) => valeur) as [string, string][],
+  );
+
+  const chercher = (
+    <ChercherNom
+      action={chemin}
+      valeur={recherche ?? undefined}
+      caches={caches}
+      effacer={recherche ? `${chemin}${garde.size > 0 ? `?${garde}` : ""}` : undefined}
+    />
+  );
+
   if (lignes.length === 0) {
     return (
-      <EmptyState
-        icon={CalendarClock}
-        title="Aucun rendez-vous."
-        description="Ils arriveront d'eux-mêmes dès que Calendly sera branché."
-      />
+      <>
+        {chercher}
+        <EmptyState
+          icon={CalendarClock}
+          title={recherche ? "Aucun rendez-vous à ce nom." : "Aucun rendez-vous."}
+          description={
+            recherche
+              ? "Les séances reçues avant l'arrivée des noms n'en portent pas."
+              : "Ils arriveront d'eux-mêmes dès que Calendly sera branché."
+          }
+        />
+      </>
     );
   }
 
   return (
-    <div className="border-line overflow-x-auto rounded-lg border">
+    <>
+      {chercher}
+      <div className="border-line overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -186,7 +233,17 @@ async function SectionRendezVous({ organizationId }: { organizationId: string })
             return (
               <TableRow key={ligne.id}>
                 <TableCell>
-                  <p className="font-medium">{ligne.event_type_name}</p>
+                  <p
+                    className={cn(
+                      "font-medium",
+                      ligne.invitee_first_name === "" &&
+                        ligne.invitee_last_name === "" &&
+                        "text-muted-foreground",
+                    )}
+                  >
+                    {ligne.invitee_display}
+                  </p>
+                  <p className="text-muted-foreground text-xs">{ligne.event_type_name}</p>
                   <p className="text-muted-foreground font-mono text-xs">
                     {dateHeure(ligne.scheduled_start!)}
                   </p>
@@ -241,7 +298,8 @@ async function SectionRendezVous({ organizationId }: { organizationId: string })
           })}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -616,8 +674,9 @@ export default async function RadarAdminPage({
   searchParams,
 }: PageProps<"/admin/clients/[id]/radar">) {
   const { id } = await params;
-  const { resultat, mois } = await searchParams;
+  const { resultat, mois, q } = await searchParams;
   const filtre = Array.isArray(resultat) ? resultat[0] : resultat;
+  const recherche = nettoyerRecherche(Array.isArray(q) ? q[0] : q);
   await requireAdmin();
 
   // Hors `<Suspense>` : c'est elle qui décide entre 200 et 404.
@@ -696,8 +755,12 @@ export default async function RadarAdminPage({
 
           <section className="mt-10 space-y-4">
             <h2 className="text-lg">Rendez-vous</h2>
-            <Suspense fallback={<TableSkeleton rows={3} />}>
-              <SectionRendezVous organizationId={org.id} />
+            <Suspense key={recherche ?? ""} fallback={<TableSkeleton rows={3} />}>
+              <SectionRendezVous
+                organizationId={org.id}
+                recherche={recherche}
+                caches={{ mois: Array.isArray(mois) ? mois[0] : mois, resultat: filtre }}
+              />
             </Suspense>
           </section>
 

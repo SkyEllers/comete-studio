@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-import { dateHeure, heure, jour, montant, statutLisible } from "./format";
+import { dateHeure, heure, jour, montant, nomComplet, statutLisible } from "./format";
 import type { Canal, RendezVous } from "./queries";
 
 /**
@@ -45,6 +45,15 @@ const LIBELLES_ACTIVITE: Record<string, string> = {
   "status.changed": "Statut modifié",
   "channel.changed": "Canal corrigé",
 };
+
+/**
+ * Ce qu'on dit d'un rendez-vous qui n'a pas de nom.
+ *
+ * Radar a tourné plusieurs mois avant de savoir qui venait, et Calendly ne
+ * sera pas réinterrogé pour combler l'histoire. Ces séances-là resteront
+ * anonymes ; le dire est plus honnête que de laisser croire à un bug.
+ */
+const AVANT_IDENTITE = "Reçu avant l'identité";
 
 /** « Google Ads, via récurrence : séance du 12 mars ». */
 function origine(
@@ -77,7 +86,7 @@ export function ListeRendezVous({
   canaux,
   activites,
   sourcesAttribution,
-  moisCloture,
+  moisClotures,
 }: {
   orgSlug: string;
   rendezVous: RendezVous[];
@@ -85,7 +94,11 @@ export function ListeRendezVous({
   activites: Record<string, Activite[]>;
   /** Date de la séance qui a transmis son canal, par identifiant. */
   sourcesAttribution: Record<string, string>;
-  moisCloture: boolean;
+  /**
+   * Les mois dont le relevé est clôturé. Une liste et non un booléen : une
+   * recherche par nom traverse les mois, et chaque ligne a le sien.
+   */
+  moisClotures: string[];
 }) {
   const [ouvert, setOuvert] = useState<string | null>(null);
   const [enCours, startTransition] = useTransition();
@@ -140,7 +153,19 @@ export function ListeRendezVous({
                       </span>
 
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
+                        {/* Le nom d'abord : c'est ce qu'on cherche des yeux
+                            quand on parcourt trente séances d'une semaine. */}
+                        <span
+                          className={cn(
+                            "block truncate text-sm font-medium",
+                            rdv.invitee_first_name === "" &&
+                              rdv.invitee_last_name === "" &&
+                              "text-muted-foreground",
+                          )}
+                        >
+                          {rdv.invitee_display}
+                        </span>
+                        <span className="text-muted-foreground block truncate text-xs">
                           {rdv.event_type_name}
                         </span>
                         <span className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -188,7 +213,7 @@ export function ListeRendezVous({
               canal={choisi.channel_id ? (parCanal.get(choisi.channel_id) ?? null) : null}
               activites={activites[choisi.id] ?? []}
               sources={sources}
-              moisCloture={moisCloture}
+              moisCloture={moisClotures.includes(choisi.mois)}
               enCours={enCours}
               onChanger={changer}
             />
@@ -226,15 +251,25 @@ function FicheRendezVous({
   onChanger: (bookingId: string, statut: string) => void;
 }) {
   const modifiable = rdv.status !== "honore";
+  const nom = nomComplet(rdv.invitee_first_name, rdv.invitee_last_name);
 
   return (
     <>
       <SheetHeader>
-        <SheetTitle>{rdv.event_type_name}</SheetTitle>
-        <SheetDescription>{dateHeure(rdv.scheduled_start)}</SheetDescription>
+        {/* Le nom entier ici, pas l'abrégé de la liste : c'est le moment où
+            l'on vérifie qu'on parle de la bonne personne avant de la marquer
+            « non venue ». */}
+        <SheetTitle>{nom ?? "Invité·e"}</SheetTitle>
+        <SheetDescription>
+          {rdv.event_type_name} · {dateHeure(rdv.scheduled_start)}
+        </SheetDescription>
       </SheetHeader>
 
       <div className="space-y-6 px-4 pb-6">
+        {nom === null ? (
+          <p className="text-muted-foreground text-xs">{AVANT_IDENTITE}</p>
+        ) : null}
+
         <dl className="divide-line divide-y">
           <Ligne label="Statut" valeur={statutLisible(rdv.effective_status)} />
           <Ligne label="D'où elle vient" valeur={origine(rdv, canal, sources)} />
@@ -369,7 +404,22 @@ export function AVerifier({
       {lignes.map((rdv) => (
         <li key={rdv.id} className="flex items-center gap-3 p-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{rdv.event_type_name}</p>
+            {/* « Camille D. — mardi 14:00 — Non venue ? » : sans le nom, ce
+                bloc demandait de décider du sort d'une séance sans savoir de
+                qui il s'agissait. */}
+            <p
+              className={cn(
+                "truncate text-sm font-medium",
+                rdv.invitee_first_name === "" &&
+                  rdv.invitee_last_name === "" &&
+                  "text-muted-foreground",
+              )}
+            >
+              {rdv.invitee_display}
+            </p>
+            <p className="text-muted-foreground truncate text-xs">
+              {rdv.event_type_name}
+            </p>
             <p className="text-muted-foreground font-mono text-xs">
               {dateHeure(rdv.scheduled_start)} ·{" "}
               {parCanal.get(rdv.channel_id ?? "")?.label ?? "Sans canal"}

@@ -210,6 +210,33 @@ describe("l'export", () => {
     );
     assert.equal(versCsv(lignes).includes('"Séance ""longue""; suivi"'), true);
   });
+
+  /*
+   * La décision 1 de la phase 7, posée là où elle se casserait.
+   *
+   * Depuis cette phase, le rendez-vous porte un nom. Le relevé, lui, est
+   * conservé sans limite et survit à la purge de l'identité : un nom qui y
+   * entrerait ne s'effacerait jamais. Aucun champ de `LigneReleve` ne peut en
+   * porter un aujourd'hui — c'est une garantie de type — et ce test est là
+   * pour que l'ajout d'un champ demain se remarque ici plutôt qu'en
+   * production.
+   */
+  it("20. une ligne de relevé ne porte que ces champs-là, et aucun nom", () => {
+    const [ligne] = construireLignes([seance()], CANAUX);
+
+    assert.deepEqual(Object.keys(ligne!).sort(), [
+      "canal",
+      "canal_comete",
+      "comptee",
+      "date",
+      "devise",
+      "id",
+      "montant_cents",
+      "raison",
+      "seance",
+      "statut",
+    ]);
+  });
 });
 
 describe("qui peut clôturer, et quand", () => {

@@ -24,6 +24,11 @@ export type RendezVous = {
   scheduled_start: string;
   scheduled_end: string;
   event_type_name: string;
+  /** Vides pour tout rendez-vous reçu avant la phase 7. */
+  invitee_first_name: string;
+  invitee_last_name: string;
+  /** « Camille D. », ou « Invité·e ». Calculé par la vue, jamais ici. */
+  invitee_display: string;
   channel_id: string | null;
   attribution: string;
   attribution_note: string | null;
@@ -45,7 +50,7 @@ export type RendezVous = {
 export type Canal = { id: string; label: string; is_comete: boolean };
 
 const COLONNES =
-  "id, scheduled_start, scheduled_end, event_type_name, channel_id, attribution, attribution_note, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, mois";
+  "id, scheduled_start, scheduled_end, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, mois";
 
 export async function getCanaux(organizationId: string): Promise<Canal[]> {
   const supabase = await createClient();
@@ -85,6 +90,53 @@ export async function getRendezVous(
     .limit(PLAFOND);
 
   return (data ?? []) as RendezVous[];
+}
+
+/**
+ * Chercher quelqu'un, dans toute l'histoire du client.
+ *
+ * Volontairement hors du mois affiché, archives comprises : on cherche un nom
+ * parce qu'on ne sait plus quand la personne est venue. Une recherche bornée
+ * au mois courant obligerait à deviner d'abord la réponse, et ne servirait à
+ * rien — or c'est cette recherche qui justifie que le nom soit en base.
+ *
+ * Le terme est passé par `nettoyerRecherche()` avant d'arriver ici. Les deux
+ * remparts qui comptent restent ailleurs et ne dépendent pas de lui : le `eq`
+ * sur l'organisation, et la RLS derrière la vue.
+ */
+export async function chercherRendezVous(
+  organizationId: string,
+  terme: string,
+): Promise<RendezVous[]> {
+  const supabase = await createClient();
+  const motif = `%${terme}%`;
+
+  const { data } = await supabase
+    .from("radar_bookings_effective")
+    .select(COLONNES)
+    .eq("organization_id", organizationId)
+    .or(`invitee_first_name.ilike.${motif},invitee_last_name.ilike.${motif}`)
+    .order("scheduled_start", { ascending: false })
+    .limit(PLAFOND);
+
+  return (data ?? []) as RendezVous[];
+}
+
+/**
+ * Les mois dont le relevé est clôturé.
+ *
+ * La liste d'un mois n'en avait besoin que d'un ; une recherche traverse les
+ * mois, et chaque ligne doit savoir si le sien est fermé aux corrections.
+ */
+export async function getMoisClotures(organizationId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("radar_statements")
+    .select("month")
+    .eq("organization_id", organizationId)
+    .limit(PLAFOND);
+
+  return (data ?? []).map((ligne) => ligne.month);
 }
 
 export type Bilan = {

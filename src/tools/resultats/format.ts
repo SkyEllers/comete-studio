@@ -97,3 +97,26 @@ const ATTRIBUTIONS: Record<string, string> = {
 export const statutLisible = (statut: string) => STATUTS[statut] ?? statut;
 export const attributionLisible = (attribution: string) =>
   ATTRIBUTIONS[attribution] ?? attribution;
+
+/**
+ * Le nom entier, pour la fiche — ou `null` quand il n'y en a pas.
+ *
+ * La liste se contente de `invitee_display` (« Camille D. »), calculé par la
+ * vue. La fiche, elle, montre le nom complet : c'est là qu'on vérifie qu'on
+ * parle bien de la bonne personne avant de la marquer « non venue ».
+ *
+ * `null` plutôt que « Invité·e » : c'est à l'écran de décider comment nommer
+ * une absence, et il en dit plus que cette fonction ne pourrait — il ajoute
+ * « reçu avant l'identité ».
+ */
+export function nomComplet(
+  prenom: string | null | undefined,
+  nom: string | null | undefined,
+): string | null {
+  const entier = [prenom, nom]
+    .map((morceau) => (morceau ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return entier.length > 0 ? entier : null;
+}
