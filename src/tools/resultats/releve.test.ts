@@ -13,6 +13,7 @@ import {
   peutCloturer,
   peutMarquerPaye,
   raisonExclusion,
+  raisonExclusionVente,
   SANS_VENTE,
   totaux,
   versCsv,
@@ -508,5 +509,80 @@ describe("changer de base de commission", () => {
     assert.equal(verdict.ok, false);
     assert.match(verdict.ok === false ? verdict.raison : "", /2 relevés/);
     assert.match(verdict.ok === false ? verdict.raison : "", /2026-07/);
+  });
+});
+
+describe("annulée et non venue ne se confondent jamais", () => {
+  /*
+   * Deux échecs différents, avec deux réponses différentes : une annulation se
+   * voit venir et se remplace, une personne qui ne vient pas laisse un créneau
+   * perdu. Les réunir sous un seul libellé — « perdus », « annulé ou non
+   * venu » — donnait un chiffre sur lequel il n'y avait rien à décider. Ces
+   * cas verrouillent la séparation partout où le relevé la dit.
+   */
+  const perdue = (statut: string, extra = {}) =>
+    seance({ counts_for_commission: false, effective_status: statut, ...extra });
+
+  it("50. en encaissement, deux raisons distinctes", () => {
+    assert.equal(raisonExclusion(perdue("annule"), CANAUX[0]), "Séance annulée");
+    assert.equal(raisonExclusion(perdue("no_show"), CANAUX[0]), "Personne n'est venue");
+  });
+
+  it("51. en ventes, les deux mêmes, distinctes aussi", () => {
+    assert.equal(raisonExclusionVente(perdue("annule"), CANAUX[0]), "Séance annulée");
+    assert.equal(raisonExclusionVente(perdue("no_show"), CANAUX[0]), "Personne n'est venue");
+  });
+
+  it("52. le relevé d'encaissement les porte séparément, statut compris", () => {
+    const lignes = construireLignes(
+      [perdue("annule", { id: "a" }), perdue("no_show", { id: "b" })],
+      CANAUX,
+    );
+    assert.deepEqual(lignes.map((l) => l.raison), ["Séance annulée", "Personne n'est venue"]);
+    assert.deepEqual(lignes.map((l) => l.statut), ["annule", "no_show"]);
+  });
+
+  it("53. le relevé de ventes aussi", () => {
+    const lignes = construireLignesVentes(
+      [
+        perdue("annule", { id: "a", has_sale: true, sale_amount_cents: 1000, sale_date: "2026-08-05" }),
+        perdue("no_show", { id: "b", has_sale: true, sale_amount_cents: 1000, sale_date: "2026-08-06" }),
+      ],
+      [],
+      CANAUX,
+    );
+    assert.deepEqual(lignes.map((l) => l.raison), ["Séance annulée", "Personne n'est venue"]);
+  });
+
+  it("54. et le CSV, dans les deux modes", () => {
+    const encaissement = versCsv(
+      construireLignes([perdue("annule", { id: "a" }), perdue("no_show", { id: "b" })], CANAUX),
+    );
+    assert.equal(encaissement.includes("annule;"), true);
+    assert.equal(encaissement.includes("no_show;"), true);
+    assert.equal(encaissement.includes("Séance annulée"), true);
+    assert.equal(encaissement.includes("Personne n'est venue"), true);
+
+    const ventes = versCsv(
+      construireLignesVentes(
+        [
+          perdue("annule", { id: "a", has_sale: true, sale_amount_cents: 1000, sale_date: "2026-08-05" }),
+          perdue("no_show", { id: "b", has_sale: true, sale_amount_cents: 1000, sale_date: "2026-08-06" }),
+        ],
+        [],
+        CANAUX,
+      ),
+      "ventes",
+    );
+    assert.equal(ventes.includes("Séance annulée"), true);
+    assert.equal(ventes.includes("Personne n'est venue"), true);
+  });
+
+  it("55. ni l'une ni l'autre n'entre dans la base", () => {
+    const lignes = construireLignes(
+      [perdue("annule", { id: "a" }), perdue("no_show", { id: "b" })],
+      CANAUX,
+    );
+    assert.deepEqual(totaux(lignes, 20), { base_cents: 0, commission_cents: 0 });
   });
 });

@@ -200,7 +200,16 @@ export async function getMoisClotures(organizationId: string): Promise<string[]>
 export type Bilan = {
   rendezVous: number;
   honores: number;
-  perdus: number;
+  /**
+   * Séparés, et non réunis sous « perdus ».
+   *
+   * Ce sont deux échecs différents, avec deux réponses différentes : une
+   * annulation se voit venir et se remplace, une personne qui ne vient pas
+   * laisse un créneau perdu et coûte le double. Les additionner donnait un
+   * chiffre sur lequel il n'y avait rien à décider.
+   */
+  annules: number;
+  noShows: number;
   chiffreAffaires: number;
   commission: number;
   devise: string;
@@ -236,9 +245,8 @@ export function bilan(
   return {
     rendezVous: lignes.length,
     honores: lignes.filter((ligne) => ligne.effective_status === "honore").length,
-    perdus: lignes.filter(
-      (ligne) => ligne.effective_status === "annule" || ligne.effective_status === "no_show",
-    ).length,
+    annules: lignes.filter((ligne) => ligne.effective_status === "annule").length,
+    noShows: lignes.filter((ligne) => ligne.effective_status === "no_show").length,
     chiffreAffaires,
     // Arrondi au centime, une seule fois, à la fin : arrondir ligne à ligne
     // ferait diverger le brouillon du relevé.

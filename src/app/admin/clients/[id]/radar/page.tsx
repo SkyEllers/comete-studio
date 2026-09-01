@@ -346,7 +346,7 @@ async function SectionReleves({
       .order("sort_order"),
     supabase
       .from("radar_bookings_effective")
-      .select("channel_id, counts_for_commission, amount_cents, mois, has_sale")
+      .select("channel_id, counts_for_commission, amount_cents, mois, has_sale, effective_status")
       .eq("organization_id", organizationId)
       .eq("mois", mois)
       .limit(1000),
@@ -404,12 +404,25 @@ async function SectionReleves({
   // L'entonnoir : ce que Louis a dépensé, ce que ça a donné, ce qu'il gagne.
   const entonnoir = cometeCanaux.map((canal) => {
     const lignes = (seances.data ?? []).filter((l) => l.channel_id === canal.id);
-    /* En `encaissement`, « honorées » veut dire « comptées » : c'est la même
-       chose. En `ventes`, ce sont deux questions distinctes — la séance a eu
-       lieu, et elle a vendu — d'où le compte séparé. */
+    /*
+     * « Honorées » veut dire « la séance a eu lieu », et rien d'autre.
+     *
+     * En `encaissement`, cela revient au même que « comptée » : une séance
+     * comptée est honorée, payée et sur un canal Comète, et la ligne est déjà
+     * filtrée sur son canal. En `ventes`, les deux questions se séparent — la
+     * séance a eu lieu, et elle a vendu — et la première se lit sur le statut.
+     *
+     * Écrit `counts_for_commission || !has_sale` au chantier 4, ce compte
+     * ramassait aussi les séances annulées et les non-venues, qui n'ont
+     * précisément pas eu lieu.
+     */
     const honorees = surLesVentes
-      ? lignes.filter((l) => l.counts_for_commission || !l.has_sale)
+      ? lignes.filter((l) => l.effective_status === "honore")
       : lignes.filter((l) => l.counts_for_commission);
+
+    // Deux échecs, deux colonnes : l'un se remplace, l'autre se perd.
+    const annulees = lignes.filter((l) => l.effective_status === "annule").length;
+    const nonVenues = lignes.filter((l) => l.effective_status === "no_show").length;
 
     const ventesDuCanal = ventesDuMois.filter(
       (v) => v.channel_id === canal.id && v.counts_for_commission,
@@ -439,6 +452,8 @@ async function SectionReleves({
       depense,
       commission,
       marge: commission - depense,
+      annulees,
+      nonVenues,
       ventes: ventesDuCanal.length,
       montantVentes: base,
       coutParReservation: lignes.length > 0 ? Math.round(depense / lignes.length) : null,
@@ -559,6 +574,8 @@ async function SectionReleves({
                 <TableHead className="text-right">Clics</TableHead>
                 <TableHead className="text-right">Réservations</TableHead>
                 <TableHead className="text-right">Honorées</TableHead>
+                <TableHead className="text-right">Annulées</TableHead>
+                <TableHead className="text-right">Non venues</TableHead>
                 {surLesVentes ? (
                   <>
                     <TableHead className="text-right">Ventes</TableHead>
@@ -589,6 +606,17 @@ async function SectionReleves({
                   </TableCell>
                   <TableCell className="text-right font-mono text-xs tabular-nums">
                     {ligne.honorees}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-right font-mono text-xs tabular-nums">
+                    {ligne.annulees || "—"}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-mono text-xs tabular-nums",
+                      ligne.nonVenues > 0 ? "text-warning" : "text-muted-foreground",
+                    )}
+                  >
+                    {ligne.nonVenues || "—"}
                   </TableCell>
                   {surLesVentes ? (
                     <>

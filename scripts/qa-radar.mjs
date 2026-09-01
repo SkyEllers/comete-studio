@@ -1673,6 +1673,55 @@ try {
       .data[0]?.commission_basis === "ventes",
   );
 
+  // ------------------- Annulée et non venue, jamais additionnées ------------
+
+  /*
+   * Aucun contrôle du banc ne les sommait — la seule addition vivait dans
+   * `bilan()`, sous le libellé « annulés ou non venus ». Ces vérifications
+   * posent le garde-fou qui manquait : sur un mois qui porte les deux, la vue
+   * doit rendre deux comptes de un, et non un compte de deux.
+   */
+  const uneAnnulee = await rdvV({
+    scheduled_start: "2026-08-22T08:00:00Z", scheduled_end: "2026-08-22T09:00:00Z",
+    status: "annule", status_origin: "calendly",
+  });
+  const uneNonVenue = await rdvV({
+    scheduled_start: "2026-08-24T08:00:00Z", scheduled_end: "2026-08-24T09:00:00Z",
+    status: "no_show", status_origin: "client",
+  });
+
+  const aout = (
+    await srv("GET", `radar_bookings_effective?select=id,effective_status&organization_id=eq.${orgV.id}&mois=eq.2026-08-01`)
+  ).data;
+
+  const compte = (statut) => aout.filter((l) => l.effective_status === statut).length;
+
+  verifie("une annulée se compte seule", compte("annule") === 1, `${compte("annule")}`);
+  verifie("une non venue aussi", compte("no_show") === 1, `${compte("no_show")}`);
+  verifie(
+    "… et rien ne les additionne : deux comptes de un, pas un compte de deux",
+    compte("annule") + compte("no_show") === 2 && compte("annule") !== 2 && compte("no_show") !== 2,
+  );
+  verifie(
+    "la vue les distingue au statut brut aussi",
+    aout.find((l) => l.id === uneAnnulee.id)?.effective_status === "annule" &&
+      aout.find((l) => l.id === uneNonVenue.id)?.effective_status === "no_show",
+  );
+
+  const relevePerdues = construireLignes(
+    (
+      await srv("GET", `radar_bookings_effective?select=${COLONNES_RELEVE}&organization_id=eq.${orgV.id}&mois=eq.2026-08-01`)
+    ).data.filter((l) => [uneAnnulee.id, uneNonVenue.id].includes(l.id)),
+    canauxV,
+  );
+  verifie(
+    "le relevé donne deux raisons différentes",
+    new Set(relevePerdues.map((l) => l.raison)).size === 2 &&
+      relevePerdues.some((l) => l.raison === "Séance annulée") &&
+      relevePerdues.some((l) => l.raison === "Personne n'est venue"),
+    JSON.stringify(relevePerdues.map((l) => l.raison)),
+  );
+
   // ------------------------ La purge de l'identité -------------------------
   console.log("\n== 13. L'oubli de l'identité ==");
 

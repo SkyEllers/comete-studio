@@ -224,13 +224,16 @@ export function ListeRendezVous({
                         <span className="block font-mono text-sm tabular-nums">
                           {montant(rdv.amount_cents, rdv.currency)}
                         </span>
+                        {/* Trois teintes pour trois issues. Annulé reste gris —
+                            la séance n'a pas eu lieu, et personne n'y est pour
+                            rien. Non venu passe en ambre : c'est un créneau
+                            perdu, et c'est celui-là qu'on veut voir de loin. */}
                         <span
                           className={cn(
                             "mt-1 block text-xs",
                             rdv.effective_status === "honore" && "text-success",
-                            (rdv.effective_status === "annule" ||
-                              rdv.effective_status === "no_show") &&
-                              "text-muted-foreground",
+                            rdv.effective_status === "annule" && "text-muted-foreground",
+                            rdv.effective_status === "no_show" && "text-warning",
                           )}
                         >
                           {statutLisible(rdv.effective_status)}

@@ -7,6 +7,7 @@ import {
   FileText,
   Radar,
   SlidersHorizontal,
+  UserX,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -139,7 +140,7 @@ async function TableauDeBord({
         />
       ) : (
         <div className="space-y-8">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <Tuile
               icon={CalendarClock}
               label="Rendez-vous"
@@ -152,11 +153,20 @@ async function TableauDeBord({
               valeur={String(courant.honores)}
               comparaison={comparer(courant.honores, precedentBilan.honores, avant)}
             />
+            {/* Deux échecs, deux tuiles. Une annulation se voit venir et se
+                remplace ; une personne qui ne vient pas laisse un créneau
+                perdu. Le total des deux ne se décidait pas. */}
             <Tuile
               icon={CalendarX2}
-              label="Annulés ou non venus"
-              valeur={String(courant.perdus)}
-              comparaison={comparer(courant.perdus, precedentBilan.perdus, avant)}
+              label="Annulés"
+              valeur={String(courant.annules)}
+              comparaison={comparer(courant.annules, precedentBilan.annules, avant)}
+            />
+            <Tuile
+              icon={UserX}
+              label="Non venus"
+              valeur={String(courant.noShows)}
+              comparaison={comparer(courant.noShows, precedentBilan.noShows, avant)}
             />
             <Tuile
               icon={Wallet}
