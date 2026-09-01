@@ -34,6 +34,16 @@ export function libelleMois(mois: string): string {
   return NOM_DU_MOIS.format(new Date(`${mois}T00:00:00Z`));
 }
 
+/**
+ * « 2026-09-01 » → « septembre », sans l'année.
+ *
+ * Pour les phrases où l'année serait du bruit : on parle du mois d'à côté,
+ * dans un relevé qui porte déjà le sien en titre.
+ */
+export function nomDuMois(mois: string): string {
+  return libelleMois(mois).split(" ")[0]!;
+}
+
 /** Le mois d'avant, en arithmétique de calendrier pure. */
 export function moisPrecedent(mois: string): string {
   const [annee, numero] = mois.split("-").map(Number);

@@ -372,24 +372,49 @@ describe("le relevé en mode ventes", () => {
     assert.deepEqual(lignes, []);
   });
 
-  it("37. une séance du mois vendue un autre mois n'apparaît pas en « sans vente »", () => {
+  it("37. une séance du mois vendue un autre mois le dit, sans être comptée", () => {
     // Elle a vendu — ailleurs. La compter ici la ferait payer deux fois ; la
-    // dire « sans vente » serait faux.
+    // dire « sans vente » serait faux ; la taire ferait croire à un oubli.
     const lignes = construireLignesVentes(
       [],
       [seance({ id: "rdv-vendu-ailleurs", has_sale: true, sale_date: "2026-10-02" })],
       CANAUX,
     );
-    assert.deepEqual(lignes, []);
+
+    assert.equal(lignes.length, 1);
+    assert.equal(lignes[0]!.comptee, false);
+    assert.equal(lignes[0]!.montant_cents, 0);
+    assert.equal(
+      lignes[0]!.raison,
+      "Vendue en octobre, facturée sur le relevé d'octobre",
+    );
+    // Pas de `date_vente` : cette ligne n'est pas une vente de ce relevé-ci.
+    assert.equal(lignes[0]!.date_vente, undefined);
   });
 
-  it("38. une même séance n'est jamais servie deux fois", () => {
+  it("38. le mois nommé est celui de la vente, pas celui de la séance", () => {
+    const [ligne] = construireLignesVentes(
+      [],
+      [
+        seance({
+          id: "x",
+          scheduled_start: "2026-12-28T08:00:00.000Z",
+          has_sale: true,
+          sale_date: "2027-01-04",
+        }),
+      ],
+      CANAUX,
+    );
+    assert.match(ligne!.raison ?? "", /janvier/);
+  });
+
+  it("39. une même séance n'est jamais servie deux fois", () => {
     const laMeme = vente({ id: "rdv-x" });
     const lignes = construireLignesVentes([laMeme], [laMeme], CANAUX);
     assert.equal(lignes.length, 1);
   });
 
-  it("39. la base ne compte que les ventes comptées", () => {
+  it("40. la base ne compte que les ventes comptées", () => {
     const lignes = construireLignesVentes(
       [
         vente({ id: "a", sale_amount_cents: 120000 }),
@@ -403,7 +428,7 @@ describe("le relevé en mode ventes", () => {
     assert.deepEqual(totaux(lignes, 20), { base_cents: 120000, commission_cents: 24000 });
   });
 
-  it("40. une vente hors canal Comète dit pourquoi elle ne compte pas", () => {
+  it("41. une vente hors canal Comète dit pourquoi elle ne compte pas", () => {
     const [ligne] = construireLignesVentes(
       [vente({ channel_id: "c-direct", counts_for_commission: false })],
       [],
@@ -412,7 +437,7 @@ describe("le relevé en mode ventes", () => {
     assert.equal(ligne!.raison, "Canal hors Comète : Direct");
   });
 
-  it("41. le tri suit la date de séance", () => {
+  it("42. le tri suit la date de séance", () => {
     const lignes = construireLignesVentes(
       [vente({ id: "tard", scheduled_start: "2026-08-30T08:00:00.000Z" })],
       [
@@ -430,13 +455,13 @@ describe("le relevé en mode ventes", () => {
 });
 
 describe("le CSV suit le mode", () => {
-  it("42. en encaissement, le fichier est celui d'avant la phase 7", () => {
+  it("43. en encaissement, le fichier est celui d'avant la phase 7", () => {
     const csv = versCsv(construireLignes([seance()], CANAUX));
     assert.equal(csv.split("\r\n")[0], "Date;Séance;Canal;Statut;Montant;Comptée;Raison");
     assert.equal(csv.includes("Date de vente"), false);
   });
 
-  it("43. en ventes, la date de vente est une colonne", () => {
+  it("44. en ventes, la date de vente est une colonne", () => {
     const csv = versCsv(construireLignesVentes([vente()], [], CANAUX), "ventes");
     assert.equal(
       csv.split("\r\n")[0],
@@ -445,7 +470,7 @@ describe("le CSV suit le mode", () => {
     assert.equal(csv.includes("2026-08-28;2026-09-03;Diagnostic offert"), true);
   });
 
-  it("44. une ligne « sans vente » laisse la colonne vide plutôt que de mentir", () => {
+  it("45. une ligne « sans vente » laisse la colonne vide plutôt que de mentir", () => {
     const csv = versCsv(
       construireLignesVentes(
         [],
@@ -459,23 +484,23 @@ describe("le CSV suit le mode", () => {
 });
 
 describe("changer de base de commission", () => {
-  it("45. sans relevé ouvert, c'est permis", () => {
+  it("46. sans relevé ouvert, c'est permis", () => {
     assert.deepEqual(peutChangerDeBase([]), { ok: true });
   });
 
-  it("46. un relevé qui attend une réponse bloque", () => {
+  it("47. un relevé qui attend une réponse bloque", () => {
     const verdict = peutChangerDeBase([{ month: "2026-08-01", status: "cloture" }]);
     assert.equal(verdict.ok, false);
     assert.match(verdict.ok === false ? verdict.raison : "", /2026-08/);
     assert.equal(verdict.ok === false ? verdict.champ : "", "commissionBasis");
   });
 
-  it("47. un relevé contesté ou validé bloque aussi", () => {
+  it("48. un relevé contesté ou validé bloque aussi", () => {
     assert.equal(peutChangerDeBase([{ month: "2026-08-01", status: "conteste" }]).ok, false);
     assert.equal(peutChangerDeBase([{ month: "2026-08-01", status: "valide" }]).ok, false);
   });
 
-  it("48. plusieurs relevés : le message nomme le plus ancien", () => {
+  it("49. plusieurs relevés : le message nomme le plus ancien", () => {
     const verdict = peutChangerDeBase([
       { month: "2026-09-01", status: "valide" },
       { month: "2026-07-01", status: "cloture" },

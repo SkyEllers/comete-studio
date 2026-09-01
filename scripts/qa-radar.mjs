@@ -31,6 +31,13 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { CANAUX_PAR_DEFAUT } from "../src/tools/resultats/attribution.ts";
+import {
+  construireLignes,
+  construireLignesVentes,
+  peutChangerDeBase,
+  totaux,
+  versCsv,
+} from "../src/tools/resultats/releve.ts";
 
 const BASE = process.env.QA_BASE ?? "http://127.0.0.1:3100";
 
@@ -1328,6 +1335,344 @@ try {
     "un membre ne déclenche aucune purge",
     refuse(purgeMembre),
     `statut ${purgeMembre.status} ${motif(purgeMembre)}`,
+  );
+
+
+  // ======================================================================
+  //  12. La phase 7 : la vente, le mode, et le relevé qui en découle
+  // ======================================================================
+  console.log("\n== 12. La vente et le mode ventes ==");
+
+  /*
+   * Un client à part, en mode `ventes`, avec un mois volontairement mixte :
+   * une séance de juillet vendue en août, une séance d'août vendue en août,
+   * une honorée sans vente, une vendue le mois suivant, et une vente sur un
+   * canal hors Comète. C'est l'ensemble des cas que la clôture doit trier.
+   */
+  const orgV = await creer("organizations", {
+    name: "ZZ QA RV",
+    slug: `zz-qa-rv-${marque}`,
+  });
+  orgs.v = orgV;
+
+  comptes.v1 = await creerCompte(`zz-qa-r4-${marque}@comete-qa.test`);
+  await creer("memberships", { organization_id: orgV.id, user_id: comptes.v1, role: "owner" });
+  await creer("organization_tools", { organization_id: orgV.id, tool_id: outilId, enabled: true });
+  await creer("radar_settings", {
+    organization_id: orgV.id,
+    commission_rate: 20,
+    window_days: 90,
+    commission_basis: "ventes",
+  });
+
+  const cometeV = await creer("radar_channels", {
+    organization_id: orgV.id, key: "google_ads", label: "Google Ads", is_comete: true, sort_order: 10,
+  });
+  const horsV = await creer("radar_channels", {
+    organization_id: orgV.id, key: "direct", label: "Direct", is_comete: false, sort_order: 90,
+  });
+
+  const v1 = par(await connecter(`zz-qa-r4-${marque}@comete-qa.test`));
+
+  const rdvV = (attributs) =>
+    creer("radar_bookings", {
+      organization_id: orgV.id,
+      invitee_uri: `https://api.calendly.com/invitees/${crypto.randomUUID()}`,
+      event_uri: `https://api.calendly.com/events/${crypto.randomUUID()}`,
+      invitee_key: `cle-v-${crypto.randomUUID()}`,
+      event_type_name: "Diagnostic offert",
+      currency: "EUR",
+      channel_id: cometeV.id,
+      invitee_first_name: "Camille",
+      invitee_last_name: "Dupont",
+      ...attributs,
+    });
+
+  const vJuillet = await rdvV({
+    scheduled_start: "2026-07-20T08:00:00Z", scheduled_end: "2026-07-20T09:00:00Z",
+    sale_amount_cents: 120000, sale_date: "2026-08-05", sale_note: "pack confidentiel",
+  });
+  const vAout = await rdvV({
+    scheduled_start: "2026-08-10T08:00:00Z", scheduled_end: "2026-08-10T09:00:00Z",
+    sale_amount_cents: 80000, sale_date: "2026-08-20",
+  });
+  const vSansVente = await rdvV({
+    scheduled_start: "2026-08-12T08:00:00Z", scheduled_end: "2026-08-12T09:00:00Z",
+  });
+  const vAilleurs = await rdvV({
+    scheduled_start: "2026-08-14T08:00:00Z", scheduled_end: "2026-08-14T09:00:00Z",
+    sale_amount_cents: 50000, sale_date: "2026-09-02",
+  });
+  const vHorsCanal = await rdvV({
+    scheduled_start: "2026-08-16T08:00:00Z", scheduled_end: "2026-08-16T09:00:00Z",
+    channel_id: horsV.id, sale_amount_cents: 50000, sale_date: "2026-08-18",
+  });
+
+  // ------------------------------ radar_set_sale ---------------------------
+
+  /*
+   * Volontairement hors du mois mixte clôturé plus bas : cette séance sert aux
+   * gardes de `radar_set_sale`, et si elle tombait en août elle s'ajouterait
+   * aux lignes du relevé qu'on y compte.
+   */
+  const aVendre = await rdvV({
+    scheduled_start: jours(-45), scheduled_end: jours(-45),
+  });
+
+  const aujourdHui = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(
+    new Date(),
+  );
+
+  const posee = await v1("POST", "rpc/radar_set_sale", {
+    booking_id: aVendre.id, amount_cents: 45000, sale_date: aujourdHui, note: "pack 3 séances",
+  });
+  verifie("le membre déclare une vente", posee.status < 300, motif(posee));
+
+  const apresVente = (
+    await srv("GET", `radar_bookings?select=sale_amount_cents,sale_recorded_by,sale_note&id=eq.${aVendre.id}`)
+  ).data[0];
+  verifie("… le montant est en base", apresVente.sale_amount_cents === 45000);
+  verifie("… signée de son auteur", apresVente.sale_recorded_by === comptes.v1);
+
+  const acteVente = (
+    await srv("GET", `radar_booking_activities?select=type,payload&booking_id=eq.${aVendre.id}&order=created_at.desc`)
+  ).data[0];
+  verifie("… et journalisée", acteVente?.type === "sale.recorded");
+  verifie(
+    "… sans recopier la note, que la purge d'identité ne toucherait pas",
+    !JSON.stringify(acteVente?.payload).includes("pack 3 séances") &&
+      acteVente?.payload?.note_presente === true,
+    JSON.stringify(acteVente?.payload),
+  );
+
+  const venteChezB = await b1("POST", "rpc/radar_set_sale", {
+    booking_id: aVendre.id, amount_cents: 1000, sale_date: aujourdHui,
+  });
+  verifie(
+    "B ne déclare pas de vente chez V",
+    venteChezB.status >= 400 && motif(venteChezB).includes("accessible"),
+    motif(venteChezB),
+  );
+
+  const jourFutur = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(
+    new Date(Date.now() + 3 * 86400000),
+  );
+  const dansLeFutur = await v1("POST", "rpc/radar_set_sale", {
+    booking_id: aVendre.id, amount_cents: 1000, sale_date: jourFutur,
+  });
+  verifie("une vente ne se date pas dans le jourFutur", refuse(dansLeFutur), motif(dansLeFutur));
+
+  const avantSeance = await v1("POST", "rpc/radar_set_sale", {
+    booking_id: aVendre.id, amount_cents: 1000, sale_date: "2020-01-01",
+  });
+  verifie("… ni avant le rendez-vous", refuse(avantSeance), motif(avantSeance));
+
+  const annuleAvecVente = await v1("POST", "rpc/radar_client_set_status", {
+    booking_id: aVendre.id, new_status: "annule",
+  });
+  verifie(
+    "une séance vendue ne s'annule pas",
+    annuleAvecVente.status >= 400 && motif(annuleAvecVente).includes("Retire-la d'abord"),
+    motif(annuleAvecVente),
+  );
+
+  const refusApresVente = await v1("POST", "rpc/radar_decline_sale", { booking_id: aVendre.id });
+  verifie("… et ne se dit pas « sans vente »", refuse(refusApresVente), motif(refusApresVente));
+
+  const retiree = await v1("POST", "rpc/radar_set_sale", { booking_id: aVendre.id });
+  verifie("la vente se retire", retiree.status < 300, motif(retiree));
+  verifie(
+    "… tout revient à nul",
+    (await srv("GET", `radar_bookings?select=sale_amount_cents,sale_date,sale_note,sale_recorded_by&id=eq.${aVendre.id}`))
+      .data[0].sale_amount_cents === null,
+  );
+
+  const refuse1 = await v1("POST", "rpc/radar_decline_sale", { booking_id: aVendre.id });
+  const refuse2 = await v1("POST", "rpc/radar_decline_sale", { booking_id: aVendre.id });
+  verifie("« pas de vente » se dit une fois", refuse1.data === true && refuse2.data === false);
+  verifie(
+    "… sans inventer une vente à zéro euro",
+    (await srv("GET", `radar_bookings?select=sale_amount_cents&id=eq.${aVendre.id}`)).data[0]
+      .sale_amount_cents === null,
+  );
+
+  // --------------------------- Le mois mixte -------------------------------
+
+  const COLONNES_RELEVE =
+    "id,scheduled_start,event_type_name,channel_id,effective_status,counts_for_commission,amount_cents,currency,payment_ok,sale_amount_cents,sale_date,has_sale";
+
+  const seancesAout = (
+    await srv("GET", `radar_bookings_effective?select=${COLONNES_RELEVE}&organization_id=eq.${orgV.id}&mois=eq.2026-08-01`)
+  ).data;
+  const ventesAout = (
+    await srv("GET", `radar_bookings_effective?select=${COLONNES_RELEVE}&organization_id=eq.${orgV.id}&commission_month=eq.2026-08-01&sale_amount_cents=not.is.null`)
+  ).data;
+  const canauxV = (
+    await srv("GET", `radar_channels?select=id,label,is_comete&organization_id=eq.${orgV.id}`)
+  ).data;
+
+  verifie("les ventes d'août incluent la séance de juillet", ventesAout.some((v) => v.id === vJuillet.id));
+  verifie("… et excluent celle vendue en septembre", !ventesAout.some((v) => v.id === vAilleurs.id));
+
+  const lignesV = construireLignesVentes(ventesAout, seancesAout, canauxV);
+  const totalV = totaux(lignesV, 20);
+
+  verifie("le relevé d'août porte cinq lignes", lignesV.length === 5, `${lignesV.length}`);
+  verifie(
+    "… la base ne compte que les ventes sur canal Comète",
+    totalV.base_cents === 200000,
+    JSON.stringify(totalV),
+  );
+  verifie("… la commission suit le taux", totalV.commission_cents === 40000);
+  verifie(
+    "… la vente de juillet porte ses deux dates",
+    lignesV.find((l) => l.id === vJuillet.id)?.date_vente === "2026-08-05",
+  );
+  verifie(
+    "… la séance sans vente le dit",
+    lignesV.find((l) => l.id === vSansVente.id)?.raison === "Pas de vente déclarée",
+  );
+  verifie(
+    "… celle vendue en septembre renvoie à son relevé",
+    lignesV.find((l) => l.id === vAilleurs.id)?.raison ===
+      "Vendue en septembre, facturée sur le relevé de septembre",
+    JSON.stringify(lignesV.find((l) => l.id === vAilleurs.id)?.raison),
+  );
+  verifie(
+    "… et celle hors Comète dit son canal",
+    lignesV.find((l) => l.id === vHorsCanal.id)?.raison === "Canal hors Comète : Direct",
+  );
+
+  const corpsReleve = JSON.stringify(lignesV) + versCsv(lignesV, "ventes");
+  for (const [quoi, valeur] of [
+    ["le prénom", "Camille"],
+    ["le nom", "Dupont"],
+    ["la note de vente", "pack confidentiel"],
+    ["la clé d'invité", "cle-v-"],
+  ]) {
+    verifie(`${quoi} n'entre ni dans le relevé ni dans son CSV`, !corpsReleve.includes(valeur));
+  }
+
+  verifie(
+    "le CSV en mode ventes porte la date de vente",
+    versCsv(lignesV, "ventes").split("\r\n")[0] ===
+      "Date;Date de vente;Séance;Canal;Statut;Montant;Comptée;Raison",
+  );
+
+  // ------------------- Un client en encaissement ne bouge pas --------------
+
+  const lignesEncaissement = construireLignes(seancesAout, canauxV);
+  verifie(
+    "en encaissement, ces mêmes séances ne facturent rien",
+    totaux(lignesEncaissement, 20).base_cents === 0,
+    JSON.stringify(totaux(lignesEncaissement, 20)),
+  );
+  verifie(
+    "… et le CSV reste celui d'avant la phase 7",
+    versCsv(lignesEncaissement).split("\r\n")[0] ===
+      "Date;Séance;Canal;Statut;Montant;Comptée;Raison",
+  );
+
+  // ------------------------- Le verrou du relevé ---------------------------
+
+  const releveAout = await creer("radar_statements", {
+    organization_id: orgV.id, month: "2026-08-01", commission_rate: 20, window_days: 90,
+    commission_basis: "ventes", base_cents: totalV.base_cents,
+    commission_cents: totalV.commission_cents, lines: lignesV,
+  });
+
+  verifie("le relevé retient sa base de commission", releveAout.commission_basis === "ventes");
+
+  const venteVerrouillee = await v1("POST", "rpc/radar_set_sale", {
+    booking_id: vAout.id, amount_cents: 99000, sale_date: "2026-08-21",
+  });
+  verifie(
+    "une vente d'un mois clôturé ne change plus",
+    venteVerrouillee.status >= 400 && motif(venteVerrouillee).includes("clôturé"),
+    motif(venteVerrouillee),
+  );
+
+  const retraitVerrouille = await v1("POST", "rpc/radar_set_sale", { booking_id: vAout.id });
+  verifie("… ni ne se retire", refuse(retraitVerrouille), motif(retraitVerrouille));
+
+  // --------------------- La bascule de mode et son garde-fou ---------------
+
+  const ouverts = (
+    await srv("GET", `radar_statements?select=month,status&organization_id=eq.${orgV.id}&status=neq.paye&order=month`)
+  ).data;
+  verifie("un relevé non réglé est vu", ouverts.length === 1, JSON.stringify(ouverts));
+  verifie("… et la bascule de mode est refusée", peutChangerDeBase(ouverts).ok === false);
+
+  await srv("PATCH", `radar_statements?id=eq.${releveAout.id}`, {
+    status: "paye", paid_at: new Date().toISOString(),
+  });
+  const apresReglement = (
+    await srv("GET", `radar_statements?select=month,status&organization_id=eq.${orgV.id}&status=neq.paye`)
+  ).data;
+  verifie("une fois réglé, la bascule est permise", peutChangerDeBase(apresReglement).ok === true);
+
+  // -------------------- Le journal des réglages est à Louis ----------------
+
+  await creer("radar_settings_log", {
+    organization_id: orgV.id, user_id: comptes.v1, type: "basis.changed",
+    payload: { base_avant: "encaissement", base_apres: "ventes" },
+  });
+  verifie(
+    "le membre ne lit pas le journal des réglages",
+    vide(await v1("GET", `radar_settings_log?select=id&organization_id=eq.${orgV.id}`)),
+  );
+  verifie(
+    "… ni n'y écrit",
+    refuse(await v1("POST", "radar_settings_log?select=id", {
+      organization_id: orgV.id, type: "basis.changed", payload: {},
+    })),
+  );
+  verifie(
+    "… mais il lit sa propre base de commission",
+    (await v1("GET", `radar_settings?select=commission_basis&organization_id=eq.${orgV.id}`))
+      .data[0]?.commission_basis === "ventes",
+  );
+
+  // ------------------------ La purge de l'identité -------------------------
+  console.log("\n== 13. L'oubli de l'identité ==");
+
+  const vieuxSansVente = await rdvV({
+    scheduled_start: jours(-220), scheduled_end: jours(-220),
+    invitee_first_name: "Alex", invitee_last_name: "Ancien",
+  });
+  const vieuxAvecVente = await rdvV({
+    scheduled_start: jours(-220), scheduled_end: jours(-220),
+    invitee_first_name: "Rene", invitee_last_name: "Vendu",
+    sale_amount_cents: 50000, sale_date: "2026-03-01",
+  });
+  const tresVieux = await rdvV({
+    scheduled_start: jours(-430), scheduled_end: jours(-430),
+    invitee_first_name: "Yann", invitee_last_name: "Tresvieux",
+    sale_amount_cents: 50000, sale_date: "2025-08-01",
+  });
+  const recent = await rdvV({
+    scheduled_start: jours(-5), scheduled_end: jours(-5),
+    invitee_first_name: "Neuve", invitee_last_name: "Recente",
+  });
+
+  const purge = await srv("POST", "rpc/radar_purger_identite", {});
+  verifie("la purge rend un compte", typeof purge.data === "number", JSON.stringify(purge.data));
+
+  const nomDe = async (id) =>
+    (await srv("GET", `radar_bookings?select=invitee_first_name&id=eq.${id}`)).data[0]
+      .invitee_first_name;
+
+  verifie("sans vente, sept mois : le nom part", (await nomDe(vieuxSansVente.id)) === "");
+  verifie("avec vente, sept mois : le nom reste", (await nomDe(vieuxAvecVente.id)) === "Rene");
+  verifie("avec vente, quatorze mois : le nom part", (await nomDe(tresVieux.id)) === "");
+  verifie("une séance récente n'est pas touchée", (await nomDe(recent.id)) === "Neuve");
+  verifie(
+    "rejouée, la purge n'efface plus rien",
+    (await srv("POST", "rpc/radar_purger_identite", {})).data === 0,
+  );
+  verifie(
+    "un membre ne déclenche pas la purge d'identité",
+    refuse(await v1("POST", "rpc/radar_purger_identite", {})),
   );
 
 } finally {

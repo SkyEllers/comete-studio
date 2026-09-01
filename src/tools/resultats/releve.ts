@@ -11,6 +11,8 @@
  * facture contestable.
  */
 
+import { nomDuMois } from "./mois.ts";
+
 export type SeanceDuMois = {
   id: string;
   scheduled_start: string;
@@ -135,6 +137,17 @@ export function raisonExclusionVente(
 export const SANS_VENTE = "Pas de vente déclarée";
 
 /**
+ * « de septembre », mais « d'octobre ».
+ *
+ * Trois mois sur douze commencent par une voyelle — avril, août, octobre — et
+ * « le relevé de octobre » sur une facture fait le même effet qu'une faute de
+ * frappe : on doute du reste.
+ */
+function du(mois: string): string {
+  return /^[aeiouâàéèêîôû]/i.test(mois) ? `d'${mois}` : `de ${mois}`;
+}
+
+/**
  * L'instantané d'un relevé en mode « ventes ».
  *
  * Deux ensembles, et c'est ce qui le distingue de l'autre mode :
@@ -144,14 +157,16 @@ export const SANS_VENTE = "Pas de vente déclarée";
  *     la phase 7 — un diagnostic du 28 août vendu le 3 septembre est facturé
  *     en septembre. La ligne porte donc les deux dates, sans quoi le client
  *     chercherait en vain, dans son agenda de septembre, une séance d'août.
- *   - **Les séances honorées du mois qui n'ont rien vendu**, pour information et
- *     jamais comptées. Sans elles, le relevé ne montrerait que ce qui est
- *     facturé, et le client devrait croire sur parole qu'on n'a rien oublié.
+ *   - **Les séances honorées du mois qui ne sont pas facturées ici**, pour
+ *     information et jamais comptées. Sans elles, le relevé ne montrerait que
+ *     ce qui est facturé, et le client devrait croire sur parole qu'on n'a
+ *     rien oublié.
  *
- * Une séance de ce mois vendue *un autre* mois n'apparaît dans aucun des deux :
- * elle a une vente, donc elle n'est pas « sans vente », et sa vente sera
- * facturée sur le relevé de son propre mois. La compter ici la ferait payer
- * deux fois.
+ * Ce second ensemble réunit deux situations que la ligne distingue par sa
+ * raison : la séance n'a rien vendu, ou elle a vendu un autre mois. Dans le
+ * second cas elle est facturée là-bas et non ici — l'écrire évite au client de
+ * chercher sa séance du 14 août dans un relevé d'août où elle ne compte pas,
+ * et évite à la base de la compter deux fois.
  *
  * Le tri final est celui de la date de séance, comme en `encaissement` : c'est
  * l'ordre dans lequel le client se souvient de son mois.
@@ -185,15 +200,28 @@ export function construireLignesVentes(
 
   const dejaLa = new Set(ventes.map((vente) => vente.id));
 
+  /*
+   * Les séances honorées du mois qui ne sont pas facturées ici, avec la raison
+   * qui va bien. Deux cas, et le second est le plus important à dire :
+   *
+   *   - elle n'a rien vendu — c'est le cas courant ;
+   *   - elle a vendu, mais un autre mois. Elle est alors facturée sur ce
+   *     mois-là, et non ici. Sans cette ligne, le client qui cherche sa séance
+   *     du 14 août dans le relevé d'août ne la trouverait nulle part et
+   *     croirait à un oubli.
+   *
+   * Ni l'une ni l'autre n'est comptée : la première n'a rien rapporté, la
+   * seconde est comptée ailleurs, et la faire figurer au total la ferait payer
+   * deux fois.
+   */
   const lignesSansVente = seancesDuMois
-    .filter(
-      (seance) =>
-        !dejaLa.has(seance.id) &&
-        !seance.has_sale &&
-        seance.effective_status === "honore",
-    )
+    .filter((seance) => !dejaLa.has(seance.id) && seance.effective_status === "honore")
     .map((seance) => {
       const canal = canalDe(seance);
+      // `has_sale` implique une date : la contrainte `radar_sale_coherente` ne
+      // laisse pas exister un montant sans elle.
+      const vendueAilleurs = seance.has_sale && seance.sale_date ? seance.sale_date : null;
+      const mois = vendueAilleurs ? nomDuMois(`${vendueAilleurs.slice(0, 7)}-01`) : null;
 
       return {
         id: seance.id,
@@ -205,7 +233,9 @@ export function construireLignesVentes(
         montant_cents: 0,
         devise: seance.currency,
         comptee: false,
-        raison: SANS_VENTE,
+        raison: mois
+          ? `Vendue en ${mois}, facturée sur le relevé ${du(mois)}`
+          : SANS_VENTE,
       } satisfies LigneReleve;
     });
 
