@@ -32,7 +32,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import {
-  attributionLisible,
+  attributionADire,
   dateHeure,
   depuis,
   jour,
@@ -256,9 +256,14 @@ async function SectionRendezVous({
                     <Badge variant={canal?.is_comete ? "default" : "outline"}>
                       {canal?.label ?? "—"}
                     </Badge>
-                    <span className="text-muted-foreground text-xs">
-                      {attributionLisible(ligne.attribution!)}
-                    </span>
+                    {/* « Direct · direct » disait deux fois la même chose, en
+                        deux graphies, et donnait à croire à deux informations.
+                        L'attribution ne s'écrit que quand elle en ajoute une. */}
+                    {attributionADire(ligne.attribution!, canal?.label) ? (
+                      <span className="text-muted-foreground text-xs">
+                        {attributionADire(ligne.attribution!, canal?.label)}
+                      </span>
+                    ) : null}
                   </div>
                   {ligne.declared_source ? (
                     <p className="text-muted-foreground mt-1 text-xs">

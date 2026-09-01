@@ -159,6 +159,56 @@ export const attributionLisible = (attribution: string) =>
   ATTRIBUTIONS[attribution] ?? attribution;
 
 /**
+ * L'attribution à écrire à côté du canal — ou rien, si elle le répète.
+ *
+ * Un canal « Direct » attribué en `direct` donnait « Direct · direct » : le
+ * même mot deux fois, en deux graphies, ce qui donne à croire à deux
+ * informations. Quand l'attribution n'apprend rien de plus que le badge, elle
+ * se tait ; « Google Ads · campagne », lui, dit bien deux choses.
+ *
+ * La comparaison ignore la casse et les accents : c'est la même information
+ * pour un lecteur, et c'est lui qu'on sert.
+ */
+export function attributionADire(
+  attribution: string,
+  libelleCanal: string | null | undefined,
+): string | null {
+  const lisible = attributionLisible(attribution);
+  if (!libelleCanal) return lisible;
+
+  const pareil = (valeur: string) =>
+    valeur
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .trim()
+      .toLowerCase();
+
+  return pareil(lisible) === pareil(libelleCanal) ? null : lisible;
+}
+
+/**
+ * Une vente peut-elle déjà être déclarée sur cette séance ?
+ *
+ * Non tant que la séance n'a pas eu lieu, au jour près. C'est exactement la
+ * règle que `radar_set_sale` fait respecter en base — une vente ne précède pas
+ * le rendez-vous qui l'a amenée, et ne se date pas dans le futur — et c'est ce
+ * qui rendait le formulaire impossible à remplir sur une séance à venir : sa
+ * date minimale (le jour de la séance) tombait après sa date maximale
+ * (aujourd'hui), et le navigateur refusait la saisie par un message que
+ * personne ne pouvait comprendre.
+ *
+ * Le jour, et non l'instant : une séance de cet après-midi se vend déjà, comme
+ * la base l'autorise.
+ *
+ * `Date.now()` vit ici plutôt que dans le composant : appelé pendant le rendu,
+ * il est une impureté que le compilateur React refuse — la même raison qui a
+ * fait descendre `silencieuxDepuis` juste au-dessus.
+ */
+export function venteEncoreImpossible(scheduledStart: string): boolean {
+  return jourCalendaire(scheduledStart) > aujourdhuiAParis();
+}
+
+/**
  * Un montant tapé à la main, en euros, vers des centimes.
  *
  * La saisie est française : « 1 200,50 ». Mais un clavier de téléphone met un

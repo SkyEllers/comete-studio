@@ -1467,6 +1467,46 @@ try {
   });
   verifie("… ni avant le rendez-vous", refuse(avantSeance), motif(avantSeance));
 
+  /*
+   * Une séance à venir n'a aucune date de vente possible : toute date après
+   * elle est dans le futur, toute date avant elle précède le rendez-vous. Les
+   * deux bornes de `radar_set_sale` se referment l'une sur l'autre, et c'est
+   * pour ça que l'écran ne propose plus rien — il affiche « La vente pourra
+   * être déclarée après la séance » au lieu d'un formulaire impossible à
+   * remplir. Le banc éprouve le versant base de cette règle.
+   */
+  const aVenir = await rdvV({
+    scheduled_start: jours(15), scheduled_end: jours(15),
+  });
+
+  const jourDeLaSeance = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(
+    new Date(Date.now() + 15 * 86400000),
+  );
+
+  const venteAujourdHui = await v1("POST", "rpc/radar_set_sale", {
+    booking_id: aVenir.id, amount_cents: 1000, sale_date: aujourdHui,
+  });
+  verifie(
+    "une séance à venir refuse une vente datée d'aujourd'hui",
+    venteAujourdHui.status >= 400 && motif(venteAujourdHui).includes("précède"),
+    motif(venteAujourdHui),
+  );
+
+  const venteLeJourJ = await v1("POST", "rpc/radar_set_sale", {
+    booking_id: aVenir.id, amount_cents: 1000, sale_date: jourDeLaSeance,
+  });
+  verifie(
+    "… et une vente datée du jour de la séance, qui est dans le futur",
+    venteLeJourJ.status >= 400 && motif(venteLeJourJ).includes("futur"),
+    motif(venteLeJourJ),
+  );
+
+  verifie(
+    "… si bien qu'aucune vente n'est possible avant qu'elle ait lieu",
+    (await srv("GET", `radar_bookings?select=sale_amount_cents&id=eq.${aVenir.id}`)).data[0]
+      .sale_amount_cents === null,
+  );
+
   const annuleAvecVente = await v1("POST", "rpc/radar_client_set_status", {
     booking_id: aVendre.id, new_status: "annule",
   });

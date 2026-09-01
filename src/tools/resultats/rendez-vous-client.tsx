@@ -29,6 +29,7 @@ import {
   montant,
   nomComplet,
   statutLisible,
+  venteEncoreImpossible,
 } from "./format";
 import type { Canal, RendezVous } from "./queries";
 import { FormulaireVente, ResumeVente, RetirerVente, type Vente } from "./vente";
@@ -299,11 +300,18 @@ function FicheRendezVous({
   const moisCloture = moisClotures.includes(rdv.mois);
 
   /*
-   * Une vente se déclare sur une séance qui a eu lieu, ou qui va avoir lieu :
-   * on vend parfois avant de recevoir. Sur une séance annulée ou non venue,
-   * jamais — c'est la règle que `radar_set_sale` fait respecter en base.
+   * Sur une séance annulée ou non venue, jamais de vente — c'est la règle que
+   * `radar_set_sale` fait respecter en base.
    */
   const vendable = rdv.status !== "annule" && rdv.status !== "no_show";
+
+  /*
+   * Et pas avant le jour de la séance. La base le refusait déjà ; l'écran, lui,
+   * ouvrait un formulaire dont la date minimale tombait après la date maximale,
+   * et le navigateur répondait par un message que personne ne pouvait
+   * comprendre. On dit maintenant pourquoi, avant de rien proposer.
+   */
+  const tropTot = venteEncoreImpossible(rdv.scheduled_start);
 
   /*
    * Une vente se fige avec le relevé de *son* mois, pas de celui de la séance.
@@ -365,6 +373,10 @@ function FicheRendezVous({
               </div>
             )}
           </section>
+        ) : vendable && tropTot ? (
+          <p className="text-muted-foreground text-xs">
+            La vente pourra être déclarée après la séance.
+          </p>
         ) : vendable && !moisCloture ? (
           saisie ? (
             <FormulaireVente

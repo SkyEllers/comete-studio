@@ -6,11 +6,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  attributionADire,
   centimesSaisis,
   dateDeVente,
   moisDeLaVente,
   montant,
   nomComplet,
+  venteEncoreImpossible,
 } from "./format.ts";
 
 describe("centimesSaisis — les formes qu'on accepte", () => {
@@ -139,5 +141,51 @@ describe("nomComplet", () => {
     assert.equal(nomComplet("", ""), null);
     assert.equal(nomComplet(null, undefined), null);
     assert.equal(nomComplet("  ", " "), null);
+  });
+});
+
+describe("l'attribution écrite à côté du canal", () => {
+  it("20. elle se tait quand elle répète le badge", () => {
+    // « Direct · direct » : le même mot deux fois, en deux graphies.
+    assert.equal(attributionADire("direct", "Direct"), null);
+  });
+
+  it("21. la casse et les accents ne font pas deux informations", () => {
+    assert.equal(attributionADire("recurrence", "Récurrence"), null);
+    assert.equal(attributionADire("direct", "DIRECT"), null);
+    assert.equal(attributionADire("direct", "  direct  "), null);
+  });
+
+  it("22. elle parle quand elle ajoute quelque chose", () => {
+    assert.equal(attributionADire("utm", "Google Ads"), "campagne");
+    assert.equal(attributionADire("recurrence", "Google Ads"), "récurrence");
+    assert.equal(attributionADire("manuel", "Direct"), "corrigé par Louis");
+  });
+
+  it("23. sans canal, elle parle : il n'y a rien qu'elle puisse répéter", () => {
+    assert.equal(attributionADire("direct", null), "direct");
+    assert.equal(attributionADire("direct", undefined), "direct");
+  });
+});
+
+describe("quand une vente peut être déclarée", () => {
+  const jourParis = (decalageJours: number) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(
+      new Date(Date.now() + decalageJours * 86_400_000),
+    );
+
+  it("24. pas avant le jour de la séance", () => {
+    assert.equal(venteEncoreImpossible(`${jourParis(1)}T10:00:00+02:00`), true);
+    assert.equal(venteEncoreImpossible(`${jourParis(30)}T10:00:00+02:00`), true);
+  });
+
+  it("25. le jour même, oui : la base l'autorise déjà", () => {
+    // La borne est le jour, pas l'heure : une séance de cet après-midi se vend.
+    assert.equal(venteEncoreImpossible(`${jourParis(0)}T23:30:00+02:00`), false);
+  });
+
+  it("26. et après, évidemment", () => {
+    assert.equal(venteEncoreImpossible(`${jourParis(-1)}T10:00:00+02:00`), false);
+    assert.equal(venteEncoreImpossible("2026-01-05T10:00:00+01:00"), false);
   });
 });
