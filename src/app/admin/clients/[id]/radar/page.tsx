@@ -39,6 +39,7 @@ import {
   montant,
   statutLisible,
 } from "@/tools/resultats/format";
+import { ExportsRadar, type JetonExport } from "@/app/admin/clients/[id]/radar/radar-exports";
 import { ChercherNom } from "@/tools/resultats/chercher-nom";
 import { libelleMois, moisAOffrir, moisCourant, moisDemande } from "@/tools/resultats/mois";
 import { nettoyerRecherche } from "@/tools/resultats/recherche";
@@ -669,6 +670,25 @@ async function SectionJournal({
   );
 }
 
+/**
+ * Les jetons de lecture de ce client.
+ *
+ * La liste ne porte jamais de jeton, seulement son libellé et ses dates : la
+ * base n'a que des empreintes, et c'est tout l'intérêt.
+ */
+async function SectionExports({ organizationId }: { organizationId: string }) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("radar_export_tokens")
+    .select("id, label, created_at, last_used_at, revoked_at")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false });
+
+  return (
+    <ExportsRadar organizationId={organizationId} jetons={(data ?? []) as JetonExport[]} />
+  );
+}
+
 export default async function RadarAdminPage({
   params,
   searchParams,
@@ -768,6 +788,13 @@ export default async function RadarAdminPage({
             <h2 className="text-lg">Relevés et saisies</h2>
             <Suspense fallback={<TableSkeleton rows={3} />}>
               <SectionReleves organizationId={org.id} mois={moisDemande(mois)} />
+            </Suspense>
+          </section>
+
+          <section className="mt-10 space-y-4">
+            <h2 className="text-lg">Exports</h2>
+            <Suspense fallback={<TableSkeleton rows={2} />}>
+              <SectionExports organizationId={org.id} />
             </Suspense>
           </section>
 

@@ -14,6 +14,7 @@
     "qa:fichiers": "node scripts/qa-fichiers.mjs",
     "qa:notifications": "node scripts/qa-notifications.mjs",
     "qa:radar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-radar.mjs",
+    "qa:export": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-export.mjs",
     "qa:sas": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas.mjs",
     "qa:sas-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas-ia.mjs",
     "qa:sonde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sonde.mjs"

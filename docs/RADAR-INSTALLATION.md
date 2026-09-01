@@ -193,6 +193,50 @@ C'est le moment de vérifier deux choses :
 - Les **saisies mensuelles** (dépense, visiteurs, clics) alimentent l'entonnoir
   et la marge. Elles ne sortent jamais de l'administration.
 
+## Ouvrir un export à un rapport externe
+
+Un outil tenu ailleurs — un rapport Google Ads, un tableur, un tableau de bord
+maison — peut lire les rendez-vous d'un client sans compte et sans session, par
+une route en lecture seule.
+
+**Créer le jeton.** Fiche client → onglet **Radar** → section **Exports** →
+libellé (« Rapport Google Ads ») → *Créer un jeton*.
+
+Le jeton **s'affiche une seule fois**. La base n'en garde que le SHA-256 : ni
+Louis ni personne ne peut le relire ensuite. Perdu, il ne se retrouve pas — on
+en crée un autre et on révoque l'ancien, ce qui prend dix secondes.
+
+**Le transmettre.** Par un canal qui ne le laisse pas traîner : un gestionnaire
+de mots de passe partagé, à défaut un message qu'on supprime. Jamais dans un
+ticket, un dépôt Git, ni un fil de discussion qui sera relu dans six mois.
+
+**Ce que le jeton ouvre**, et uniquement cela :
+
+```
+GET /api/export/radar/rendez-vous?depuis=AAAA-MM-JJ&jusqua=AAAA-MM-JJ
+Authorization: Bearer <jeton>
+```
+
+- Un jeton = **une organisation**. Le périmètre se déduit du jeton, aucun
+  paramètre d'URL ne peut l'élargir.
+- **Aucune identité ne sort** : ni prénom, ni nom, ni `invitee_key`, ni note de
+  vente. Ce qui sort est une liste fermée — dates, type de séance, canal,
+  statut, montant de vente — vérifiée par `npm run qa:export`, qui cherche les
+  noms des lignes de recette dans le corps de la réponse.
+- **Lecture seule.** La route n'écrit qu'une chose : la date de dernière
+  lecture du jeton, visible dans la même section.
+- Plage obligatoire, **366 jours au maximum**, 500 lignes par page.
+
+**Révoquer.** Même section, bouton *Révoquer*. Le rapport cesse de lire à
+l'appel suivant. La ligne reste, datée : on sait qu'un jeton a existé et
+jusqu'à quand il a servi.
+
+**Ce que le consommateur doit savoir**, et qui est écrit dans chaque réponse :
+les jours sont ceux du calendrier français (`Europe/Paris`), et **ce flux n'est
+pas une archive**. Les rendez-vous sont supprimés treize mois après la clôture
+du relevé qui les a facturés ; un rapport qui veut de l'historique long doit
+recopier ce qu'il lit.
+
 ## Débrancher un client
 
 Onglet Radar → **Déconnecter**. L'abonnement est supprimé chez Calendly et les

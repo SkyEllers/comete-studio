@@ -160,54 +160,14 @@ export function adresse(entetes: Headers): string {
 
 // ------------------------------ Le débit ------------------------------------
 
-/**
- * Un amortisseur, pas un rempart.
- *
- * La fenêtre est glissante et vit dans la mémoire de l'instance : Vercel en
- * fait tourner plusieurs, et une même adresse répartie sur trois instances
- * obtient trois fois la limite. C'est connu et accepté — le rôle de ce
- * compteur est d'empêcher qu'un script en boucle sur un poste fasse passer une
- * landing pour un succès, pas de résister à quelqu'un qui s'en donne les
- * moyens. Contre celui-là, il n'y a rien à voler : le jeton est public et les
- * chiffres sont ceux du client.
- *
- * L'horloge est injectable pour que le banc puisse dérouler une minute en
- * quelques microsecondes.
+/*
+ * Le compteur a déménagé dans `src/lib/debit.ts` : la route d'export de Radar
+ * veut le même, et Sonde n'a pas à être la bibliothèque de Radar. Il est
+ * réexporté ici pour que la route et le banc de Sonde ne bougent pas.
  */
-export function creerLimiteur({
-  fenetreMs = 60_000,
-  maximum = 60,
-  cles = 5_000,
-  horloge = () => Date.now(),
-}: {
-  fenetreMs?: number;
-  maximum?: number;
-  cles?: number;
-  horloge?: () => number;
-} = {}) {
-  const passages = new Map<string, number[]>();
-
-  return function autorise(cle: string): boolean {
-    const maintenant = horloge();
-    const depuis = maintenant - fenetreMs;
-
-    // Le garde-fou de mémoire : au-delà de quelques milliers d'adresses, on
-    // repart de zéro plutôt que de grossir sans fin. Une instance Vercel qui
-    // vit longtemps verrait sinon sa table enfler à chaque nouveau visiteur.
-    if (passages.size > cles) passages.clear();
-
-    const recents = (passages.get(cle) ?? []).filter((instant) => instant > depuis);
-
-    if (recents.length >= maximum) {
-      passages.set(cle, recents);
-      return false;
-    }
-
-    recents.push(maintenant);
-    passages.set(cle, recents);
-    return true;
-  };
-}
+// Chemin relatif et extension explicite : `node --test` déroule ce module
+// sans la résolution d'alias de Next.
+export { creerLimiteur } from "../../lib/debit.ts";
 
 // ------------------------------ La clé du jour ------------------------------
 

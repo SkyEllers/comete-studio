@@ -1,6 +1,6 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -735,6 +735,88 @@ export async function enregistrerSaisie(
   );
 
   if (error) return fail("Impossible d'enregistrer cette saisie pour le moment.");
+
+  rafraichir(parsed.data.organizationId);
+  return ok();
+}
+
+// ------------------------------ Jetons d'export -----------------------------
+
+/**
+ * Créer un jeton de lecture pour un rapport externe.
+ *
+ * Le jeton est rendu **une seule fois**, dans la réponse de cette action, et
+ * n'existe nulle part ailleurs : la base n'en garde que le SHA-256. C'est le
+ * même contrat qu'un mot de passe, et pour la même raison — un tiers va le
+ * ranger dans ses variables d'environnement, et une fuite de notre base ne
+ * doit pas suffire à lire les rendez-vous d'un client.
+ *
+ * D'où la conséquence à assumer à l'écran : perdu, il ne se retrouve pas. On
+ * en crée un autre et on révoque l'ancien.
+ */
+const jetonExportSchema = z.object({
+  organizationId: organisation,
+  label: z
+    .string({ error: "Donne un libellé à ce jeton." })
+    .trim()
+    .min(1, { error: "Donne un libellé à ce jeton." })
+    .max(60, { error: "Le libellé tient en 60 caractères." }),
+});
+
+export async function creerJetonExport(
+  _precedent: ActionResult<{ jeton: string }> | null,
+  formData: FormData,
+): Promise<ActionResult<{ jeton: string }>> {
+  await requireAdmin();
+
+  const parsed = jetonExportSchema.safeParse({
+    organizationId: formData.get("organizationId"),
+    label: formData.get("label"),
+  });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  // 32 octets : de quoi rendre une recherche exhaustive sans objet, et la
+  // forme exacte que la route attend avant même de calculer une empreinte.
+  const jeton = randomBytes(32).toString("hex");
+  const empreinte = createHash("sha256").update(jeton).digest("hex");
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("radar_export_tokens").insert({
+    organization_id: parsed.data.organizationId,
+    token_hash: empreinte,
+    label: parsed.data.label,
+  });
+
+  if (error) return fail("Ce jeton n'a pas pu être créé.");
+
+  rafraichir(parsed.data.organizationId);
+  return ok({ jeton });
+}
+
+/**
+ * Révoquer, c'est dater. La ligne reste : elle dit qu'un rapport a lu ces
+ * données, et jusqu'à quand.
+ */
+export async function revoquerJetonExport(
+  organizationId: string,
+  tokenId: string,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = z
+    .object({ organizationId: organisation, tokenId: z.uuid({ error: "Jeton introuvable." }) })
+    .safeParse({ organizationId, tokenId });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("radar_export_tokens")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", parsed.data.tokenId)
+    .eq("organization_id", parsed.data.organizationId)
+    .is("revoked_at", null);
+
+  if (error) return fail("Ce jeton n'a pas pu être révoqué.");
 
   rafraichir(parsed.data.organizationId);
   return ok();

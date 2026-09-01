@@ -48,6 +48,7 @@ npm run qa:radar     # Radar : tables, vue, Vault, actions, webhook ; demande un
 npm run qa:sas       # Sas : isolation, porte d'entrée, contraintes des idées et des boîtes
 npm run qa:sas-ia    # Sas : le prompt contre la vraie API Anthropic (deux appels)
 npm run qa:sonde     # Sonde : isolation, sel, tâches de nuit, point de collecte ; demande un serveur
+npm run qa:export    # Export Radar : cloisonnement, liste blanche, pagination ; demande un serveur
 ```
 
 Les bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
@@ -70,6 +71,7 @@ src/
 │   │       └── (tools)/
 │   │           └── kanban/           # Orbite ; layout.tsx = requireToolAccess(orgSlug, 'kanban')
 │   ├── api/webhooks/calendly/[orgId]/route.ts   # Radar : route sans session, signée
+│   ├── api/export/radar/rendez-vous/route.ts    # Radar : export lecture seule, jeton porteur
 │   ├── admin/                        # layout.tsx = requireAdmin() ; clients/ ; clients/[id]/ ; outils/
 │   ├── mentions-legales/  confidentialite/
 │   ├── layout.tsx  globals.css  not-found.tsx
@@ -119,7 +121,9 @@ docs/                                 # briefs par phase, RADAR-INSTALLATION.md,
 - Server Components par défaut ; `'use client'` seulement quand il y a de l'interactivité.
 - Mutations : Server Actions (`actions.ts` à côté de la page) validées par zod, qui renvoient `{ ok: true, data } | { ok: false, error: string }` avec un message en français. Jamais d'exception non gérée côté client.
 - Exception : quand le navigateur doit parler à Supabase directement — les outils temps réel (Orbite), et les envois de fichiers qui partent en TUS sans traverser Vercel — il lit et écrit via `supabase-js`, la RLS protège. Dans ces cas-là, une Server Action reste nécessaire pour `revalidatePath` : c'est le seul mécanisme qui traverse la frontière. Toute opération d'administration (créer un client, inviter, activer un outil) passe par une Server Action avec le client `admin.ts`, après `requireAdmin()`.
-- Une route sans session — un webhook — vérifie une signature avant toute lecture du corps interprété, est idempotente, valide son entrée par zod en rejetant tout champ inattendu **de l'enveloppe** (le corps du fournisseur, lui, reste tolérant aux champs qu'on ignore : le refuser en bloc parce qu'un champ est apparu ferait perdre des messages en silence), ne journalise aucune donnée personnelle, répond en moins de 2 s, et n'emploie le service role que pour les tables qu'elle a à écrire. Elle ne renvoie jamais de 4xx pour un message qui ne passera jamais : le fournisseur le rejouerait pendant des heures. Elle garde le 500 pour ses propres pannes, là où un rejeu a un sens.
+- **Routes sans session.** Il y en a trois — le webhook Calendly (`api/webhooks/calendly/[orgId]`), le point de collecte de Sonde (`api/sonde/[token]`), l'export de Radar (`api/export/radar/rendez-vous`) — et toutes trois : établissent qui appelle avant de faire quoi que ce soit d'autre, valident leur entrée par zod, ne journalisent aucune donnée personnelle, répondent en moins de 2 s, et n'emploient le service role que pour les tables qu'elles ont à toucher. Le reste dépend du sens du flux.
+  - *Celles qui reçoivent* (webhook, collecte) vérifient une signature ou une origine avant toute lecture du corps interprété, sont idempotentes, et rejettent tout champ inattendu **de l'enveloppe** — le corps du fournisseur, lui, reste tolérant aux champs qu'on ignore : le refuser en bloc parce qu'un champ est apparu ferait perdre des messages en silence. Elles ne renvoient jamais de 4xx pour un message qui ne passera jamais : le fournisseur le rejouerait pendant des heures. Elles gardent le 500 pour leurs propres pannes, là où un rejeu a un sens.
+  - *Celle qui sert* (export) s'authentifie par jeton porteur dont la base ne garde que le SHA-256, comparé en temps constant ; son périmètre se déduit du jeton et jamais d'un paramètre d'URL ; ce qu'elle publie est une **liste blanche nommée champ par champ**, sans `select *`, pour qu'une colonne ajoutée demain à une table ou une vue ne parte pas d'elle-même chez un tiers ; elle est en lecture seule, à la trace d'usage près ; et elle répond 4xx franchement — un consommateur n'est pas un fournisseur qui rejoue, c'est une intégration qu'on veut voir corrigée.
 - Toute nouvelle table : RLS activée + policies + index + test manuel avec deux comptes (membre / non-membre). Sans ça, le chantier n'est pas terminé.
 - Toute nouvelle fonction SQL : `revoke execute … from public, anon` puis `grant execute … to authenticated`, sinon elle est appelable sans session.
 - `has_tool()` renvoie `false` avec la clé service role : les Server Actions d'administration lisent `organization_tools` directement.
