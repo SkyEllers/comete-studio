@@ -864,12 +864,19 @@ export type Database = {
           event_type_uri: string | null
           event_uri: string
           id: string
+          invitee_first_name: string
           invitee_key: string
+          invitee_last_name: string
           invitee_uri: string
           organization_id: string
           payment_ok: boolean
           payment_ref: string | null
           rescheduled_from: string | null
+          sale_amount_cents: number | null
+          sale_date: string | null
+          sale_note: string | null
+          sale_recorded_at: string | null
+          sale_recorded_by: string | null
           scheduled_end: string
           scheduled_start: string
           statement_id: string | null
@@ -893,12 +900,19 @@ export type Database = {
           event_type_uri?: string | null
           event_uri: string
           id?: string
+          invitee_first_name?: string
           invitee_key: string
+          invitee_last_name?: string
           invitee_uri: string
           organization_id: string
           payment_ok?: boolean
           payment_ref?: string | null
           rescheduled_from?: string | null
+          sale_amount_cents?: number | null
+          sale_date?: string | null
+          sale_note?: string | null
+          sale_recorded_at?: string | null
+          sale_recorded_by?: string | null
           scheduled_end: string
           scheduled_start: string
           statement_id?: string | null
@@ -922,12 +936,19 @@ export type Database = {
           event_type_uri?: string | null
           event_uri?: string
           id?: string
+          invitee_first_name?: string
           invitee_key?: string
+          invitee_last_name?: string
           invitee_uri?: string
           organization_id?: string
           payment_ok?: boolean
           payment_ref?: string | null
           rescheduled_from?: string | null
+          sale_amount_cents?: number | null
+          sale_date?: string | null
+          sale_note?: string | null
+          sale_recorded_at?: string | null
+          sale_recorded_by?: string | null
           scheduled_end?: string
           scheduled_start?: string
           statement_id?: string | null
@@ -978,6 +999,13 @@ export type Database = {
             columns: ["rescheduled_from"]
             isOneToOne: false
             referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_sale_recorded_by_fkey"
+            columns: ["sale_recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1083,6 +1111,7 @@ export type Database = {
           calendly_org_uri: string | null
           calendly_user_uri: string | null
           calendly_webhook_uri: string | null
+          commission_basis: Database["public"]["Enums"]["radar_commission_basis"]
           commission_rate: number
           connected_at: string | null
           created_at: string
@@ -1096,6 +1125,7 @@ export type Database = {
           calendly_org_uri?: string | null
           calendly_user_uri?: string | null
           calendly_webhook_uri?: string | null
+          commission_basis?: Database["public"]["Enums"]["radar_commission_basis"]
           commission_rate?: number
           connected_at?: string | null
           created_at?: string
@@ -1109,6 +1139,7 @@ export type Database = {
           calendly_org_uri?: string | null
           calendly_user_uri?: string | null
           calendly_webhook_uri?: string | null
+          commission_basis?: Database["public"]["Enums"]["radar_commission_basis"]
           commission_rate?: number
           connected_at?: string | null
           created_at?: string
@@ -1559,6 +1590,10 @@ export type Database = {
           attribution_source_id: string | null
           canceled_at: string | null
           channel_id: string | null
+          commission_basis:
+            | Database["public"]["Enums"]["radar_commission_basis"]
+            | null
+          commission_month: string | null
           counts_for_commission: boolean | null
           created_at: string | null
           currency: string | null
@@ -1567,14 +1602,23 @@ export type Database = {
           event_type_name: string | null
           event_type_uri: string | null
           event_uri: string | null
+          has_sale: boolean | null
           id: string | null
+          invitee_display: string | null
+          invitee_first_name: string | null
           invitee_key: string | null
+          invitee_last_name: string | null
           invitee_uri: string | null
           mois: string | null
           organization_id: string | null
           payment_ok: boolean | null
           payment_ref: string | null
           rescheduled_from: string | null
+          sale_amount_cents: number | null
+          sale_date: string | null
+          sale_note: string | null
+          sale_recorded_at: string | null
+          sale_recorded_by: string | null
           scheduled_end: string | null
           scheduled_start: string | null
           statement_id: string | null
@@ -1630,6 +1674,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "radar_bookings_sale_recorded_by_fkey"
+            columns: ["sale_recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "radar_bookings_statement_fkey"
             columns: ["statement_id"]
             isOneToOne: false
@@ -1666,6 +1717,10 @@ export type Database = {
       }
       radar_get_secret: { Args: { kind: string; org: string }; Returns: string }
       radar_mois: { Args: { quand: string }; Returns: string }
+      radar_purger_identite: {
+        Args: { avec_vente?: string; sans_vente?: string }
+        Returns: number
+      }
       radar_purger_journal: { Args: { anciennete?: string }; Returns: number }
       radar_purger_rendezvous: {
         Args: { anciennete?: string }
@@ -1676,6 +1731,15 @@ export type Database = {
           comment?: string
           decision: Database["public"]["Enums"]["radar_statement_status"]
           statement_id: string
+        }
+        Returns: undefined
+      }
+      radar_set_sale: {
+        Args: {
+          amount_cents?: number
+          booking_id: string
+          note?: string
+          sale_date?: string
         }
         Returns: undefined
       }
@@ -1711,6 +1775,7 @@ export type Database = {
       file_status: "uploading" | "ready"
       membership_role: "owner" | "member"
       radar_attribution: "utm" | "recurrence" | "direct" | "manuel"
+      radar_commission_basis: "encaissement" | "ventes"
       radar_statement_status: "cloture" | "conteste" | "valide" | "paye"
       radar_status: "confirme" | "honore" | "annule" | "no_show"
       radar_status_origin: "calendly" | "auto" | "client" | "admin"
@@ -1850,6 +1915,7 @@ export const Constants = {
       file_status: ["uploading", "ready"],
       membership_role: ["owner", "member"],
       radar_attribution: ["utm", "recurrence", "direct", "manuel"],
+      radar_commission_basis: ["encaissement", "ventes"],
       radar_statement_status: ["cloture", "conteste", "valide", "paye"],
       radar_status: ["confirme", "honore", "annule", "no_show"],
       radar_status_origin: ["calendly", "auto", "client", "admin"],

@@ -1,7 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
-import { IDENTIFIANTS_DE_CLIC } from "./attribution";
+// Extension explicite, comme dans `src/tools/sas/` : `node --test` l'exige
+// pour dérouler `calendly.test.ts`, et `allowImportingTsExtensions` la rend
+// sans effet sur le bundle.
+import { IDENTIFIANTS_DE_CLIC } from "./attribution.ts";
 
 /**
  * Ce que Calendly nous envoie, et ce qu'on accepte d'en lire.
@@ -59,6 +62,16 @@ const annulation = objetSouple({
 const invite = objetSouple({
   uri: z.string(),
   email: z.string(),
+  /*
+   * Le nom, à partir de la phase 7. Trois champs déclarés pour deux valeurs
+   * lues : Calendly renseigne `first_name` et `last_name` quand son formulaire
+   * demande le prénom et le nom séparément, et seulement `name` quand il
+   * demande « votre nom » en un seul champ. Les deux formes existent chez de
+   * vrais clients, d'où le repli de `nomInvite()`.
+   */
+  first_name: z.string().nullish(),
+  last_name: z.string().nullish(),
+  name: z.string().nullish(),
   status: z.string().nullish(),
   rescheduled: z.boolean().nullish(),
   old_invitee: z.string().nullish(),
@@ -209,6 +222,59 @@ export function champsPresents(objet: unknown): string {
   if (vides.length > 0) morceaux.push(`(vides : ${vides.join(", ")})`);
 
   return morceaux.join(" ");
+}
+
+// --------------------------------- Le nom -----------------------------------
+
+/** Ce que la base accepte : 80 caractères par colonne, pas un de plus. */
+const NOM_MAX = 80;
+
+/**
+ * Le prénom et le nom de l'invité, et rien d'autre de son identité.
+ *
+ * C'est la seule donnée nominative que Radar accepte, et elle n'entre que
+ * parce que sans elle l'outil est inutilisable : trente séances par semaine
+ * qui se ressemblent toutes, on ne peut ni marquer la bonne personne « non
+ * venue », ni lui rattacher une vente. L'email continue de n'exister que sous
+ * forme de HMAC, le téléphone n'entre pas, et les réponses aux questions
+ * autres que « comment m'avez-vous connu » restent dehors.
+ *
+ * Trois cas, dans cet ordre :
+ *
+ *   1. `first_name` / `last_name` — la forme la plus courante, quand le
+ *      formulaire Calendly demande les deux séparément.
+ *   2. `name` seul, découpé au premier espace : « Camille Dupont » donne
+ *      « Camille » et « Dupont », « Jean Pierre Martin » donne « Jean » et
+ *      « Pierre Martin ». Découper au premier espace plutôt qu'au dernier
+ *      traite mieux les noms composés, qui sont plus fréquents que les
+ *      prénoms composés non tiretés.
+ *   3. Rien du tout : deux chaînes vides, et la vie continue. La vue affichera
+ *      « Invité·e ». Un rendez-vous sans nom vaut infiniment mieux qu'un
+ *      rendez-vous perdu.
+ */
+export function nomInvite(invite: {
+  first_name?: string | null;
+  last_name?: string | null;
+  name?: string | null;
+}): { prenom: string; nom: string } {
+  const propre = (valeur: string | null | undefined) =>
+    (valeur ?? "").trim().slice(0, NOM_MAX);
+
+  const prenom = propre(invite.first_name);
+  const nom = propre(invite.last_name);
+
+  if (prenom || nom) return { prenom, nom };
+
+  const complet = (invite.name ?? "").trim();
+  if (!complet) return { prenom: "", nom: "" };
+
+  const espace = complet.indexOf(" ");
+  if (espace < 0) return { prenom: complet.slice(0, NOM_MAX), nom: "" };
+
+  return {
+    prenom: complet.slice(0, espace).slice(0, NOM_MAX),
+    nom: complet.slice(espace + 1).trim().slice(0, NOM_MAX),
+  };
 }
 
 /**

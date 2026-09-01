@@ -16,6 +16,7 @@ import {
   messageCalendly,
   type MessageCalendly,
   motifAnnulation,
+  nomInvite,
   utmRetenus,
   verifierSignature,
 } from "@/tools/resultats/calendly";
@@ -305,6 +306,13 @@ export async function POST(
 
     const paiement = invite.payment;
 
+    /*
+     * La seule donnée nominative de Radar. Elle est écrite ici, sur la ligne
+     * du rendez-vous, et nulle part ailleurs : ni dans l'activité juste en
+     * dessous, ni dans le journal, ni dans le relevé que la clôture figera.
+     */
+    const { prenom, nom } = nomInvite(invite);
+
     const { data: cree, error } = await admin
       .from("radar_bookings")
       .insert({
@@ -312,6 +320,8 @@ export async function POST(
         invitee_uri: invite.uri,
         event_uri: invite.scheduled_event.uri,
         invitee_key,
+        invitee_first_name: prenom,
+        invitee_last_name: nom,
         scheduled_start: debut,
         scheduled_end: invite.scheduled_event.end_time,
         event_type_name: invite.scheduled_event.name,

@@ -995,25 +995,77 @@ try {
   verifie("aucune erreur interne", combien(journal, "error") === 0, JSON.stringify(journal.filter((l) => l.outcome === "error")));
 
   /*
-   * Le contrat de Radar, vérifié plutôt que promis : ni l'email, ni le nom, ni
-   * le motif d'annulation écrit par la personne n'existent nulle part.
+   * Le contrat de Radar, vérifié plutôt que promis.
+   *
+   * Depuis la phase 7, ce contrat a deux versants et non plus un seul. Le nom
+   * de la personne **doit** être en base — sans lui l'outil est inutilisable —
+   * mais uniquement sur la ligne du rendez-vous, d'où il partira avec elle.
+   * L'email, lui, n'existe toujours nulle part, sous aucune forme.
+   *
+   * D'où deux périmètres au lieu d'un. Les confondre ferait passer pour un
+   * succès le jour où le nom se mettrait à fuir dans le journal.
    */
   const toutesLesLignes = JSON.stringify(await lignes());
   const toutLeJournal = JSON.stringify(journal);
   const activitesToutes = JSON.stringify(
     (await srv("GET", `radar_booking_activities?select=*&organization_id=eq.${orgC.id}`)).data,
   );
-  const partout = toutesLesLignes + toutLeJournal + activitesToutes;
+  const relevesTous = JSON.stringify(
+    (await srv("GET", `radar_statements?select=*&organization_id=eq.${orgC.id}`)).data,
+  );
+
+  /** Partout : ce qui n'a le droit d'exister à aucun endroit. */
+  const partout = toutesLesLignes + toutLeJournal + activitesToutes + relevesTous;
+  /** Hors du rendez-vous : ce que le nom n'a pas le droit de traverser. */
+  const horsRendezVous = toutLeJournal + activitesToutes + relevesTous;
 
   for (const [quoi, valeur] of [
     ["l'email", EMAIL_1],
     ["le deuxième email", EMAIL_2],
-    ["le nom de la personne", NOM],
     ["le motif écrit à la main", "imprévu de dernière minute"],
     ["le numéro Salesforce", "0031t00000AbCdEf"],
   ]) {
     verifie(`${quoi} n'apparaît nulle part`, !partout.includes(valeur));
   }
+
+  /*
+   * L'inversion de la phase 7 : ce contrôle vérifiait l'absence du nom, il
+   * vérifie maintenant sa présence — et son confinement.
+   *
+   * Les fixtures portent `first_name: null`, `last_name: null` et
+   * `name: "Camille Dupont"` : c'est donc le repli de la décision 8 qui est
+   * éprouvé ici, celui qui découpe le nom complet au premier espace. C'est la
+   * forme la plus fragile des deux, et celle qu'un vrai formulaire Calendly en
+   * un seul champ nous enverra.
+   */
+  const [PRENOM, NOM_FAMILLE] = NOM.split(" ");
+
+  verifie(
+    "le prénom de la personne est bien en base, sur le rendez-vous",
+    (await lignes()).every((l) => l.invitee_first_name === PRENOM),
+    JSON.stringify((await lignes()).map((l) => l.invitee_first_name)),
+  );
+  verifie(
+    "… son nom aussi, découpé au premier espace",
+    (await lignes()).every((l) => l.invitee_last_name === NOM_FAMILLE),
+    JSON.stringify((await lignes()).map((l) => l.invitee_last_name)),
+  );
+  verifie(
+    "… et il ne sort pas du rendez-vous : ni journal, ni activités, ni relevés",
+    !horsRendezVous.includes(PRENOM) && !horsRendezVous.includes(NOM_FAMILLE),
+  );
+
+  const vueNommee = (
+    await srv(
+      "GET",
+      `radar_bookings_effective?select=invitee_display&organization_id=eq.${orgC.id}&limit=1`,
+    )
+  ).data[0];
+  verifie(
+    "la vue abrège le nom pour les listes",
+    vueNommee?.invitee_display === `${PRENOM} ${NOM_FAMILLE[0]}.`,
+    JSON.stringify(vueNommee),
+  );
 
   verifie(
     "la clé d'invité est bien un HMAC, la même pour la même personne",
