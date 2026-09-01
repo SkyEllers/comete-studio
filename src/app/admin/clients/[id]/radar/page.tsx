@@ -130,8 +130,14 @@ async function SectionReglages({ organizationId }: { organizationId: string }) {
         </div>
 
         <div className="border-line overflow-hidden rounded-lg border">
-          {canaux.map((canal) => (
-            <CanalForm key={canal.id} organizationId={organizationId} canal={canal} />
+          {canaux.map((canal, rang) => (
+            <CanalForm
+              key={canal.id}
+              organizationId={organizationId}
+              canal={canal}
+              premier={rang === 0}
+              dernier={rang === canaux.length - 1}
+            />
           ))}
         </div>
       </section>

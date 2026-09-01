@@ -14,6 +14,7 @@ import {
   listerAbonnements,
   supprimerAbonnement,
 } from "@/tools/resultats/calendly-api";
+import { echanger } from "@/lib/reordonner";
 import { preparerRadar } from "@/tools/resultats/installation";
 import { moisCourant } from "@/tools/resultats/mois";
 import {
@@ -396,17 +397,81 @@ const canalSchema = z.object({
     .trim()
     .min(1, { error: "Donne un libellé à ce canal." })
     .max(40, { error: "Le libellé ne peut pas dépasser 40 caractères." }),
-  sortOrder: z.coerce
-    .number({ error: "L'ordre doit être un nombre." })
-    .int()
-    .min(0)
-    .max(9999),
 });
 
 /**
+ * Monter ou descendre un canal d'un cran.
+ *
  * L'ordre des canaux n'est pas cosmétique : c'est l'ordre d'interrogation du
  * moteur d'attribution. Google Ads avant SEO, sinon `google/cpc` tombe dans le
- * référencement naturel.
+ * référencement naturel. Un clic ici change donc à qui seront attribuées les
+ * prochaines réservations — le banc le vérifie en déroulant `attribuer()` sur
+ * l'ordre d'avant puis celui d'après.
+ *
+ * Deux écritures, et une compensation si la seconde échoue : PostgREST n'ouvre
+ * pas de transaction, mais le résultat doit être les deux lignes ou aucune.
+ * Une inversion à moitié faite laisserait deux canaux dans un ordre que
+ * personne n'a demandé, et l'attribution suivrait.
+ */
+export async function deplacerCanal(
+  organizationId: string,
+  channelId: string,
+  sens: "haut" | "bas",
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = z
+    .object({
+      organizationId: organisation,
+      channelId: z.uuid({ error: "Canal introuvable." }),
+      sens: z.enum(["haut", "bas"], { error: "Direction inconnue." }),
+    })
+    .safeParse({ organizationId, channelId, sens });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const admin = createAdminClient();
+  const { data: canaux } = await admin
+    .from("radar_channels")
+    .select("id, sort_order")
+    .eq("organization_id", parsed.data.organizationId);
+
+  const echange = echanger(canaux ?? [], parsed.data.channelId, parsed.data.sens);
+  // Déjà au bout, ou canal disparu : rien à écrire, et rien à reprocher.
+  if (!echange) return ok();
+
+  const premier = await admin
+    .from("radar_channels")
+    .update({ sort_order: echange.bouge.sort_order })
+    .eq("id", echange.bouge.id)
+    .eq("organization_id", parsed.data.organizationId);
+
+  if (premier.error) return fail("Impossible de déplacer ce canal pour le moment.");
+
+  const second = await admin
+    .from("radar_channels")
+    .update({ sort_order: echange.voisin.sort_order })
+    .eq("id", echange.voisin.id)
+    .eq("organization_id", parsed.data.organizationId);
+
+  if (second.error) {
+    // On remet la première là où elle était : les deux, ou aucune.
+    const ancienne = (canaux ?? []).find((c) => c.id === echange.bouge.id)?.sort_order;
+    if (ancienne !== undefined) {
+      await admin
+        .from("radar_channels")
+        .update({ sort_order: ancienne })
+        .eq("id", echange.bouge.id);
+    }
+    return fail("Impossible de déplacer ce canal pour le moment.");
+  }
+
+  rafraichir(parsed.data.organizationId);
+  return ok();
+}
+
+/**
+ * Le libellé et les règles d'un canal. Son ordre se règle aux flèches, plus
+ * au clavier : voir `deplacerCanal`.
  */
 export async function enregistrerCanal(
   _precedent: ActionResult | null,
@@ -418,7 +483,6 @@ export async function enregistrerCanal(
     organizationId: formData.get("organizationId"),
     channelId: formData.get("channelId"),
     label: formData.get("label"),
-    sortOrder: formData.get("sortOrder"),
   });
   if (!parsed.success) return failFromZod(parsed.error);
 
@@ -427,7 +491,6 @@ export async function enregistrerCanal(
     .from("radar_channels")
     .update({
       label: parsed.data.label,
-      sort_order: parsed.data.sortOrder,
       is_comete: formData.get("isComete") === "on",
       is_active: formData.get("isActive") === "on",
       rules: {

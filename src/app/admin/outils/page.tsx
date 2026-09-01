@@ -1,4 +1,6 @@
 import { TriangleAlert } from "lucide-react";
+import { deplacerOutil } from "@/app/admin/outils/actions";
+import { Reordonner } from "@/components/admin/reordonner";
 import { Suspense } from "react";
 
 import {
@@ -42,7 +44,7 @@ async function ToolsTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {(tools ?? []).map((tool) => {
+          {(tools ?? []).map((tool, rang) => {
             const missingFromRegistry =
               tool.kind === "internal" && !getToolMeta(tool.slug);
 
@@ -81,8 +83,17 @@ async function ToolsTable() {
                     {tool.kind === "external" ? "externe" : "interne"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right font-mono text-xs tabular-nums">
-                  {tool.sort_order}
+                <TableCell>
+                  {/* L'ordre du catalogue, celui que le client voit sur sa page
+                      d'accueil. Il se réglait au clavier ; il se règle ici. */}
+                  <span className="flex justify-end">
+                    <Reordonner
+                      deplacer={deplacerOutil.bind(null, tool.id)}
+                      premier={rang === 0}
+                      dernier={rang === (tools ?? []).length - 1}
+                      quoi={tool.name}
+                    />
+                  </span>
                 </TableCell>
                 <TableCell className="text-center">
                   <ToolActiveSwitch
@@ -96,7 +107,6 @@ async function ToolsTable() {
                     toolId={tool.id}
                     name={tool.name}
                     description={tool.description}
-                    sortOrder={tool.sort_order}
                   />
                 </TableCell>
               </TableRow>

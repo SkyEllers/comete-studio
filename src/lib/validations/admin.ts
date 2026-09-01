@@ -66,11 +66,8 @@ export const updateToolSchema = z.object({
     .string()
     .trim()
     .max(200, { error: "La description ne peut pas dépasser 200 caractères." }),
-  sortOrder: z.coerce
-    .number({ error: "L'ordre doit être un nombre." })
-    .int({ error: "L'ordre doit être un nombre entier." })
-    .min(0, { error: "L'ordre ne peut pas être négatif." })
-    .max(9999, { error: "L'ordre ne peut pas dépasser 9999." }),
+  // L'ordre ne se saisit plus : il se règle aux flèches, et `deplacerOutil`
+  // est la seule chose qui écrive encore `sort_order`.
 });
 
 /**

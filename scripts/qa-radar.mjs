@@ -30,7 +30,12 @@ import {
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-import { CANAUX_PAR_DEFAUT } from "../src/tools/resultats/attribution.ts";
+import {
+  attribuer,
+  canalReconnait,
+  CANAUX_PAR_DEFAUT,
+} from "../src/tools/resultats/attribution.ts";
+import { echanger } from "../src/lib/reordonner.ts";
 import {
   construireLignes,
   construireLignesVentes,
@@ -1722,8 +1727,88 @@ try {
     JSON.stringify(relevePerdues.map((l) => l.raison)),
   );
 
+  // ---------------- L'ordre des canaux décide de l'attribution --------------
+  console.log("\n== 13. Les flèches d'ordre changent l'attribution ==");
+
+  /*
+   * L'ordre des canaux n'est pas cosmétique : `attribuer()` retient le premier
+   * canal qui reconnaît la campagne. Deux canaux qui déclarent tous deux la
+   * source « google » — Google Ads et SEO — ne se départagent que par leur
+   * rang, et c'est exactement l'avertissement de CLAUDE.md : Google Ads avant
+   * SEO, sinon une campagne payante tombe dans le référencement naturel.
+   *
+   * Les flèches de l'administration échangent ces deux rangs. Le banc ne peut
+   * pas cliquer, mais il peut faire ce que le clic fait — `echanger()` puis
+   * les deux écritures — et vérifier que le verdict d'`attribuer()` bascule.
+   */
+  const ads = await creer("radar_channels", {
+    organization_id: orgV.id, key: "zz_ads", label: "ZZ Ads", is_comete: true,
+    sort_order: 100, rules: { sources: ["google"] },
+  });
+  const seo = await creer("radar_channels", {
+    organization_id: orgV.id, key: "zz_seo", label: "ZZ SEO", is_comete: true,
+    sort_order: 110, rules: { sources: ["google"] },
+  });
+
+  const deuxCanaux = async () =>
+    (
+      await srv(
+        "GET",
+        `radar_channels?select=id,key,label,is_comete,rules,sort_order,is_active&organization_id=eq.${orgV.id}&key=in.(zz_ads,zz_seo)`,
+      )
+    ).data;
+
+  const verdict = (canaux) =>
+    attribuer({
+      utm: { utm_source: "google" },
+      scheduledStart: new Date().toISOString(),
+      channels: canaux,
+      previous: null,
+      windowDays: 90,
+    }).channel_id;
+
+  verifie(
+    "les deux canaux reconnaissent la même campagne",
+    (await deuxCanaux()).filter((c) => canalReconnait(c, { utm_source: "google" })).length === 2,
+  );
+  verifie("… et le premier l'emporte", verdict(await deuxCanaux()) === ads.id);
+
+  // Ce que fait la flèche « monter » sur ZZ SEO.
+  const bascule = echanger(await deuxCanaux(), seo.id, "haut");
+  verifie("l'échange désigne bien les deux voisins", Boolean(bascule) &&
+    new Set([bascule.bouge.id, bascule.voisin.id]).size === 2);
+
+  await srv("PATCH", `radar_channels?id=eq.${bascule.bouge.id}`, {
+    sort_order: bascule.bouge.sort_order,
+  });
+  await srv("PATCH", `radar_channels?id=eq.${bascule.voisin.id}`, {
+    sort_order: bascule.voisin.sort_order,
+  });
+
+  verifie(
+    "après l'échange, l'attribution bascule sur l'autre canal",
+    verdict(await deuxCanaux()) === seo.id,
+    JSON.stringify(await deuxCanaux()),
+  );
+
+  // Et le chemin inverse rend l'ordre d'origine.
+  const retour = echanger(await deuxCanaux(), seo.id, "bas");
+  await srv("PATCH", `radar_channels?id=eq.${retour.bouge.id}`, {
+    sort_order: retour.bouge.sort_order,
+  });
+  await srv("PATCH", `radar_channels?id=eq.${retour.voisin.id}`, {
+    sort_order: retour.voisin.sort_order,
+  });
+  verifie("… et le chemin inverse la rend au premier", verdict(await deuxCanaux()) === ads.id);
+
+  verifie(
+    "l'échange n'a touché que ces deux canaux",
+    (await srv("GET", `radar_channels?select=id&organization_id=eq.${orgV.id}&sort_order=lt.100`))
+      .data.length === 2,
+  );
+
   // ------------------------ La purge de l'identité -------------------------
-  console.log("\n== 13. L'oubli de l'identité ==");
+  console.log("\n== 14. L'oubli de l'identité ==");
 
   const vieuxSansVente = await rdvV({
     scheduled_start: jours(-220), scheduled_end: jours(-220),

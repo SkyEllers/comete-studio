@@ -10,10 +10,12 @@ import {
   corrigerCanal,
   corrigerStatut,
   deconnecterCalendly,
+  deplacerCanal,
   enregistrerCanal,
   enregistrerReglages,
   testerCalendly,
 } from "@/app/admin/clients/[id]/radar/actions";
+import { Reordonner } from "@/components/admin/reordonner";
 import { FieldError, hasFieldError } from "@/components/app/field-error";
 import {
   AlertDialog,
@@ -296,9 +298,14 @@ export type CanalAdmin = {
 export function CanalForm({
   organizationId,
   canal,
+  premier,
+  dernier,
 }: {
   organizationId: string;
   canal: CanalAdmin;
+  /** Aux extrémités, la flèche correspondante n'a rien à proposer. */
+  premier: boolean;
+  dernier: boolean;
 }) {
   const [state, formAction, pending] = useActionState(enregistrerCanal, null);
   const router = useRouter();
@@ -351,23 +358,20 @@ export function CanalForm({
           Actif
         </label>
 
-        <div className="flex items-center gap-2">
-          <Label htmlFor={`${canal.id}-ordre`} className="text-muted-foreground text-xs">
-            Ordre
-          </Label>
-          <Input
-            id={`${canal.id}-ordre`}
-            name="sortOrder"
-            type="number"
-            min="0"
-            defaultValue={canal.sort_order}
-            className="h-8 w-20"
-          />
-        </div>
-
         <Button type="submit" size="sm" variant="outline" disabled={pending} className="ml-auto">
           {pending ? "…" : "Enregistrer"}
         </Button>
+
+        {/* En bout de ligne : l'ordre d'interrogation du moteur d'attribution.
+            Google Ads doit passer avant SEO, sinon `google/cpc` tombe dans le
+            référencement naturel — ces deux flèches décident donc à qui seront
+            attribuées les prochaines réservations. */}
+        <Reordonner
+          deplacer={deplacerCanal.bind(null, organizationId, canal.id)}
+          premier={premier}
+          dernier={dernier}
+          quoi={canal.label}
+        />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
+import { echanger } from "@/lib/reordonner";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createExternalToolSchema,
@@ -28,7 +29,6 @@ export async function updateTool(
     toolId: formData.get("toolId"),
     name: formData.get("name"),
     description: formData.get("description") ?? "",
-    sortOrder: formData.get("sortOrder"),
   });
   if (!parsed.success) return failFromZod(parsed.error);
 
@@ -38,11 +38,65 @@ export async function updateTool(
     .update({
       name: parsed.data.name,
       description: parsed.data.description,
-      sort_order: parsed.data.sortOrder,
     })
     .eq("id", parsed.data.toolId);
 
   if (error) return fail("Impossible de modifier cet outil pour le moment.");
+
+  refresh();
+  return ok();
+}
+
+/**
+ * Monter ou descendre un outil d'un cran dans le catalogue.
+ *
+ * C'est l'ordre dans lequel le client voit ses outils sur sa page d'accueil.
+ * Il se réglait en tapant un entier ; il se règle aux flèches, et `sort_order`
+ * ne se saisit plus nulle part.
+ *
+ * Deux écritures, et une compensation si la seconde échoue : PostgREST n'ouvre
+ * pas de transaction, et une inversion à moitié faite laisserait le catalogue
+ * dans un ordre que personne n'a demandé.
+ */
+export async function deplacerOutil(
+  toolId: string,
+  sens: "haut" | "bas",
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = z
+    .object({
+      toolId: z.uuid({ error: "Outil introuvable." }),
+      sens: z.enum(["haut", "bas"], { error: "Direction inconnue." }),
+    })
+    .safeParse({ toolId, sens });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createAdminClient();
+  const { data: outils } = await supabase.from("tools").select("id, sort_order");
+
+  const echange = echanger(outils ?? [], parsed.data.toolId, parsed.data.sens);
+  if (!echange) return ok();
+
+  const premier = await supabase
+    .from("tools")
+    .update({ sort_order: echange.bouge.sort_order })
+    .eq("id", echange.bouge.id);
+
+  if (premier.error) return fail("Impossible de déplacer cet outil pour le moment.");
+
+  const second = await supabase
+    .from("tools")
+    .update({ sort_order: echange.voisin.sort_order })
+    .eq("id", echange.voisin.id);
+
+  if (second.error) {
+    const ancienne = (outils ?? []).find((o) => o.id === echange.bouge.id)?.sort_order;
+    if (ancienne !== undefined) {
+      await supabase.from("tools").update({ sort_order: ancienne }).eq("id", echange.bouge.id);
+    }
+    return fail("Impossible de déplacer cet outil pour le moment.");
+  }
 
   refresh();
   return ok();

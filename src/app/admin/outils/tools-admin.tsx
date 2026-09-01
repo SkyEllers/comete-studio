@@ -71,12 +71,10 @@ export function EditToolDialog({
   toolId,
   name,
   description,
-  sortOrder,
 }: {
   toolId: string;
   name: string;
   description: string;
-  sortOrder: number;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -138,25 +136,6 @@ export function EditToolDialog({
               aria-invalid={hasFieldError(state, "description")}
             />
             <FieldError state={state} field="description" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor={`sortOrder-${toolId}`}>Ordre d&apos;affichage</Label>
-            <Input
-              id={`sortOrder-${toolId}`}
-              name="sortOrder"
-              type="number"
-              min={0}
-              max={9999}
-              required
-              defaultValue={sortOrder}
-              className="max-w-28 font-mono"
-              aria-invalid={hasFieldError(state, "sortOrder")}
-            />
-            <p className="text-muted-foreground text-xs">
-              Du plus petit au plus grand, dans l&apos;espace client.
-            </p>
-            <FieldError state={state} field="sortOrder" />
           </div>
 
           <FieldError state={state} />
