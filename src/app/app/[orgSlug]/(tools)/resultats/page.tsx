@@ -21,6 +21,7 @@ import { requireMembership } from "@/lib/access";
 import { montant } from "@/tools/resultats/format";
 import { libelleMois, moisDemande, moisPrecedent } from "@/tools/resultats/mois";
 import {
+  aVendre,
   aVerifier,
   bilan,
   getBilanPrecedent,
@@ -29,6 +30,8 @@ import {
   getReglages,
   getReleve,
   getRendezVous,
+  getVentesDuMois,
+  getVentesRefusees,
   parCanal,
 } from "@/tools/resultats/queries";
 import { AVerifier } from "@/tools/resultats/rendez-vous-client";
@@ -72,15 +75,49 @@ async function TableauDeBord({
     getMoisConnus(organizationId),
   ]);
 
-  const [courant, precedentBilan, releve] = await Promise.all([
-    Promise.resolve(bilan(lignes, reglages.commission_rate, reglages.currency)),
-    getBilanPrecedent(organizationId, mois, reglages.commission_rate, reglages.currency),
+  const surLesVentes = reglages.commission_basis === "ventes";
+
+  /*
+   * En mode « ventes », l'argent du mois ne se lit pas sur les séances du mois :
+   * une vente appartient au mois où elle a été conclue. D'où cette seconde
+   * requête, qui ne sert qu'à ce mode — les compteurs de séances, eux,
+   * continuent de parler de l'agenda.
+   */
+  const [ventesDuMois, refusees, precedentBilan, releve] = await Promise.all([
+    surLesVentes ? getVentesDuMois(organizationId, mois) : Promise.resolve(undefined),
+    surLesVentes
+      ? getVentesRefusees(lignes.map((ligne) => ligne.id))
+      : Promise.resolve(new Set<string>()),
+    getBilanPrecedent(
+      organizationId,
+      mois,
+      reglages.commission_rate,
+      reglages.currency,
+      reglages.commission_basis,
+    ),
     getReleve(organizationId, mois),
   ]);
 
+  const courant = bilan(lignes, reglages.commission_rate, reglages.currency, ventesDuMois);
+
   const avant = moisPrecedent(mois);
-  const aRegarder = aVerifier(lignes);
   const parts = parCanal(lignes, canaux);
+
+  /*
+   * Les deux questions du bloc « À vérifier », réunies en une liste.
+   *
+   * « Cette séance a-t-elle eu lieu ? » vaut dans les deux modes. « A-t-elle
+   * vendu ? » ne vaut qu'en mode `ventes`, et sur une fenêtre plus large. Une
+   * même séance peut relever des deux : elle apparaît une fois, avec les deux
+   * boutons, plutôt que deux fois dans deux listes.
+   */
+  const aRegarder = surLesVentes
+    ? [
+        ...new Map(
+          [...aVerifier(lignes), ...aVendre(lignes, refusees)].map((rdv) => [rdv.id, rdv]),
+        ).values(),
+      ].sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start))
+    : aVerifier(lignes);
 
   return (
     <>
@@ -123,7 +160,7 @@ async function TableauDeBord({
             />
             <Tuile
               icon={Wallet}
-              label="Apporté par Comète"
+              label={surLesVentes ? "Ventes du mois" : "Apporté par Comète"}
               valeur={montant(courant.chiffreAffaires, courant.devise)}
               comparaison={comparerMontant(
                 courant.chiffreAffaires,
@@ -160,7 +197,11 @@ async function TableauDeBord({
 
             <p className="text-muted-foreground mt-2 text-sm">
               {releve
-                ? `${Number(releve.commission_rate)} % de ${montant(releve.base_cents, courant.devise)} de séances honorées et payées, venues des canaux Comète.`
+                ? `${Number(releve.commission_rate)} % de ${montant(releve.base_cents, courant.devise)} ${
+                    surLesVentes
+                      ? "de ventes déclarées, sur des rendez-vous venus des canaux Comète."
+                      : "de séances honorées et payées, venues des canaux Comète."
+                  }`
                 : `${reglages.commission_rate} % de ${montant(courant.chiffreAffaires, courant.devise)}. Ce chiffre bouge encore : il se fige quand Louis clôture le mois.`}
             </p>
 
@@ -178,11 +219,17 @@ async function TableauDeBord({
               <div>
                 <h2 className="text-sm">À vérifier</h2>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  Ces séances sont passées et comptent comme honorées. Si l&apos;une
-                  d&apos;elles ne s&apos;est pas tenue, dis-le maintenant.
+                  {surLesVentes
+                    ? "Ces séances sont passées et comptent comme honorées. Dis si l'une d'elles ne s'est pas tenue, et si elle a débouché sur une vente."
+                    : "Ces séances sont passées et comptent comme honorées. Si l'une d'elles ne s'est pas tenue, dis-le maintenant."}
                 </p>
               </div>
-              <AVerifier orgSlug={orgSlug} lignes={aRegarder} canaux={canaux} />
+              <AVerifier
+                orgSlug={orgSlug}
+                lignes={aRegarder}
+                canaux={canaux}
+                demanderLaVente={surLesVentes}
+              />
             </section>
           ) : null}
 

@@ -1715,6 +1715,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      radar_decline_sale: { Args: { booking_id: string }; Returns: boolean }
       radar_get_secret: { Args: { kind: string; org: string }; Returns: string }
       radar_mois: { Args: { quand: string }; Returns: string }
       radar_purger_identite: {

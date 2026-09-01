@@ -39,6 +39,11 @@ const STATUTS = [
   { valeur: "annule", libelle: "Annulés" },
 ];
 
+const VENTES = [
+  { valeur: "avec", libelle: "Avec vente" },
+  { valeur: "sans", libelle: "Sans vente" },
+];
+
 const seul = (valeur: string | string[] | undefined) =>
   Array.isArray(valeur) ? valeur[0] : valeur;
 
@@ -90,6 +95,7 @@ async function Liste({
   mois,
   canalFiltre,
   statutFiltre,
+  venteFiltre,
   recherche,
 }: {
   organizationId: string;
@@ -97,6 +103,7 @@ async function Liste({
   mois: string;
   canalFiltre?: string;
   statutFiltre?: string;
+  venteFiltre?: string;
   recherche: string | null;
 }) {
   const chemin = `/app/${orgSlug}/resultats/rendez-vous`;
@@ -124,7 +131,8 @@ async function Liste({
   const lignes = toutes.filter(
     (ligne) =>
       (!canalFiltre || ligne.channel_id === canalFiltre) &&
-      (!statutFiltre || ligne.effective_status === statutFiltre),
+      (!statutFiltre || ligne.effective_status === statutFiltre) &&
+      (!venteFiltre || (venteFiltre === "avec" ? ligne.has_sale : !ligne.has_sale)),
   );
 
   const [activites, sources] = await Promise.all([
@@ -151,8 +159,11 @@ async function Liste({
   const lien = (parametres: Record<string, string | undefined>) =>
     adresse(recherche ? { q: recherche } : { mois }, parametres);
 
+  /** Les filtres en cours, que chaque autre lien doit conserver. */
+  const filtres = { canal: canalFiltre, statut: statutFiltre, vente: venteFiltre };
+
   /** Quitter la recherche, en gardant les filtres et en revenant au mois. */
-  const sansRecherche = adresse({ mois }, { canal: canalFiltre, statut: statutFiltre });
+  const sansRecherche = adresse({ mois }, filtres);
 
   return (
     <>
@@ -160,9 +171,7 @@ async function Liste({
         <SelecteurMois
           mois={mois}
           choix={moisAOffrir(moisConnus)}
-          href={(valeur) =>
-            `${chemin}?mois=${valeur}${canalFiltre ? `&canal=${canalFiltre}` : ""}${statutFiltre ? `&statut=${statutFiltre}` : ""}`
-          }
+          href={(valeur) => adresse({ mois: valeur }, filtres)}
         />
       )}
 
@@ -170,7 +179,7 @@ async function Liste({
         <ChercherNom
           action={chemin}
           valeur={recherche ?? undefined}
-          caches={{ canal: canalFiltre, statut: statutFiltre }}
+          caches={filtres}
           effacer={recherche ? sansRecherche : undefined}
         />
 
@@ -188,13 +197,19 @@ async function Liste({
             tout="Tous les canaux"
             actif={canalFiltre}
             choix={canaux.map((canal) => ({ valeur: canal.id, libelle: canal.label }))}
-            base={(valeur) => lien({ canal: valeur, statut: statutFiltre })}
+            base={(valeur) => lien({ ...filtres, canal: valeur })}
           />
           <Filtres
             tout="Tous les statuts"
             actif={statutFiltre}
             choix={STATUTS}
-            base={(valeur) => lien({ canal: canalFiltre, statut: valeur })}
+            base={(valeur) => lien({ ...filtres, statut: valeur })}
+          />
+          <Filtres
+            tout="Avec ou sans vente"
+            actif={venteFiltre}
+            choix={VENTES}
+            base={(valeur) => lien({ ...filtres, vente: valeur })}
           />
         </div>
       </div>
@@ -230,9 +245,10 @@ export default async function RendezVousPage({
   searchParams,
 }: PageProps<"/app/[orgSlug]/resultats/rendez-vous">) {
   const { orgSlug } = await params;
-  const { mois, canal, statut, q } = await searchParams;
+  const { mois, canal, statut, vente, q } = await searchParams;
   const { org } = await requireMembership(orgSlug);
   const recherche = nettoyerRecherche(seul(q));
+  const venteFiltre = seul(vente) === "avec" || seul(vente) === "sans" ? seul(vente) : undefined;
 
   return (
     <>
@@ -250,7 +266,7 @@ export default async function RendezVousPage({
       />
 
       <Suspense
-        key={`${seul(mois) ?? ""}|${seul(canal) ?? ""}|${seul(statut) ?? ""}|${recherche ?? ""}`}
+        key={`${seul(mois) ?? ""}|${seul(canal) ?? ""}|${seul(statut) ?? ""}|${venteFiltre ?? ""}|${recherche ?? ""}`}
         fallback={<TableSkeleton rows={4} />}
       >
         <Liste
@@ -259,6 +275,7 @@ export default async function RendezVousPage({
           mois={moisDemande(mois)}
           canalFiltre={seul(canal)}
           statutFiltre={seul(statut)}
+          venteFiltre={venteFiltre}
           recherche={recherche}
         />
       </Suspense>

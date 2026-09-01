@@ -45,12 +45,20 @@ export type RendezVous = {
   rescheduled_from: string | null;
   attribution_source_id: string | null;
   mois: string;
+  /** Nuls tant qu'aucune vente n'est déclarée ; jamais l'un sans l'autre. */
+  sale_amount_cents: number | null;
+  sale_date: string | null;
+  sale_note: string | null;
+  has_sale: boolean;
+  commission_basis: "encaissement" | "ventes";
+  /** Le mois qui facturera cette ligne. Nul en mode « ventes » sans vente. */
+  commission_month: string | null;
 };
 
 export type Canal = { id: string; label: string; is_comete: boolean };
 
 const COLONNES =
-  "id, scheduled_start, scheduled_end, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, mois";
+  "id, scheduled_start, scheduled_end, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, mois, sale_amount_cents, sale_date, sale_note, has_sale, commission_basis, commission_month";
 
 export async function getCanaux(organizationId: string): Promise<Canal[]> {
   const supabase = await createClient();
@@ -123,6 +131,56 @@ export async function chercherRendezVous(
 }
 
 /**
+ * Les ventes d'un mois — celles dont la *date de vente* tombe dedans.
+ *
+ * C'est la décision 5 de la phase 7, en une requête : un diagnostic du 28 août
+ * vendu le 3 septembre est une vente de septembre. Elle ne se confond donc pas
+ * avec `getRendezVous`, qui range les séances par leur propre mois, et les
+ * deux cohabitent sur le même tableau de bord — les séances d'un côté,
+ * l'argent de l'autre.
+ *
+ * Sans effet en mode `encaissement`, où `commission_month` vaut le mois de la
+ * séance : l'appelant ne s'en sert qu'en mode `ventes`.
+ */
+export async function getVentesDuMois(
+  organizationId: string,
+  mois: string,
+): Promise<RendezVous[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("radar_bookings_effective")
+    .select(COLONNES)
+    .eq("organization_id", organizationId)
+    .eq("commission_month", mois)
+    .not("sale_amount_cents", "is", null)
+    .order("sale_date", { ascending: false })
+    .limit(PLAFOND);
+
+  return (data ?? []) as RendezVous[];
+}
+
+/**
+ * Les rendez-vous dont quelqu'un a déjà dit « pas de vente ».
+ *
+ * La décision ne touche aucune colonne — elle vit dans les activités — parce
+ * qu'un montant nul serait une vente à zéro euro, pas une absence de vente.
+ * On la relit donc là où elle est écrite.
+ */
+export async function getVentesRefusees(bookingIds: string[]): Promise<Set<string>> {
+  if (bookingIds.length === 0) return new Set();
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("radar_booking_activities")
+    .select("booking_id")
+    .in("booking_id", bookingIds)
+    .eq("type", "sale.declined")
+    .limit(1000);
+
+  return new Set((data ?? []).map((ligne) => ligne.booking_id));
+}
+
+/**
  * Les mois dont le relevé est clôturé.
  *
  * La liste d'un mois n'en avait besoin que d'un ; une recherche traverse les
@@ -155,9 +213,25 @@ export type Bilan = {
  * ce sont deux façons pour une séance de ne pas avoir eu lieu, et les séparer
  * en deux tuiles ferait deux petits chiffres au lieu d'un qui parle.
  */
-export function bilan(lignes: RendezVous[], taux: number, devise: string): Bilan {
-  const comptees = lignes.filter((ligne) => ligne.counts_for_commission);
-  const chiffreAffaires = comptees.reduce((total, ligne) => total + ligne.amount_cents, 0);
+export function bilan(
+  lignes: RendezVous[],
+  taux: number,
+  devise: string,
+  /**
+   * En mode « ventes » : les rendez-vous dont la vente tombe ce mois-ci. Les
+   * compteurs de séances restent ceux de `lignes` — ils parlent d'un agenda —
+   * mais la base de commission vient d'ici, parce qu'une vente appartient au
+   * mois où elle a été conclue et non à celui de la séance qui l'a amenée.
+   */
+  ventes?: RendezVous[],
+): Bilan {
+  const chiffreAffaires = ventes
+    ? ventes
+        .filter((ligne) => ligne.counts_for_commission)
+        .reduce((total, ligne) => total + (ligne.sale_amount_cents ?? 0), 0)
+    : lignes
+        .filter((ligne) => ligne.counts_for_commission)
+        .reduce((total, ligne) => total + ligne.amount_cents, 0);
 
   return {
     rendezVous: lignes.length,
@@ -228,19 +302,52 @@ export function aVerifier(lignes: RendezVous[]): RendezVous[] {
     .sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start));
 }
 
+/**
+ * Les séances honorées récentes dont on ne sait pas encore si elles ont vendu.
+ *
+ * Uniquement en mode `ventes`, où c'est la question qui décide de la
+ * commission : une séance honorée sans réponse est un trou dans le relevé du
+ * mois. Quatorze jours plutôt que sept — une vente se conclut souvent dans les
+ * jours qui suivent le rendez-vous, et demander trop tôt ferait répondre
+ * « non » à quelqu'un qui n'a pas encore fini d'en parler.
+ *
+ * « Sans décision » compte autant que « sans vente » : un « pas de vente » est
+ * une réponse, et une réponse ne se redemande pas.
+ */
+export function aVendre(
+  lignes: RendezVous[],
+  refusees: Set<string>,
+): RendezVous[] {
+  const ilYADeuxSemaines = Date.now() - 14 * 86_400_000;
+
+  return lignes
+    .filter(
+      (ligne) =>
+        ligne.effective_status === "honore" &&
+        !ligne.has_sale &&
+        !refusees.has(ligne.id) &&
+        Date.parse(ligne.scheduled_end) < Date.now() &&
+        Date.parse(ligne.scheduled_end) > ilYADeuxSemaines,
+    )
+    .sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start));
+}
+
 export type Reglages = {
   commission_rate: number;
   window_days: number;
   currency: string;
   connected_at: string | null;
   last_webhook_at: string | null;
+  commission_basis: "encaissement" | "ventes";
 };
 
 export async function getReglages(organizationId: string): Promise<Reglages> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("radar_settings")
-    .select("commission_rate, window_days, currency, connected_at, last_webhook_at")
+    .select(
+      "commission_rate, window_days, currency, connected_at, last_webhook_at, commission_basis",
+    )
     .eq("organization_id", organizationId)
     .maybeSingle();
 
@@ -250,6 +357,9 @@ export async function getReglages(organizationId: string): Promise<Reglages> {
     currency: data?.currency ?? "EUR",
     connected_at: data?.connected_at ?? null,
     last_webhook_at: data?.last_webhook_at ?? null,
+    // Le défaut suit celui de la base : un client sans ligne de réglages est
+    // en `encaissement`, comme tous ceux d'avant la phase 7.
+    commission_basis: data?.commission_basis ?? "encaissement",
   };
 }
 
@@ -344,7 +454,14 @@ export async function getBilanPrecedent(
   mois: string,
   taux: number,
   devise: string,
+  /** Le mode du client : en « ventes », la base du mois d'avant vient des ventes. */
+  base: "encaissement" | "ventes" = "encaissement",
 ): Promise<Bilan> {
-  const lignes = await getRendezVous(organizationId, moisPrecedent(mois));
-  return bilan(lignes, taux, devise);
+  const avant = moisPrecedent(mois);
+  const [lignes, ventes] = await Promise.all([
+    getRendezVous(organizationId, avant),
+    base === "ventes" ? getVentesDuMois(organizationId, avant) : Promise.resolve(undefined),
+  ]);
+
+  return bilan(lignes, taux, devise, ventes);
 }

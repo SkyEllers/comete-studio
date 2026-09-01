@@ -1,11 +1,15 @@
 "use client";
 
-import { CalendarX2, Check, Undo2, UserX } from "lucide-react";
+import { BadgeEuro, CalendarX2, Check, Pencil, Undo2, UserX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { marquerStatut } from "@/app/app/[orgSlug]/(tools)/resultats/actions";
+import {
+  declarerVente,
+  marquerStatut,
+  refuserVente,
+} from "@/app/app/[orgSlug]/(tools)/resultats/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,8 +21,17 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-import { dateHeure, heure, jour, montant, nomComplet, statutLisible } from "./format";
+import {
+  dateHeure,
+  heure,
+  jour,
+  moisDeLaVente,
+  montant,
+  nomComplet,
+  statutLisible,
+} from "./format";
 import type { Canal, RendezVous } from "./queries";
+import { FormulaireVente, ResumeVente, RetirerVente, type Vente } from "./vente";
 
 /**
  * La liste des rendez-vous et la fiche qui s'ouvre dessous.
@@ -44,6 +57,10 @@ const LIBELLES_ACTIVITE: Record<string, string> = {
   "booking.canceled": "Annulé dans Calendly",
   "status.changed": "Statut modifié",
   "channel.changed": "Canal corrigé",
+  "sale.recorded": "Vente déclarée",
+  "sale.updated": "Vente corrigée",
+  "sale.removed": "Vente retirée",
+  "sale.declined": "Pas de vente",
 };
 
 /**
@@ -120,6 +137,23 @@ export function ListeRendezVous({
       router.refresh();
     });
 
+  /** Déclarer, corriger, ou — avec `null` — retirer. */
+  const enregistrerVente = (bookingId: string, vente: Vente | null) =>
+    startTransition(async () => {
+      const resultat = await declarerVente(
+        orgSlug,
+        vente
+          ? { bookingId, montant: vente.montant, date: vente.date, note: vente.note }
+          : { bookingId },
+      );
+      if (!resultat.ok) {
+        toast.error(resultat.error);
+        return;
+      }
+      toast.success(vente ? "Vente enregistrée" : "Vente retirée");
+      router.refresh();
+    });
+
   // Groupées par jour : c'est ainsi qu'on se souvient d'une semaine.
   const parJour = new Map<string, RendezVous[]>();
   for (const rdv of rendezVous) {
@@ -172,6 +206,11 @@ export function ListeRendezVous({
                           <Badge variant={canal?.is_comete ? "default" : "outline"}>
                             {canal?.label ?? "Sans canal"}
                           </Badge>
+                          {rdv.has_sale ? (
+                            <Badge variant="outline" className="border-success text-success">
+                              Vente
+                            </Badge>
+                          ) : null}
                           {declareDiverge ? (
                             <span className="text-muted-foreground text-xs">
                               déclaré : {rdv.declared_source}
@@ -213,9 +252,10 @@ export function ListeRendezVous({
               canal={choisi.channel_id ? (parCanal.get(choisi.channel_id) ?? null) : null}
               activites={activites[choisi.id] ?? []}
               sources={sources}
-              moisCloture={moisClotures.includes(choisi.mois)}
+              moisClotures={moisClotures}
               enCours={enCours}
               onChanger={changer}
+              onVente={enregistrerVente}
             />
           ) : null}
         </SheetContent>
@@ -238,20 +278,40 @@ function FicheRendezVous({
   canal,
   activites,
   sources,
-  moisCloture,
+  moisClotures,
   enCours,
   onChanger,
+  onVente,
 }: {
   rdv: RendezVous;
   canal: Canal | null;
   activites: Activite[];
   sources: Map<string, string>;
-  moisCloture: boolean;
+  moisClotures: string[];
   enCours: boolean;
   onChanger: (bookingId: string, statut: string) => void;
+  onVente: (bookingId: string, vente: Vente | null) => void;
 }) {
+  const [saisie, setSaisie] = useState(false);
+
   const modifiable = rdv.status !== "honore";
   const nom = nomComplet(rdv.invitee_first_name, rdv.invitee_last_name);
+  const moisCloture = moisClotures.includes(rdv.mois);
+
+  /*
+   * Une vente se déclare sur une séance qui a eu lieu, ou qui va avoir lieu :
+   * on vend parfois avant de recevoir. Sur une séance annulée ou non venue,
+   * jamais — c'est la règle que `radar_set_sale` fait respecter en base.
+   */
+  const vendable = rdv.status !== "annule" && rdv.status !== "no_show";
+
+  /*
+   * Une vente se fige avec le relevé de *son* mois, pas de celui de la séance.
+   * Un diagnostic de juillet vendu en septembre reste modifiable tant que
+   * septembre est ouvert, même si juillet est clôturé depuis longtemps.
+   */
+  const venteFigee =
+    rdv.sale_date !== null && moisClotures.includes(moisDeLaVente(rdv.sale_date));
 
   return (
     <>
@@ -268,6 +328,60 @@ function FicheRendezVous({
       <div className="space-y-6 px-4 pb-6">
         {nom === null ? (
           <p className="text-muted-foreground text-xs">{AVANT_IDENTITE}</p>
+        ) : null}
+
+        {/* La vente en tête de fiche : c'est l'information qui a changé la
+            journée de quelqu'un, elle passe avant le détail de l'attribution. */}
+        {rdv.has_sale ? (
+          <section className="border-success/40 bg-surface-2 space-y-3 rounded-lg border p-3">
+            <ResumeVente rdv={rdv} className="text-sm" />
+
+            {venteFigee ? (
+              <p className="text-muted-foreground text-xs">
+                Le relevé du mois de cette vente est clôturé : elle ne change plus.
+              </p>
+            ) : saisie ? (
+              <FormulaireVente
+                rdv={rdv}
+                enCours={enCours}
+                onEnregistrer={(vente) => {
+                  onVente(rdv.id, vente);
+                  setSaisie(false);
+                }}
+                onAnnuler={() => setSaisie(false)}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={enCours}
+                  onClick={() => setSaisie(true)}
+                >
+                  <Pencil aria-hidden="true" />
+                  Modifier
+                </Button>
+                <RetirerVente enCours={enCours} onRetirer={() => onVente(rdv.id, null)} />
+              </div>
+            )}
+          </section>
+        ) : vendable && !moisCloture ? (
+          saisie ? (
+            <FormulaireVente
+              rdv={rdv}
+              enCours={enCours}
+              onEnregistrer={(vente) => {
+                onVente(rdv.id, vente);
+                setSaisie(false);
+              }}
+              onAnnuler={() => setSaisie(false)}
+            />
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setSaisie(true)}>
+              <BadgeEuro aria-hidden="true" />
+              Vente conclue
+            </Button>
+          )
         ) : null}
 
         <dl className="divide-line divide-y">
@@ -301,43 +415,56 @@ function FicheRendezVous({
             et le re-clôturera.
           </p>
         ) : modifiable ? (
-          <div className="flex flex-wrap gap-2">
-            {rdv.status !== "no_show" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={enCours}
-                onClick={() => onChanger(rdv.id, "no_show")}
-              >
-                <UserX aria-hidden="true" />
-                Elle n&apos;est pas venue
-              </Button>
-            ) : null}
+          /*
+           * Une séance vendue ne s'annule pas d'un geste : la vente resterait
+           * derrière, facturable, accrochée à un rendez-vous qui n'a pas eu
+           * lieu. `radar_client_set_status` refuse en base ; ici on retire les
+           * boutons et on dit pourquoi, plutôt que de les laisser échouer.
+           */
+          rdv.has_sale ? (
+            <p className="border-line text-muted-foreground rounded-lg border border-dashed p-3 text-sm">
+              Cette séance porte une vente. Pour la marquer annulée ou non venue,
+              retire d&apos;abord la vente.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {rdv.status !== "no_show" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={enCours}
+                  onClick={() => onChanger(rdv.id, "no_show")}
+                >
+                  <UserX aria-hidden="true" />
+                  Elle n&apos;est pas venue
+                </Button>
+              ) : null}
 
-            {rdv.status !== "annule" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={enCours}
-                onClick={() => onChanger(rdv.id, "annule")}
-              >
-                <CalendarX2 aria-hidden="true" />
-                Annulée
-              </Button>
-            ) : null}
+              {rdv.status !== "annule" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={enCours}
+                  onClick={() => onChanger(rdv.id, "annule")}
+                >
+                  <CalendarX2 aria-hidden="true" />
+                  Annulée
+                </Button>
+              ) : null}
 
-            {rdv.status !== "confirme" ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={enCours}
-                onClick={() => onChanger(rdv.id, "confirme")}
-              >
-                <Undo2 aria-hidden="true" />
-                Rétablir
-              </Button>
-            ) : null}
-          </div>
+              {rdv.status !== "confirme" ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={enCours}
+                  onClick={() => onChanger(rdv.id, "confirme")}
+                >
+                  <Undo2 aria-hidden="true" />
+                  Rétablir
+                </Button>
+              ) : null}
+            </div>
+          )
         ) : null}
 
         {activites.length > 0 ? (
@@ -379,12 +506,20 @@ export function AVerifier({
   orgSlug,
   lignes,
   canaux,
+  /**
+   * En mode « ventes », chaque ligne pose une question de plus : « et
+   * celle-là, elle a vendu ? ». On y répond ici, sans changer de page — la
+   * réponse est la moitié du relevé du mois.
+   */
+  demanderLaVente = false,
 }: {
   orgSlug: string;
   lignes: RendezVous[];
   canaux: Canal[];
+  demanderLaVente?: boolean;
 }) {
   const [enCours, startTransition] = useTransition();
+  const [saisie, setSaisie] = useState<string | null>(null);
   const router = useRouter();
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
 
@@ -399,10 +534,39 @@ export function AVerifier({
       router.refresh();
     });
 
+  const vendre = (bookingId: string, vente: Vente) =>
+    startTransition(async () => {
+      const resultat = await declarerVente(orgSlug, {
+        bookingId,
+        montant: vente.montant,
+        date: vente.date,
+        note: vente.note,
+      });
+      if (!resultat.ok) {
+        toast.error(resultat.error);
+        return;
+      }
+      toast.success("Vente enregistrée");
+      setSaisie(null);
+      router.refresh();
+    });
+
+  const refuser = (bookingId: string) =>
+    startTransition(async () => {
+      const resultat = await refuserVente(orgSlug, { bookingId });
+      if (!resultat.ok) {
+        toast.error(resultat.error);
+        return;
+      }
+      toast.success("C'est noté");
+      router.refresh();
+    });
+
   return (
     <ul className="border-line divide-line divide-y overflow-hidden rounded-lg border">
       {lignes.map((rdv) => (
-        <li key={rdv.id} className="flex items-center gap-3 p-3">
+        <li key={rdv.id} className="p-3">
+          <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             {/* « Camille D. — mardi 14:00 — Non venue ? » : sans le nom, ce
                 bloc demandait de décider du sort d'une séance sans savoir de
@@ -425,15 +589,60 @@ export function AVerifier({
               {parCanal.get(rdv.channel_id ?? "")?.label ?? "Sans canal"}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={enCours}
-            onClick={() => marquer(rdv.id)}
-          >
-            <UserX aria-hidden="true" />
-            Non venue
-          </Button>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {/* Une séance vendue n'a plus de question en attente : ni « a-t-elle
+                  eu lieu ? » — une vente le dit — ni « a-t-elle vendu ? ». La
+                  ligne montre alors sa réponse plutôt que des boutons éteints. */}
+              {rdv.has_sale ? (
+                <ResumeVente rdv={rdv} className="text-success text-xs" />
+              ) : null}
+
+              {rdv.has_sale ? null : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={enCours}
+                  onClick={() => marquer(rdv.id)}
+                >
+                  <UserX aria-hidden="true" />
+                  Non venue
+                </Button>
+              )}
+
+              {demanderLaVente && !rdv.has_sale ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={enCours}
+                    onClick={() => setSaisie(saisie === rdv.id ? null : rdv.id)}
+                  >
+                    <BadgeEuro aria-hidden="true" />
+                    Vente conclue
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={enCours}
+                    onClick={() => refuser(rdv.id)}
+                  >
+                    Pas de vente
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {saisie === rdv.id ? (
+            <div className="mt-3">
+              <FormulaireVente
+                rdv={rdv}
+                enCours={enCours}
+                onEnregistrer={(vente) => vendre(rdv.id, vente)}
+                onAnnuler={() => setSaisie(null)}
+              />
+            </div>
+          ) : null}
         </li>
       ))}
     </ul>
