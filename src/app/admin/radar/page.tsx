@@ -53,15 +53,31 @@ async function Tableau() {
   const supabase = await createClient();
   const mois = moisCourant();
 
-  const [reglages, clients, brouillons, releves, sondes] = await Promise.all([
+  const [reglages, clients, brouillons, ventes, releves, sondes] = await Promise.all([
     supabase
       .from("radar_settings")
-      .select("organization_id, commission_rate, currency, connected_at, last_webhook_at"),
+      .select(
+        "organization_id, commission_rate, currency, connected_at, last_webhook_at, commission_basis",
+      ),
     supabase.from("organizations").select("id, name, slug"),
+    /*
+     * Deux lectures là où il y en avait une, parce que le brouillon ne se lit
+     * pas au même endroit selon le mode. En `encaissement` il vient des
+     * séances du mois ; en `ventes`, des ventes dont la date tombe dans le
+     * mois — et leurs séances peuvent être d'avant. Les deux requêtes sont
+     * lancées pour tout le monde et triées ensuite par client : une par
+     * client coûterait un aller-retour par ligne du tableau.
+     */
     supabase
       .from("radar_bookings_effective")
       .select("organization_id, counts_for_commission, amount_cents")
       .eq("mois", mois)
+      .limit(5000),
+    supabase
+      .from("radar_bookings_effective")
+      .select("organization_id, counts_for_commission, sale_amount_cents")
+      .eq("commission_month", mois)
+      .not("sale_amount_cents", "is", null)
       .limit(5000),
     supabase
       .from("radar_statements")
@@ -79,18 +95,29 @@ async function Tableau() {
       const org = parClient.get(reglage.organization_id);
       if (!org) return null;
 
-      const base = (brouillons.data ?? [])
-        .filter(
-          (ligne) =>
-            ligne.organization_id === reglage.organization_id &&
-            ligne.counts_for_commission,
-        )
-        .reduce((total, ligne) => total + (ligne.amount_cents ?? 0), 0);
+      const surLesVentes = (reglage.commission_basis ?? "encaissement") === "ventes";
+
+      const base = surLesVentes
+        ? (ventes.data ?? [])
+            .filter(
+              (ligne) =>
+                ligne.organization_id === reglage.organization_id &&
+                ligne.counts_for_commission,
+            )
+            .reduce((total, ligne) => total + (ligne.sale_amount_cents ?? 0), 0)
+        : (brouillons.data ?? [])
+            .filter(
+              (ligne) =>
+                ligne.organization_id === reglage.organization_id &&
+                ligne.counts_for_commission,
+            )
+            .reduce((total, ligne) => total + (ligne.amount_cents ?? 0), 0);
 
       const taux = Number(reglage.commission_rate);
       return {
         org,
         devise: reglage.currency,
+        surLesVentes,
         connecte: Boolean(reglage.connected_at),
         dernierAppel: reglage.last_webhook_at,
         muet: silencieuxDepuis(reglage.last_webhook_at, SILENCE_ALERTE),
@@ -191,7 +218,12 @@ async function Tableau() {
 
                 <TableCell className="text-right font-mono text-sm tabular-nums">
                   {montant(ligne.brouillon, ligne.devise)}
-                  <span className="text-muted-foreground block text-xs">brouillon</span>
+                  {/* Le mode est écrit sous le chiffre : deux clients côte à
+                      côte peuvent facturer sur des bases différentes, et un
+                      montant sans sa règle ne se compare pas. */}
+                  <span className="text-muted-foreground block text-xs">
+                    brouillon · {ligne.surLesVentes ? "ventes" : "encaissement"}
+                  </span>
                 </TableCell>
 
                 <TableCell>

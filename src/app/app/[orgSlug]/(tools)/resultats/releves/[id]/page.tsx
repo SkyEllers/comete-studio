@@ -32,7 +32,7 @@ export default async function ReleveePage({
   const { data: releve } = await supabase
     .from("radar_statements")
     .select(
-      "id, month, status, base_cents, commission_cents, commission_rate, lines, closed_at, reviewed_at, review_comment, paid_at",
+      "id, month, status, base_cents, commission_cents, commission_rate, commission_basis, lines, closed_at, reviewed_at, review_comment, paid_at",
     )
     .eq("id", id)
     .eq("organization_id", org.id)
@@ -57,7 +57,11 @@ export default async function ReleveePage({
                 Tes relevés
               </Link>
             </Button>
-            <ExportCsv lignes={lignes} nom={`releve-${releve.month.slice(0, 7)}`} />
+            <ExportCsv
+              lignes={lignes}
+              nom={`releve-${releve.month.slice(0, 7)}`}
+              base={releve.commission_basis}
+            />
           </div>
         }
       />
@@ -71,9 +75,14 @@ export default async function ReleveePage({
         <p className="font-display mt-3 text-3xl font-semibold tabular-nums">
           {montant(releve.commission_cents, devise)}
         </p>
+        {/* La phrase suit la règle sous laquelle ce relevé a été clôturé, et
+            non celle d'aujourd'hui : le mode d'un client peut changer, un
+            relevé signé ne se relit pas autrement pour autant. */}
         <p className="text-muted-foreground mt-2 text-sm">
-          {Number(releve.commission_rate)} % de {montant(releve.base_cents, devise)} de
-          séances honorées, payées, et venues des canaux Comète.
+          {Number(releve.commission_rate)} % de {montant(releve.base_cents, devise)}{" "}
+          {releve.commission_basis === "ventes"
+            ? "de ventes que tu as déclarées, sur des rendez-vous venus des canaux Comète."
+            : "de séances honorées, payées, et venues des canaux Comète."}
           {releve.paid_at ? ` Payé le ${jour(releve.paid_at)}.` : ""}
         </p>
 
@@ -107,6 +116,15 @@ export default async function ReleveePage({
                 <p className="text-muted-foreground mt-1 font-mono text-xs">
                   {dateHeure(ligne.date)} · {ligne.canal}
                 </p>
+                {/* Une vente porte deux dates : celle de la séance, et celle
+                    du jour où elle a été conclue. Sans la seconde, le client
+                    chercherait dans l'agenda de ce mois-ci une séance qui n'y
+                    est pas. */}
+                {ligne.date_vente ? (
+                  <p className="text-success mt-1 font-mono text-xs">
+                    vente du {jour(ligne.date_vente)}
+                  </p>
+                ) : null}
                 {ligne.raison ? (
                   <p className="text-muted-foreground mt-1 text-xs">{ligne.raison}</p>
                 ) : null}

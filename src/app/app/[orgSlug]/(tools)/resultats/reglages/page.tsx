@@ -31,13 +31,35 @@ async function Reglages({ organizationId }: { organizationId: string }) {
     <div className="space-y-8">
       <section className="border-line bg-surface-1 space-y-4 rounded-lg border p-5">
         <h2 className="text-sm">Comment la commission se calcule</h2>
-        <p className="text-muted-foreground text-sm">
-          Comète est payé sur les séances qu&apos;il t&apos;apporte, jamais sur les
-          autres. Une séance entre dans le calcul si elle remplit les quatre
-          conditions à la fois : elle a eu lieu, elle a été payée, elle vient
-          d&apos;un canal Comète, et c&apos;est le mois de la séance qui compte —
-          pas celui de la réservation.
-        </p>
+
+        {/* Les deux règles, dites en français simple (décision 6 de la phase
+            7). Le client n'a pas à savoir qu'il existe un « mode » : il lit
+            celle qui le concerne, et rien d'autre. */}
+        {reglages.commission_basis === "ventes" ? (
+          <>
+            <p className="text-muted-foreground text-sm">
+              Comète est payé sur les <strong className="text-foreground font-medium">ventes
+              que tu déclares</strong>, jamais sur les rendez-vous eux-mêmes : tes
+              diagnostics sont offerts, et c&apos;est l&apos;accompagnement vendu
+              derrière qui compte. Une vente entre dans le calcul si le rendez-vous
+              qui l&apos;a amenée vient d&apos;un canal Comète et qu&apos;il a bien
+              eu lieu.
+            </p>
+            <p className="text-muted-foreground text-sm">
+              Une vente appartient au mois où tu l&apos;as conclue, pas à celui du
+              rendez-vous. Un diagnostic du 28 août vendu le 3 septembre est donc
+              facturé en septembre — et son relevé le dit, avec les deux dates.
+            </p>
+          </>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            Comète est payé sur les séances qu&apos;il t&apos;apporte, jamais sur les
+            autres. Une séance entre dans le calcul si elle remplit les quatre
+            conditions à la fois : elle a eu lieu, elle a été payée, elle vient
+            d&apos;un canal Comète, et c&apos;est le mois de la séance qui compte —
+            pas celui de la réservation.
+          </p>
+        )}
         <p className="text-muted-foreground text-sm">
           Quelqu&apos;un qui revient dans les {reglages.window_days} jours suivant
           sa séance précédente reste rattaché au canal qui l&apos;avait amené :

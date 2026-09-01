@@ -1197,10 +1197,53 @@ export type Database = {
           },
         ]
       }
+      radar_settings_log: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          payload: Json
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          payload?: Json
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          payload?: Json
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_settings_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_settings_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_statements: {
         Row: {
           base_cents: number
           closed_at: string
+          commission_basis: Database["public"]["Enums"]["radar_commission_basis"]
           commission_cents: number
           commission_rate: number
           id: string
@@ -1217,6 +1260,7 @@ export type Database = {
         Insert: {
           base_cents?: number
           closed_at?: string
+          commission_basis?: Database["public"]["Enums"]["radar_commission_basis"]
           commission_cents?: number
           commission_rate: number
           id?: string
@@ -1233,6 +1277,7 @@ export type Database = {
         Update: {
           base_cents?: number
           closed_at?: string
+          commission_basis?: Database["public"]["Enums"]["radar_commission_basis"]
           commission_cents?: number
           commission_rate?: number
           id?: string

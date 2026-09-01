@@ -164,11 +164,13 @@ export function ReglagesRadar({
   commissionRate,
   windowDays,
   currency,
+  commissionBasis,
 }: {
   organizationId: string;
   commissionRate: number;
   windowDays: number;
   currency: string;
+  commissionBasis: "encaissement" | "ventes";
 }) {
   const [state, formAction, pending] = useActionState(enregistrerReglages, null);
   const router = useRouter();
@@ -234,14 +236,40 @@ export function ReglagesRadar({
         />
       </div>
 
+      {/* La base de commission : le seul réglage qui change ce que le client
+          paie, et le seul qui refuse de bouger tant qu'un relevé traîne. */}
+      <div className="space-y-2">
+        <Label htmlFor="commission-basis">Base de commission</Label>
+        <select
+          id="commission-basis"
+          name="commissionBasis"
+          defaultValue={commissionBasis}
+          aria-invalid={hasFieldError(state, "commissionBasis")}
+          className="border-line bg-surface-2 focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-lg border px-3 text-sm outline-none focus-visible:ring-3"
+        >
+          <option value="encaissement">Encaissement Calendly</option>
+          <option value="ventes">Ventes déclarées</option>
+        </select>
+      </div>
+
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "…" : "Enregistrer"}
       </Button>
+
+      <p className="text-muted-foreground w-full text-sm">
+        <strong className="font-medium">Encaissement</strong> : la commission
+        porte sur ce que Calendly a encaissé, séances honorées et payées venues
+        des canaux Comète. <strong className="font-medium">Ventes déclarées</strong>{" "}
+        : elle porte sur les ventes que le client saisit lui-même, rattachées au
+        mois de la vente et non à celui de la séance. Ce choix ne peut pas
+        changer tant qu&apos;un relevé n&apos;est pas réglé.
+      </p>
 
       <div className="w-full">
         <FieldError state={state} field="commissionRate" id="rate-error" />
         <FieldError state={state} field="windowDays" id="window-error" />
         <FieldError state={state} field="currency" id="currency-error" />
+        <FieldError state={state} field="commissionBasis" id="basis-error" />
         <FieldError state={state} id="reglages-error" />
       </div>
     </form>

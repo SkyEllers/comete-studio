@@ -66,7 +66,7 @@ async function reglagesEtCanaux(organizationId: string) {
     supabase
       .from("radar_settings")
       .select(
-        "commission_rate, window_days, currency, calendly_user_uri, calendly_webhook_uri, connected_at, last_webhook_at",
+        "commission_rate, window_days, currency, commission_basis, calendly_user_uri, calendly_webhook_uri, connected_at, last_webhook_at",
       )
       .eq("organization_id", organizationId)
       .maybeSingle(),
@@ -116,6 +116,7 @@ async function SectionReglages({ organizationId }: { organizationId: string }) {
         commissionRate={Number(reglages?.commission_rate ?? 20)}
         windowDays={reglages?.window_days ?? 90}
         currency={reglages?.currency ?? "EUR"}
+        commissionBasis={reglages?.commission_basis ?? "encaissement"}
       />
 
       <section className="mt-10 space-y-4">
@@ -330,7 +331,7 @@ async function SectionReleves({
       .limit(24),
     supabase
       .from("radar_settings")
-      .select("commission_rate, currency")
+      .select("commission_rate, currency, commission_basis")
       .eq("organization_id", organizationId)
       .maybeSingle(),
     supabase
@@ -340,7 +341,7 @@ async function SectionReleves({
       .order("sort_order"),
     supabase
       .from("radar_bookings_effective")
-      .select("channel_id, counts_for_commission, amount_cents, mois")
+      .select("channel_id, counts_for_commission, amount_cents, mois, has_sale")
       .eq("organization_id", organizationId)
       .eq("mois", mois)
       .limit(1000),
@@ -361,6 +362,26 @@ async function SectionReleves({
 
   const taux = Number(reglages.data?.commission_rate ?? 20);
   const devise = reglages.data?.currency ?? "EUR";
+  const surLesVentes = (reglages.data?.commission_basis ?? "encaissement") === "ventes";
+
+  /*
+   * En mode `ventes`, l'entonnoir se termine par les ventes du mois — celles
+   * dont la date tombe dedans, quel que soit le mois de leur séance. C'est la
+   * même lecture que la clôture, et c'est voulu : l'entonnoir doit annoncer
+   * la commission que la clôture produira, sinon Louis découvre l'écart au
+   * moment de facturer.
+   */
+  const ventesDuMois = surLesVentes
+    ? ((
+        await supabase
+          .from("radar_bookings_effective")
+          .select("channel_id, counts_for_commission, sale_amount_cents")
+          .eq("organization_id", organizationId)
+          .eq("commission_month", mois)
+          .not("sale_amount_cents", "is", null)
+          .limit(1000)
+      ).data ?? [])
+    : [];
   const parMois = new Map((releves.data ?? []).map((r) => [r.month, r]));
   const cometeCanaux = (canaux.data ?? []).filter((canal) => canal.is_comete);
   const parCanalSaisie = new Map((saisies.data ?? []).map((s) => [s.channel_id, s]));
@@ -378,8 +399,20 @@ async function SectionReleves({
   // L'entonnoir : ce que Louis a dépensé, ce que ça a donné, ce qu'il gagne.
   const entonnoir = cometeCanaux.map((canal) => {
     const lignes = (seances.data ?? []).filter((l) => l.channel_id === canal.id);
-    const honorees = lignes.filter((l) => l.counts_for_commission);
-    const base = honorees.reduce((total, l) => total + (l.amount_cents ?? 0), 0);
+    /* En `encaissement`, « honorées » veut dire « comptées » : c'est la même
+       chose. En `ventes`, ce sont deux questions distinctes — la séance a eu
+       lieu, et elle a vendu — d'où le compte séparé. */
+    const honorees = surLesVentes
+      ? lignes.filter((l) => l.counts_for_commission || !l.has_sale)
+      : lignes.filter((l) => l.counts_for_commission);
+
+    const ventesDuCanal = ventesDuMois.filter(
+      (v) => v.channel_id === canal.id && v.counts_for_commission,
+    );
+    const base = surLesVentes
+      ? ventesDuCanal.reduce((total, v) => total + (v.sale_amount_cents ?? 0), 0)
+      : honorees.reduce((total, l) => total + (l.amount_cents ?? 0), 0);
+
     const saisie = parCanalSaisie.get(canal.id) ?? null;
     const depense = saisie?.spend_cents ?? 0;
     const commission = Math.round((base * taux) / 100);
@@ -401,8 +434,12 @@ async function SectionReleves({
       depense,
       commission,
       marge: commission - depense,
+      ventes: ventesDuCanal.length,
+      montantVentes: base,
       coutParReservation: lignes.length > 0 ? Math.round(depense / lignes.length) : null,
       coutParHonoree: honorees.length > 0 ? Math.round(depense / honorees.length) : null,
+      coutParVente:
+        ventesDuCanal.length > 0 ? Math.round(depense / ventesDuCanal.length) : null,
     };
   });
 
@@ -517,8 +554,16 @@ async function SectionReleves({
                 <TableHead className="text-right">Clics</TableHead>
                 <TableHead className="text-right">Réservations</TableHead>
                 <TableHead className="text-right">Honorées</TableHead>
+                {surLesVentes ? (
+                  <>
+                    <TableHead className="text-right">Ventes</TableHead>
+                    <TableHead className="text-right">Montant vendu</TableHead>
+                  </>
+                ) : null}
                 <TableHead className="text-right">Coût / résa</TableHead>
-                <TableHead className="text-right">Coût / honorée</TableHead>
+                <TableHead className="text-right">
+                  {surLesVentes ? "Coût / vente" : "Coût / honorée"}
+                </TableHead>
                 <TableHead className="text-right">Dépense</TableHead>
                 <TableHead className="text-right">Commission</TableHead>
                 <TableHead className="text-right">Marge</TableHead>
@@ -540,15 +585,28 @@ async function SectionReleves({
                   <TableCell className="text-right font-mono text-xs tabular-nums">
                     {ligne.honorees}
                   </TableCell>
+                  {surLesVentes ? (
+                    <>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">
+                        {ligne.ventes}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">
+                        {montant(ligne.montantVentes, devise)}
+                      </TableCell>
+                    </>
+                  ) : null}
                   <TableCell className="text-right font-mono text-xs tabular-nums">
                     {ligne.coutParReservation === null
                       ? "—"
                       : montant(ligne.coutParReservation, devise)}
                   </TableCell>
                   <TableCell className="text-right font-mono text-xs tabular-nums">
-                    {ligne.coutParHonoree === null
+                    {(surLesVentes ? ligne.coutParVente : ligne.coutParHonoree) === null
                       ? "—"
-                      : montant(ligne.coutParHonoree, devise)}
+                      : montant(
+                          (surLesVentes ? ligne.coutParVente : ligne.coutParHonoree) ?? 0,
+                          devise,
+                        )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-xs tabular-nums">
                     {montant(ligne.depense, devise)}

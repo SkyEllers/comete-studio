@@ -18,6 +18,8 @@ import { preparerRadar } from "@/tools/resultats/installation";
 import { moisCourant } from "@/tools/resultats/mois";
 import {
   construireLignes,
+  construireLignesVentes,
+  peutChangerDeBase,
   peutCloturer,
   peutMarquerPaye,
   totaux,
@@ -283,24 +285,54 @@ const reglagesSchema = z.object({
     .trim()
     .toUpperCase()
     .regex(/^[A-Z]{3}$/, { error: "La devise s'écrit en trois lettres, par exemple EUR." }),
+  commissionBasis: z.enum(["encaissement", "ventes"], {
+    error: "Base de commission inconnue.",
+  }),
 });
 
 export async function enregistrerReglages(
   _precedent: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const session = await requireAdmin();
 
   const parsed = reglagesSchema.safeParse({
     organizationId: formData.get("organizationId"),
     commissionRate: formData.get("commissionRate"),
     windowDays: formData.get("windowDays"),
     currency: formData.get("currency"),
+    commissionBasis: formData.get("commissionBasis"),
   });
   if (!parsed.success) return failFromZod(parsed.error);
 
   const admin = createAdminClient();
   await preparerRadar(admin, parsed.data.organizationId);
+
+  const { data: avant } = await admin
+    .from("radar_settings")
+    .select("commission_rate, window_days, currency, commission_basis")
+    .eq("organization_id", parsed.data.organizationId)
+    .maybeSingle();
+
+  const ancienneBase = avant?.commission_basis ?? "encaissement";
+  const changeDeBase = ancienneBase !== parsed.data.commissionBasis;
+
+  /*
+   * Le garde-fou du chantier 4 : on ne change pas la règle de la commission
+   * tant qu'un relevé n'est pas réglé. Le reste des réglages, lui, passe —
+   * corriger un taux pour le mois prochain n'a jamais posé de problème.
+   */
+  if (changeDeBase) {
+    const { data: ouverts } = await admin
+      .from("radar_statements")
+      .select("month, status")
+      .eq("organization_id", parsed.data.organizationId)
+      .neq("status", "paye")
+      .order("month");
+
+    const verdict = peutChangerDeBase(ouverts ?? []);
+    if (!verdict.ok) return fail(verdict.raison, verdict.champ);
+  }
 
   const { error } = await admin
     .from("radar_settings")
@@ -308,10 +340,38 @@ export async function enregistrerReglages(
       commission_rate: parsed.data.commissionRate,
       window_days: parsed.data.windowDays,
       currency: parsed.data.currency,
+      commission_basis: parsed.data.commissionBasis,
+      updated_at: new Date().toISOString(),
     })
     .eq("organization_id", parsed.data.organizationId);
 
   if (error) return fail("Impossible d'enregistrer ces réglages pour le moment.");
+
+  /*
+   * Le journal. Changer la base, c'est changer ce que le client paie : c'est
+   * le seul réglage dont il faut pouvoir dire quand il a changé, et par qui.
+   * Les autres sont notés dans la même ligne, sans en faire une histoire.
+   */
+  await admin
+    .from("radar_settings_log")
+    .insert({
+      organization_id: parsed.data.organizationId,
+      user_id: session.userId,
+      type: changeDeBase ? "basis.changed" : "settings.changed",
+      payload: {
+        ...(changeDeBase ? { base_avant: ancienneBase, base_apres: parsed.data.commissionBasis } : {}),
+        taux_avant: Number(avant?.commission_rate ?? null),
+        taux_apres: parsed.data.commissionRate,
+        fenetre_avant: avant?.window_days ?? null,
+        fenetre_apres: parsed.data.windowDays,
+        devise_avant: avant?.currency ?? null,
+        devise_apres: parsed.data.currency,
+      },
+    })
+    .then(
+      () => undefined,
+      () => undefined, // journaliser ne doit pas faire échouer un réglage valide
+    );
 
   rafraichir(parsed.data.organizationId);
   return ok();
@@ -538,6 +598,15 @@ export async function cloturerMois(input: unknown): Promise<ActionResult> {
 
   const admin = createAdminClient();
 
+  /*
+   * Les colonnes lues pour construire un relevé. Les champs de vente sont
+   * chargés dans les deux modes : ils ne coûtent rien, et c'est ce qui permet
+   * au mode `ventes` d'écarter du bloc « pour information » une séance qui a
+   * vendu un autre mois.
+   */
+  const COLONNES_SEANCE =
+    "id, scheduled_start, event_type_name, channel_id, effective_status, counts_for_commission, amount_cents, currency, payment_ok, sale_amount_cents, sale_date, has_sale";
+
   const [existant, reglages, canaux, seances] = await Promise.all([
     admin
       .from("radar_statements")
@@ -547,7 +616,7 @@ export async function cloturerMois(input: unknown): Promise<ActionResult> {
       .maybeSingle(),
     admin
       .from("radar_settings")
-      .select("commission_rate, window_days")
+      .select("commission_rate, window_days, commission_basis")
       .eq("organization_id", organizationId)
       .maybeSingle(),
     admin
@@ -556,9 +625,7 @@ export async function cloturerMois(input: unknown): Promise<ActionResult> {
       .eq("organization_id", organizationId),
     admin
       .from("radar_bookings_effective")
-      .select(
-        "id, scheduled_start, event_type_name, channel_id, effective_status, counts_for_commission, amount_cents, currency, payment_ok",
-      )
+      .select(COLONNES_SEANCE)
       .eq("organization_id", organizationId)
       .eq("mois", mois)
       .limit(1000),
@@ -568,10 +635,35 @@ export async function cloturerMois(input: unknown): Promise<ActionResult> {
   if (!verdict.ok) return fail(verdict.raison);
 
   const taux = Number(reglages.data?.commission_rate ?? 20);
-  const lignes = construireLignes(
-    (seances.data ?? []) as SeanceDuMois[],
-    (canaux.data ?? []) as CanalDuReleve[],
-  );
+  const base = reglages.data?.commission_basis ?? "encaissement";
+  const listeCanaux = (canaux.data ?? []) as CanalDuReleve[];
+  const duMois = (seances.data ?? []) as unknown as SeanceDuMois[];
+
+  /*
+   * En `ventes`, les lignes facturées ne sont pas celles du mois : ce sont les
+   * ventes dont la date tombe dedans, et leurs séances peuvent venir de
+   * n'importe quel mois précédent. D'où cette seconde lecture, qui n'a pas
+   * lieu en `encaissement`.
+   */
+  let lignes;
+  if (base === "ventes") {
+    const { data: ventes } = await admin
+      .from("radar_bookings_effective")
+      .select(COLONNES_SEANCE)
+      .eq("organization_id", organizationId)
+      .eq("commission_month", mois)
+      .not("sale_amount_cents", "is", null)
+      .limit(1000);
+
+    lignes = construireLignesVentes(
+      (ventes ?? []) as unknown as SeanceDuMois[],
+      duMois,
+      listeCanaux,
+    );
+  } else {
+    lignes = construireLignes(duMois, listeCanaux);
+  }
+
   const { base_cents, commission_cents } = totaux(lignes, taux);
 
   const { data: releve, error } = await admin
@@ -582,6 +674,7 @@ export async function cloturerMois(input: unknown): Promise<ActionResult> {
         month: mois,
         status: "cloture",
         commission_rate: taux,
+        commission_basis: base,
         window_days: reglages.data?.window_days ?? 90,
         base_cents,
         commission_cents,

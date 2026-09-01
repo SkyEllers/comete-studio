@@ -18,7 +18,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import { versCsv, type LigneReleve } from "./releve";
+import { versCsv, type BaseDeCommission, type LigneReleve } from "./releve";
 
 /**
  * Répondre à un relevé, et l'emporter.
@@ -124,13 +124,16 @@ export function ReponseReleve({
 export function ExportCsv({
   lignes,
   nom,
+  base = "encaissement",
 }: {
   lignes: LigneReleve[];
   nom: string;
+  /** La règle du relevé : elle décide de la colonne « Date de vente ». */
+  base?: BaseDeCommission;
 }) {
   const telecharger = () => {
     // Le BOM, sans quoi Excel affiche « SÃ©ance » au lieu de « Séance ».
-    const blob = new Blob(["﻿", versCsv(lignes)], {
+    const blob = new Blob(["﻿", versCsv(lignes, base)], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
