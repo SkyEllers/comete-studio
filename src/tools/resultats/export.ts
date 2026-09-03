@@ -143,10 +143,12 @@ export const LIGNES_PAR_PAGE = 500;
  * Les colonnes lues, nommées une à une.
  *
  * `id` et `channel_id` sont lus sans être servis : le premier fait le curseur,
- * le second retrouve le canal. Tout le reste est la liste convenue avec le
- * consommateur. Ce qui n'est pas ici ne sort pas, et surtout : `select *` ne
- * doit jamais apparaître dans cette route, sous peine de servir demain un
- * champ ajouté à la vue par un chantier qui ne pensait pas à l'export.
+ * le second retrouve le canal. `utm` est lu sans être servi non plus — ce
+ * qui en sort, ce sont les quatre champs à plat de `ligneExport`, jamais
+ * l'objet. Tout le reste est la liste convenue avec le consommateur. Ce qui
+ * n'est pas ici ne sort pas, et surtout : `select *` ne doit jamais
+ * apparaître dans cette route, sous peine de servir demain un champ ajouté à
+ * la vue par un chantier qui ne pensait pas à l'export.
  */
 export const COLONNES_EXPORT = [
   "id",
@@ -158,6 +160,7 @@ export const COLONNES_EXPORT = [
   "canceled_at",
   "event_type_name",
   "attribution",
+  "utm",
   "status",
   "effective_status",
   "sale_amount_cents",
@@ -178,6 +181,10 @@ export type LigneExport = {
   channel: string | null;
   channel_label: string | null;
   attribution: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
   status: string | null;
   effective_status: string | null;
   sale_amount_cents: number | null;
@@ -201,6 +208,16 @@ export type CanalLisible = { key: string; label: string };
  * Le canal sort par sa clé (`google_ads`) plutôt que par son UUID : un rapport
  * publicitaire regroupe par canal, et un identifiant technique l'obligerait à
  * tenir une table de correspondance qui vieillirait mal.
+ *
+ * Les quatre `utm_*` sortent **à plat et nommés un à un**, jamais l'objet
+ * `utm`. C'est la même règle qu'ailleurs dans ce fichier, appliquée là où elle
+ * compte le plus : cette colonne est libre, elle porte ce que la landing a
+ * transmis — un `utm_term`, un `gclid`, un paramètre qu'une campagne aura
+ * collé au lien un mardi. Servir l'objet reviendrait à publier d'avance des
+ * champs que personne n'a relus. Les quatre retenus sont ceux qu'un rapport
+ * publicitaire recoupe avec ses campagnes ; le reste ne quitte pas la maison.
+ * Absent vaut `null` : c'est ce qui distingue « la campagne n'était pas
+ * taguée » de « la valeur est vide ».
  */
 export function ligneExport(
   ligne: Record<string, unknown>,
@@ -208,6 +225,13 @@ export function ligneExport(
 ): LigneExport {
   const texte = (valeur: unknown) => (typeof valeur === "string" ? valeur : null);
   const nombre = (valeur: unknown) => (typeof valeur === "number" ? valeur : null);
+
+  // `utm` est un `jsonb not null default '{}'` ; un tableau ou un scalaire n'y
+  // a jamais sa place, et s'il en arrivait un, ce serait quatre `null`.
+  const utm: Record<string, unknown> =
+    typeof ligne.utm === "object" && ligne.utm !== null && !Array.isArray(ligne.utm)
+      ? (ligne.utm as Record<string, unknown>)
+      : {};
 
   return {
     event_uri: texte(ligne.event_uri),
@@ -219,6 +243,10 @@ export function ligneExport(
     channel: canal?.key ?? null,
     channel_label: canal?.label ?? null,
     attribution: texte(ligne.attribution),
+    utm_source: texte(utm.utm_source),
+    utm_medium: texte(utm.utm_medium),
+    utm_campaign: texte(utm.utm_campaign),
+    utm_content: texte(utm.utm_content),
     status: texte(ligne.status),
     effective_status: texte(ligne.effective_status),
     sale_amount_cents: nombre(ligne.sale_amount_cents),

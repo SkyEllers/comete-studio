@@ -12,7 +12,9 @@
  *      cherchant, dans le corps rendu, les identifiants de A.
  *   2. Le silence sur les personnes. On cherche les noms et les clés d'invité
  *      des lignes de recette dans la réponse, plutôt que de relire la liste
- *      blanche — une liste se relit mal, un `grep` ne se trompe pas.
+ *      blanche — une liste se relit mal, un `grep` ne se trompe pas. Le même
+ *      `grep` couvre la colonne `utm` : quatre de ses champs sortent à plat,
+ *      le `utm_term` et l'identifiant de clic restent à la maison.
  *   3. La stabilité de la pagination, avec des insertions entre deux pages, et
  *      cent rendez-vous par horodatage pour que les frontières de page tombent
  *      au milieu d'une égalité.
@@ -48,6 +50,25 @@ const PRENOM_B = "Sacha";
 const FAMILLE = "Dupont-Sorel";
 const CLE_INVITE = `cle-secrete-${marque}`;
 const NOTE_VENTE = `pack confidentiel ${marque}`;
+const UTM_TERME = `terme-secret-${marque}`;
+const GCLID = `clic-secret-${marque}`;
+
+/**
+ * Ce qu'une landing taguée dépose dans la colonne `utm`.
+ *
+ * Six champs, dont quatre sortent. Les deux autres sont là pour ça : ils
+ * prouvent que la liste blanche est bien nommée champ par champ, et non
+ * « l'objet `utm` moins ce qu'on n'aime pas » — la seule différence entre les
+ * deux se voit le jour où une campagne colle un paramètre inattendu au lien.
+ */
+const UTM = {
+  utm_source: "google",
+  utm_medium: "cpc",
+  utm_campaign: `campagne-${marque}`,
+  utm_content: `annonce-${marque}`,
+  utm_term: UTM_TERME,
+  gclid: GCLID,
+};
 
 const jetonClair = (suffixe) =>
   createHash("sha256").update(`graine-${marque}-${suffixe}`).digest("hex");
@@ -150,6 +171,23 @@ try {
     { sale_amount_cents: 120000, sale_date: "2026-04-02", sale_note: NOTE_VENTE },
   );
 
+  /*
+   * Une landing taguée, et une qui ne l'est pas.
+   *
+   * Les deux tombent dans la première page — le décor range cent rendez-vous
+   * par jour sur onze jours, et cinq jours tiennent dans une page. Le second
+   * n'est pas modifié : sa colonne `utm` reste au `'{}'` par défaut, ce qui
+   * est exactement l'état d'une campagne qu'on a oublié de taguer.
+   */
+  const uriDe = (n) =>
+    `https://api.calendly.com/invitees/zz-${marque}-${String(n).padStart(5, "0")}`;
+
+  await srv(
+    "PATCH",
+    `radar_bookings?organization_id=eq.${orgs.a.id}&invitee_uri=eq.${encodeURIComponent(uriDe(1))}`,
+    { utm: UTM },
+  );
+
   // Hors plage : ils ne doivent jamais sortir.
   await creer("radar_bookings", rendezVous(9001, {
     scheduled_start: "2025-01-05T09:00:00Z", scheduled_end: "2025-01-05T10:00:00Z",
@@ -247,6 +285,8 @@ try {
     ["la clé d'invité", CLE_INVITE],
     ["la clé d'invité de B", `cle-de-b-${marque}`],
     ["la note de vente", NOTE_VENTE],
+    ["le terme de recherche", UTM_TERME],
+    ["l'identifiant de clic", GCLID],
   ]) {
     verifie(`${quoi} n'apparaît nulle part`, !toutLeCorps.includes(valeur));
   }
@@ -259,7 +299,8 @@ try {
         "attribution", "canceled_at", "channel", "channel_label", "currency",
         "effective_status", "event_type_name", "event_uri", "invitee_uri",
         "sale_amount_cents", "sale_date", "sale_recorded_at", "scheduled_end",
-        "scheduled_start", "status", "updated_at",
+        "scheduled_start", "status", "updated_at", "utm_campaign", "utm_content",
+        "utm_medium", "utm_source",
       ]),
     JSON.stringify(champs),
   );
@@ -274,13 +315,58 @@ try {
     JSON.stringify(corpsA.meta),
   );
 
-  // ------------------------------ 5. La plage sert --------------------------
+  // ------------------------------ 5. Les UTM --------------------------------
+  console.log("\n== 5. Les UTM ==");
+
+  const taguee = corpsA.lignes.find((l) => l.invitee_uri === uriDe(1));
+  const nue = corpsA.lignes.find((l) => l.invitee_uri === uriDe(2));
+
+  verifie("les deux fixtures sont bien dans la page", Boolean(taguee) && Boolean(nue));
+
+  verifie(
+    "la fixture taguée sert ses quatre UTM, à plat",
+    taguee?.utm_source === "google" &&
+      taguee?.utm_medium === "cpc" &&
+      taguee?.utm_campaign === `campagne-${marque}` &&
+      taguee?.utm_content === `annonce-${marque}`,
+    JSON.stringify({
+      utm_source: taguee?.utm_source,
+      utm_medium: taguee?.utm_medium,
+      utm_campaign: taguee?.utm_campaign,
+      utm_content: taguee?.utm_content,
+    }),
+  );
+
+  verifie(
+    "la fixture sans taguage les porte à null, sans les omettre",
+    nue?.utm_source === null &&
+      nue?.utm_medium === null &&
+      nue?.utm_campaign === null &&
+      nue?.utm_content === null &&
+      ["utm_source", "utm_medium", "utm_campaign", "utm_content"].every((champ) =>
+        Object.hasOwn(nue, champ),
+      ),
+    JSON.stringify(nue),
+  );
+
+  /*
+   * L'objet lui-même ne sort pas, et le `utm_term` non plus alors qu'il est
+   * dans la même colonne : c'est ce qui distingue une liste blanche nommée
+   * champ par champ d'un `select *` amputé de deux champs.
+   */
+  verifie(
+    "l'objet `utm` n'apparaît dans aucune ligne",
+    corpsA.lignes.every((l) => !Object.hasOwn(l, "utm")) &&
+      !JSON.stringify(corpsA).includes('"utm_term"'),
+  );
+
+  // ------------------------------ 6. La plage sert --------------------------
   const horsPlage = JSON.stringify(corpsA);
   verifie("un rendez-vous de 2025 ne sort pas", !horsPlage.includes("-09001"));
   verifie("un rendez-vous de 2027 non plus", !horsPlage.includes("-09002"));
 
-  // ---------------------------- 6. La pagination ----------------------------
-  console.log("\n== 5. La pagination ==");
+  // ---------------------------- 7. La pagination ----------------------------
+  console.log("\n== 6. La pagination ==");
 
   const page1 = corpsA;
   verifie("la première page annonce une suite", typeof page1.meta.suivant === "string");
@@ -335,8 +421,8 @@ try {
       ),
   );
 
-  // --------------------------- 7. Aucune écriture ---------------------------
-  console.log("\n== 6. Ce que la route écrit ==");
+  // --------------------------- 8. Aucune écriture ---------------------------
+  console.log("\n== 7. Ce que la route écrit ==");
 
   /*
    * L'empreinte se prend ici, et non au début du banc : les sections

@@ -33,7 +33,9 @@ import {
  * chantier futur ne doit pas pouvoir les publier par distraction. Ni nom, ni
  * `invitee_key`, ni note de vente n'y figurent — le banc le vérifie en
  * cherchant les valeurs des fixtures dans le corps de la réponse, plutôt qu'en
- * relisant cette liste.
+ * relisant cette liste. La colonne `utm` est le cas limite de cette règle :
+ * elle est lue, mais ce sont quatre champs à plat qui en sortent, pas l'objet
+ * — un objet libre est un `select *` qui ne dit pas son nom.
  *
  * Les codes de retour, pour la machine d'en face :
  *

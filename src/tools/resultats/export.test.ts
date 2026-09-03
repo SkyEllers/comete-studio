@@ -142,6 +142,10 @@ describe("la liste blanche", () => {
     "scheduled_start",
     "status",
     "updated_at",
+    "utm_campaign",
+    "utm_content",
+    "utm_medium",
+    "utm_source",
   ];
 
   const BRUTE = {
@@ -161,6 +165,15 @@ describe("la liste blanche", () => {
     sale_recorded_at: "2026-09-03T10:00:00+00:00",
     currency: "EUR",
     updated_at: "2026-09-03T10:00:00+00:00",
+    // Quatre champs sortent de cet objet, les deux autres restent dedans.
+    utm: {
+      utm_source: "google",
+      utm_medium: "cpc",
+      utm_campaign: "diagnostic-septembre",
+      utm_content: "annonce-b",
+      utm_term: "therapeute lyon",
+      gclid: "Cj0KCQ-terme-de-clic",
+    },
     // Ce que la vue porte et que l'export ne doit jamais servir.
     invitee_first_name: "Camille",
     invitee_last_name: "Dupont",
@@ -183,20 +196,50 @@ describe("la liste blanche", () => {
     }
   });
 
-  it("17. le canal sort par sa clé lisible, pas par son UUID", () => {
+  it("17. les quatre `utm_*` sortent à plat, et l'objet reste dedans", () => {
+    const ligne = ligneExport(BRUTE, { key: "google_ads", label: "Google Ads" });
+
+    assert.equal(ligne.utm_source, "google");
+    assert.equal(ligne.utm_medium, "cpc");
+    assert.equal(ligne.utm_campaign, "diagnostic-septembre");
+    assert.equal(ligne.utm_content, "annonce-b");
+
+    // Ni le reste de l'objet, ni l'objet lui-même.
+    const corps = JSON.stringify(ligne);
+    for (const interdit of ["utm_term", "therapeute lyon", "gclid", "Cj0KCQ-terme-de-clic"]) {
+      assert.equal(corps.includes(interdit), false, `${interdit} a fui`);
+    }
+  });
+
+  it("18. sans taguage, les quatre valent null — et ne se devinent pas", () => {
+    const nu = { ...BRUTE, utm: {} };
+    const ligne = ligneExport(nu, { key: "google_ads", label: "Google Ads" });
+
+    assert.equal(ligne.utm_source, null);
+    assert.equal(ligne.utm_medium, null);
+    assert.equal(ligne.utm_campaign, null);
+    assert.equal(ligne.utm_content, null);
+
+    // Les champs restent là : un rapport qui lit `null` sait que la campagne
+    // n'était pas taguée, là où un champ absent lui laisserait croire à une
+    // panne de l'export.
+    assert.deepEqual(Object.keys(ligne).sort(), SERVIS);
+  });
+
+  it("19. le canal sort par sa clé lisible, pas par son UUID", () => {
     const ligne = ligneExport(BRUTE, { key: "google_ads", label: "Google Ads" });
     assert.equal(ligne.channel, "google_ads");
     assert.equal(ligne.channel_label, "Google Ads");
     assert.equal(JSON.stringify(ligne).includes("c-ads"), false);
   });
 
-  it("18. un rendez-vous sans canal ne fabrique pas de clé", () => {
+  it("20. un rendez-vous sans canal ne fabrique pas de clé", () => {
     const ligne = ligneExport({ ...BRUTE, channel_id: null }, null);
     assert.equal(ligne.channel, null);
     assert.equal(ligne.channel_label, null);
   });
 
-  it("19. les colonnes lues nomment `id` et `channel_id`, servis par personne", () => {
+  it("21. les colonnes lues nomment `id` et `channel_id`, servis par personne", () => {
     // Les deux sont lus — l'un fait le curseur, l'autre retrouve le canal — et
     // n'apparaissent dans aucune ligne servie.
     assert.equal(COLONNES_EXPORT.includes("id"), true);
@@ -205,7 +248,7 @@ describe("la liste blanche", () => {
     assert.equal(SERVIS.includes("channel_id"), false);
   });
 
-  it("20. aucune colonne d'identité n'est même lue", () => {
+  it("22. aucune colonne d'identité n'est même lue", () => {
     for (const interdit of [
       "invitee_first_name",
       "invitee_last_name",
@@ -219,7 +262,7 @@ describe("la liste blanche", () => {
 });
 
 describe("le préambule", () => {
-  it("21. il dit le fuseau, la forme des dates, et ce que ce flux n'est pas", () => {
+  it("23. il dit le fuseau, la forme des dates, et ce que ce flux n'est pas", () => {
     const entete = meta("abc");
     assert.equal(entete.fuseau_de_reference, "Europe/Paris");
     assert.equal(entete.horodatages, "ISO 8601 avec décalage");
@@ -229,7 +272,7 @@ describe("le préambule", () => {
     assert.equal(entete.suivant, "abc");
   });
 
-  it("22. la dernière page l'annonce par un curseur nul", () => {
+  it("24. la dernière page l'annonce par un curseur nul", () => {
     assert.equal(meta(null).suivant, null);
   });
 });

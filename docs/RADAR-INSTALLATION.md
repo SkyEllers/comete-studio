@@ -221,8 +221,15 @@ Authorization: Bearer <jeton>
   paramètre d'URL ne peut l'élargir.
 - **Aucune identité ne sort** : ni prénom, ni nom, ni `invitee_key`, ni note de
   vente. Ce qui sort est une liste fermée — dates, type de séance, canal,
-  statut, montant de vente — vérifiée par `npm run qa:export`, qui cherche les
-  noms des lignes de recette dans le corps de la réponse.
+  statut, montant de vente, et les quatre `utm_*` du rendez-vous — vérifiée par
+  `npm run qa:export`, qui cherche les noms des lignes de recette dans le corps
+  de la réponse.
+- **Les UTM sortent à plat** : `utm_source`, `utm_medium`, `utm_campaign`,
+  `utm_content`, à `null` quand la campagne n'était pas taguée. Ni `utm_term`,
+  ni les identifiants de clic (`gclid`, `fbclid`), ni le reste de l'objet. La
+  colonne qui les porte est libre — une campagne peut y coller ce qu'elle veut
+  — et seuls ces quatre champs sont nommés dans la liste blanche. En servir un
+  cinquième est un chantier, pas un réglage.
 - **Lecture seule.** La route n'écrit qu'une chose : la date de dernière
   lecture du jeton, visible dans la même section.
 - Plage obligatoire, **366 jours au maximum**, 500 lignes par page.
@@ -236,6 +243,86 @@ les jours sont ceux du calendrier français (`Europe/Paris`), et **ce flux n'est
 pas une archive**. Les rendez-vous sont supprimés treize mois après la clôture
 du relevé qui les a facturés ; un rapport qui veut de l'historique long doit
 recopier ce qu'il lit.
+
+### Le compte-rendu type, à transmettre avec le jeton
+
+À recopier tel quel dans le message qui accompagne le jeton, en remplaçant le
+nom du client. Il dit ce que la machine d'en face ne peut pas deviner, et il
+sera relu dans un an par quelqu'un qui n'était pas là au branchement. Le jeton,
+lui, part par un autre canal.
+
+---
+
+**Export des rendez-vous — Radar (Comète Studio)**
+
+Une requête, en lecture seule, sans compte ni session :
+
+```
+GET https://cometestudio.fr/api/export/radar/rendez-vous?depuis=2026-09-01&jusqua=2026-09-30
+Authorization: Bearer <jeton>
+```
+
+La réponse est un JSON `{ "meta": …, "lignes": [ … ] }`. Une ligne, au complet :
+
+```json
+{
+  "event_uri": "https://api.calendly.com/scheduled_events/E",
+  "invitee_uri": "https://api.calendly.com/scheduled_events/E/invitees/I",
+  "scheduled_start": "2026-09-01T10:30:00+02:00",
+  "scheduled_end": "2026-09-01T11:15:00+02:00",
+  "canceled_at": null,
+  "event_type_name": "Diagnostic offert",
+  "channel": "google_ads",
+  "channel_label": "Google Ads",
+  "attribution": "utm",
+  "utm_source": "google",
+  "utm_medium": "cpc",
+  "utm_campaign": "diagnostic-septembre",
+  "utm_content": "annonce-b",
+  "status": "confirme",
+  "effective_status": "honore",
+  "sale_amount_cents": 120000,
+  "sale_date": "2026-09-03",
+  "sale_recorded_at": "2026-09-03T10:12:00+02:00",
+  "currency": "EUR",
+  "updated_at": "2026-09-03T10:12:00+02:00"
+}
+```
+
+Ces vingt champs sont la liste complète. Il n'y en a pas d'autres, et rien ne
+s'y ajoutera sans qu'on le dise.
+
+- `channel` est la clé stable du canal (`google_ads`, `meta`, `seo`, …),
+  `channel_label` son libellé d'affichage, qui peut changer. **Regrouper sur la
+  clé.**
+- `attribution` dit *comment* le canal a été trouvé : `utm` (la landing portait
+  le taguage), `recurrence` (la personne était déjà venue par un canal),
+  `direct` ou `manuel`.
+- Les quatre `utm_*` sont ceux du rendez-vous, à `null` quand la campagne
+  n'était pas taguée. `utm_term` et les identifiants de clic (`gclid`,
+  `fbclid`) ne sont **pas** servis : recouper par `utm_campaign` et
+  `utm_content`.
+- `status` est le statut déclaré, `effective_status` celui qui fait foi — une
+  séance confirmée dont l'heure est passée compte comme `honore`. Valeurs
+  possibles : `confirme`, `honore`, `annule`, `no_show`.
+- `sale_amount_cents` est en **centimes**, dans la devise de `currency` ;
+  `null` signifie qu'aucune vente n'a été déclarée. `sale_date` est le jour de
+  la vente, `sale_recorded_at` l'instant où elle a été saisie.
+- `depuis` et `jusqua` sont des jours du **calendrier français**
+  (`Europe/Paris`), bornes comprises, obligatoires, **366 jours au maximum**.
+  Les horodatages rendus sont en ISO 8601 avec leur décalage.
+- **500 lignes par page.** S'il y a une suite, `meta.suivant` porte un curseur à
+  repasser tel quel en `&curseur=…` ; la dernière page a `meta.suivant` à
+  `null`. Ne pas fabriquer de curseur : seul celui qui est rendu est valide.
+- **Aucune identité n'est servie** : ni nom, ni prénom, ni email, ni clé
+  d'invité. Ce n'est pas un oubli, c'est la règle du flux.
+- **Ce flux n'est pas une archive.** Les rendez-vous sont supprimés treize mois
+  après la clôture du relevé qui les a facturés. Recopier ce qu'on lit.
+- Codes de retour : `401` jeton absent, inconnu ou révoqué — sans motif, c'est
+  volontaire ; `400` plage ou curseur fautif, avec le motif ; `429` trop
+  d'appels ; `500` panne de notre côté, à rejouer.
+
+---
 
 ## Débrancher un client
 
