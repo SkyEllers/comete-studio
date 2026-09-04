@@ -972,6 +972,85 @@ try {
     JSON.stringify(activiteDeplacement),
   );
 
+  // ------------------ Un report qui désigne un autre client ------------------
+
+  /*
+   * `invitee_uri` est unique dans toute la table, et l'`old_invitee` vient du
+   * message : rien n'empêche un client de nommer la séance d'un autre. Sans
+   * borne d'organisation, l'héritage écrirait le canal de C sur une ligne de
+   * D — et depuis que l'export sert `rescheduled_from`, il le publierait.
+   *
+   * Un second client connecté, donc, pour l'éprouver du dehors : c'est le
+   * webhook qu'on interroge, pas la requête qu'on relit.
+   */
+  const orgD = await creer("organizations", {
+    name: "ZZ QA RD",
+    slug: `zz-qa-rd-${marque}`,
+  });
+  orgs.d = orgD;
+
+  await creer("organization_tools", { organization_id: orgD.id, tool_id: outilId, enabled: true });
+  await creer("radar_settings", {
+    organization_id: orgD.id,
+    window_days: 90,
+    currency: "EUR",
+    connected_at: new Date().toISOString(),
+  });
+  for (const canal of CANAUX_PAR_DEFAUT) {
+    await creer("radar_channels", { organization_id: orgD.id, ...canal });
+  }
+  await srv("POST", "rpc/radar_set_secret", {
+    org: orgD.id,
+    kind: "signing_key",
+    value: CLE_SIGNATURE,
+  });
+  await srv("POST", "rpc/radar_set_secret", { org: orgD.id, kind: "salt", value: `${SEL}-d` });
+
+  const canauxD = new Set(
+    (await srv("GET", `radar_channels?select=id&organization_id=eq.${orgD.id}`)).data.map(
+      (canal) => canal.id,
+    ),
+  );
+
+  const uD = invitee("ud");
+  verifie(
+    "un report signé par un autre client → 200",
+    (await poster(
+      gabarit("cree-reprogramme.json", {
+        EMAIL: `alix-${marque}@example.com`,
+        INVITEE_URI: uD,
+        EVENT_URI: uri("ed"),
+        START: dans(13),
+        END: dans(13),
+        OLD_INVITEE: u1,
+      }),
+      { org: orgD.id },
+    )) === 200,
+  );
+
+  const chezD = (
+    await srv(
+      "GET",
+      `radar_bookings?select=*&organization_id=eq.${orgD.id}&invitee_uri=eq.${encodeURIComponent(uD)}`,
+    )
+  ).data[0];
+
+  verifie(
+    "il ne pointe pas la séance de l'autre client",
+    chezD?.rescheduled_from === null,
+    JSON.stringify(chezD?.rescheduled_from),
+  );
+  verifie(
+    "il n'hérite ni de son canal ni de son attribution",
+    (chezD?.channel_id === null || canauxD.has(chezD?.channel_id)) &&
+      chezD?.attribution !== "utm",
+    JSON.stringify({ canal: chezD?.channel_id, attribution: chezD?.attribution }),
+  );
+  verifie(
+    "et rien n'a bougé chez le client visé",
+    (await lignes(u1)).length === 1 && (await lignes(u4))[0]?.rescheduled_from === paye.id,
+  );
+
   // ------------------------------ Récurrence --------------------------------
 
   const u5 = invitee("u5");

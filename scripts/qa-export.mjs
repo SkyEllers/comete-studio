@@ -299,6 +299,11 @@ try {
     "A ne voit aucune ligne de B",
     !JSON.stringify(corpsA).includes(`zz-b-${marque}`),
   );
+  verifie(
+    "… pas même son identifiant, maintenant qu'il sort",
+    !JSON.stringify(corpsA).includes(corpsB.lignes[0].id),
+    corpsB.lignes[0].id,
+  );
   verifie("la séance de B est bien la sienne", corpsB.lignes[0].event_type_name === "Séance chez B");
   verifie("le canal sort par sa clé", corpsB.lignes[0].channel === "meta", corpsB.lignes[0].channel);
   verifie("… avec son libellé", corpsB.lignes[0].channel_label === "Meta");
@@ -326,7 +331,7 @@ try {
     JSON.stringify(champs) ===
       JSON.stringify([
         "attribution", "canceled_at", "channel", "channel_label", "currency",
-        "effective_status", "event_type_name", "event_uri", "invitee_uri",
+        "effective_status", "event_type_name", "event_uri", "id", "invitee_uri",
         "rescheduled_from", "sale_amount_cents", "sale_date", "sale_recorded_at",
         "scheduled_end", "scheduled_start", "status", "updated_at", "utm_campaign",
         "utm_content", "utm_medium", "utm_source",
@@ -430,6 +435,25 @@ try {
     JSON.stringify({ deplacee: reportee?.utm_campaign, origine: taguee?.utm_campaign }),
   );
 
+  /*
+   * Le pointeur se joint dans le flux : l'identifiant qu'il porte est celui
+   * d'une ligne servie — de la même organisation, forcément, puisque la
+   * requête ne lit que celle du jeton. C'est ce qui fait la différence entre
+   * un champ qui dit « cette séance en déplace une autre » et un champ qui
+   * dit laquelle.
+   */
+  const jointe = corpsA.lignes.find((l) => l.id === reportee?.rescheduled_from);
+  verifie(
+    "l'identifiant pointé est celui d'une ligne servie",
+    Boolean(jointe),
+    JSON.stringify(reportee?.rescheduled_from),
+  );
+  verifie(
+    "… et cette ligne est bien l'origine taguée",
+    jointe?.invitee_uri === uriDe(1) && jointe?.id === origine.id,
+    JSON.stringify({ trouvee: jointe?.invitee_uri, attendue: uriDe(1) }),
+  );
+
   verifie(
     "chez B, aucune ligne ne pointe une ligne de A",
     corpsB.lignes.every((l) => l.rescheduled_from === null),
@@ -471,6 +495,16 @@ try {
   const vues = [...page1.lignes, ...page2.lignes, ...page3.lignes].map((l) => l.invitee_uri);
   verifie("aucune ligne n'est servie deux fois", new Set(vues).size === vues.length,
     `${vues.length} lignes, ${new Set(vues).size} distinctes`);
+
+  // La même chose vue par la clé que le consommateur emploiera : `id`, et non
+  // plus l'URL Calendly, qui n'est stable que tant que Calendly le veut.
+  const identifiants = [...page1.lignes, ...page2.lignes, ...page3.lignes].map((l) => l.id);
+  verifie(
+    "aucun identifiant n'est servi deux fois, ni ne manque",
+    new Set(identifiants).size === identifiants.length &&
+      identifiants.every((id) => typeof id === "string" && id.length === 36),
+    `${identifiants.length} lignes, ${new Set(identifiants).size} distinctes`,
+  );
 
   const attendues = new Set(
     Array.from({ length: TOTAL }, (_, n) =>

@@ -142,8 +142,10 @@ export const LIGNES_PAR_PAGE = 500;
 /**
  * Les colonnes lues, nommées une à une.
  *
- * `id` et `channel_id` sont lus sans être servis : le premier fait le curseur,
- * le second retrouve le canal. `utm` est lu sans être servi non plus — ce
+ * `id` fait le curseur **et** sort : c'est la clé du flux — ce que
+ * `rescheduled_from` désigne, et ce sur quoi un consommateur déduplique.
+ * `channel_id`, lui, est lu sans être servi : il retrouve le canal, qui sort
+ * par sa clé lisible. `utm` est lu sans être servi non plus — ce
  * qui en sort, ce sont les quatre champs à plat de `ligneExport`, jamais
  * l'objet. Tout le reste est la liste convenue avec le consommateur. Ce qui
  * n'est pas ici ne sort pas, et surtout : `select *` ne doit jamais
@@ -173,6 +175,7 @@ export const COLONNES_EXPORT = [
 
 /** Ce qu'un tiers reçoit d'un rendez-vous, et rien d'autre. */
 export type LigneExport = {
+  id: string | null;
   event_uri: string | null;
   invitee_uri: string | null;
   scheduled_start: string | null;
@@ -229,9 +232,14 @@ export type CanalLisible = { key: string; label: string };
  * rapport compterait une ligne `utm` sans campagne et conclurait à un trou
  * dans le taguage ; avec lui, il sait où la campagne se lit.
  *
- * C'est un pointeur, pas une jointure : `id` ne sort pas, l'origine ne se
- * retrouve donc pas dans le flux. Servir les deux serait un autre chantier,
- * décidé pour lui-même, comme l'a été chaque champ de cette liste.
+ * Il se joint sur `id`, qui ouvre la ligne — à condition que l'origine soit
+ * dans la plage demandée. Plus ancienne que `depuis`, elle ne sera pas là, et
+ * le pointeur ne dira que « cette séance en déplace une autre ».
+ *
+ * `id` est d'ailleurs le seul identifiant technique qui sorte. Il ne dit rien
+ * de la personne — c'est un `gen_random_uuid()` — et il donne au consommateur
+ * la clé de déduplication qu'il prenait sinon sur `invitee_uri`, une URL
+ * Calendly qui n'est stable que tant que Calendly le veut.
  */
 export function ligneExport(
   ligne: Record<string, unknown>,
@@ -248,6 +256,7 @@ export function ligneExport(
       : {};
 
   return {
+    id: texte(ligne.id),
     event_uri: texte(ligne.event_uri),
     invitee_uri: texte(ligne.invitee_uri),
     scheduled_start: texte(ligne.scheduled_start),

@@ -269,6 +269,12 @@ export async function POST(
         ? admin
             .from("radar_bookings")
             .select("id, channel_id, attribution")
+            // L'URI vient du message, et `invitee_uri` est unique dans toute
+            // la table : sans cette borne, un client signerait un report qui
+            // désigne la séance d'un autre, et hériterait de son canal. Ce
+            // n'est pas une hypothèse d'école depuis que l'export sert
+            // `rescheduled_from` — la valeur sortirait.
+            .eq("organization_id", orgId)
             .eq("invitee_uri", invite.old_invitee)
             .maybeSingle()
         : Promise.resolve({ data: null }),

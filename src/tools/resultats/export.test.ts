@@ -134,6 +134,7 @@ describe("la liste blanche", () => {
     "effective_status",
     "event_type_name",
     "event_uri",
+    "id",
     "invitee_uri",
     "rescheduled_from",
     "sale_amount_cents",
@@ -241,13 +242,17 @@ describe("la liste blanche", () => {
     assert.equal(ligne.channel_label, null);
   });
 
-  it("21. les colonnes lues nomment `id` et `channel_id`, servis par personne", () => {
-    // Les deux sont lus — l'un fait le curseur, l'autre retrouve le canal — et
-    // n'apparaissent dans aucune ligne servie.
+  it("21. `id` est lu et servi, `channel_id` lu et gardé", () => {
+    // `id` fait le curseur et ouvre la ligne : c'est la clé du flux.
+    // `channel_id` ne sert qu'à retrouver le canal, qui sort par sa clé.
     assert.equal(COLONNES_EXPORT.includes("id"), true);
     assert.equal(COLONNES_EXPORT.includes("channel_id"), true);
-    assert.equal(SERVIS.includes("id"), false);
+    assert.equal(SERVIS.includes("id"), true);
     assert.equal(SERVIS.includes("channel_id"), false);
+
+    const ligne = ligneExport(BRUTE, { key: "google_ads", label: "Google Ads" });
+    assert.equal(ligne.id, "9a2115f5-bab3-496e-9a46-aa27eda52db1");
+    assert.equal(Object.keys(ligne)[0], "id");
   });
 
   it("22. le report pointe son origine, et vaut null quand il n'y en a pas", () => {
@@ -260,6 +265,12 @@ describe("la liste blanche", () => {
     const premiere = ligneExport({ ...BRUTE, rescheduled_from: null }, null);
     assert.equal(premiere.rescheduled_from, null);
     assert.deepEqual(Object.keys(premiere).sort(), SERVIS);
+
+    // Et le pointeur se joint : c'est un `id` de ligne, du même genre que
+    // celui que l'export sert en tête. Servir l'un sans l'autre ferait de ce
+    // champ un drapeau muet.
+    const origine = ligneExport({ ...BRUTE, id: deplacee.rescheduled_from }, null);
+    assert.equal(origine.id, deplacee.rescheduled_from);
   });
 
   it("23. aucune colonne d'identité n'est même lue", () => {

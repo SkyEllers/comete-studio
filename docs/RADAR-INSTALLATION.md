@@ -266,6 +266,7 @@ La réponse est un JSON `{ "meta": …, "lignes": [ … ] }`. Une ligne, au comp
 
 ```json
 {
+  "id": "9a2115f5-bab3-496e-9a46-aa27eda52db1",
   "event_uri": "https://api.calendly.com/scheduled_events/E",
   "invitee_uri": "https://api.calendly.com/scheduled_events/E/invitees/I",
   "scheduled_start": "2026-09-01T10:30:00+02:00",
@@ -290,18 +291,22 @@ La réponse est un JSON `{ "meta": …, "lignes": [ … ] }`. Une ligne, au comp
 }
 ```
 
-Ces vingt et un champs sont la liste complète. Il n'y en a pas d'autres, et rien ne
+Ces vingt-deux champs sont la liste complète. Il n'y en a pas d'autres, et rien ne
 s'y ajoutera sans qu'on le dise.
 
+- `id` est l'identifiant de la ligne, et le seul identifiant technique servi.
+  Il ne bouge plus : c'est la clé de déduplication à employer, plutôt
+  qu'`invitee_uri`, qui est une URL Calendly.
 - `channel` est la clé stable du canal (`google_ads`, `meta`, `seo`, …),
   `channel_label` son libellé d'affichage, qui peut changer. **Regrouper sur la
   clé.**
 - `attribution` dit *comment* le canal a été trouvé : `utm` (la landing portait
   le taguage), `recurrence` (la personne était déjà venue par un canal),
   `direct` ou `manuel`.
-- `rescheduled_from` : une ligne reprogrammée pointe sa ligne d'origine (son
-  identifiant), `null` sinon ; la granularité UTM se lit sur l'origine — une
-  séance déplacée hérite du canal, pas du taguage.
+- `rescheduled_from` : une ligne reprogrammée pointe l'`id` de sa ligne
+  d'origine, `null` sinon ; la granularité UTM se lit sur l'origine — une
+  séance déplacée hérite du canal, pas du taguage. L'origine n'est dans la
+  réponse que si elle tombe dans la plage demandée.
 - Les quatre `utm_*` sont ceux du rendez-vous, à `null` quand la campagne
   n'était pas taguée. `utm_term` et les identifiants de clic (`gclid`,
   `fbclid`) ne sont **pas** servis : recouper par `utm_campaign` et
