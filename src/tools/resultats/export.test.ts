@@ -135,6 +135,7 @@ describe("la liste blanche", () => {
     "event_type_name",
     "event_uri",
     "invitee_uri",
+    "rescheduled_from",
     "sale_amount_cents",
     "sale_date",
     "sale_recorded_at",
@@ -158,6 +159,7 @@ describe("la liste blanche", () => {
     canceled_at: null,
     event_type_name: "Diagnostic offert",
     attribution: "utm",
+    rescheduled_from: "2f0c9c1e-3f4a-4d0b-9a71-6c1f2b8d5e33",
     status: "confirme",
     effective_status: "honore",
     sale_amount_cents: 120000,
@@ -248,7 +250,19 @@ describe("la liste blanche", () => {
     assert.equal(SERVIS.includes("channel_id"), false);
   });
 
-  it("22. aucune colonne d'identité n'est même lue", () => {
+  it("22. le report pointe son origine, et vaut null quand il n'y en a pas", () => {
+    const deplacee = ligneExport(BRUTE, { key: "google_ads", label: "Google Ads" });
+    assert.equal(deplacee.rescheduled_from, "2f0c9c1e-3f4a-4d0b-9a71-6c1f2b8d5e33");
+
+    // Une séance qui n'en remplace aucune porte le champ à `null` plutôt que
+    // de l'omettre : c'est la même règle que pour les `utm_*`, et pour la
+    // même raison — un champ absent se lit comme une panne de l'export.
+    const premiere = ligneExport({ ...BRUTE, rescheduled_from: null }, null);
+    assert.equal(premiere.rescheduled_from, null);
+    assert.deepEqual(Object.keys(premiere).sort(), SERVIS);
+  });
+
+  it("23. aucune colonne d'identité n'est même lue", () => {
     for (const interdit of [
       "invitee_first_name",
       "invitee_last_name",
@@ -262,7 +276,7 @@ describe("la liste blanche", () => {
 });
 
 describe("le préambule", () => {
-  it("23. il dit le fuseau, la forme des dates, et ce que ce flux n'est pas", () => {
+  it("24. il dit le fuseau, la forme des dates, et ce que ce flux n'est pas", () => {
     const entete = meta("abc");
     assert.equal(entete.fuseau_de_reference, "Europe/Paris");
     assert.equal(entete.horodatages, "ISO 8601 avec décalage");
@@ -272,7 +286,7 @@ describe("le préambule", () => {
     assert.equal(entete.suivant, "abc");
   });
 
-  it("24. la dernière page l'annonce par un curseur nul", () => {
+  it("25. la dernière page l'annonce par un curseur nul", () => {
     assert.equal(meta(null).suivant, null);
   });
 });

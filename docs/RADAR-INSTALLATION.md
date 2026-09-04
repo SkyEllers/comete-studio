@@ -275,6 +275,7 @@ La réponse est un JSON `{ "meta": …, "lignes": [ … ] }`. Une ligne, au comp
   "channel": "google_ads",
   "channel_label": "Google Ads",
   "attribution": "utm",
+  "rescheduled_from": null,
   "utm_source": "google",
   "utm_medium": "cpc",
   "utm_campaign": "diagnostic-septembre",
@@ -289,7 +290,7 @@ La réponse est un JSON `{ "meta": …, "lignes": [ … ] }`. Une ligne, au comp
 }
 ```
 
-Ces vingt champs sont la liste complète. Il n'y en a pas d'autres, et rien ne
+Ces vingt et un champs sont la liste complète. Il n'y en a pas d'autres, et rien ne
 s'y ajoutera sans qu'on le dise.
 
 - `channel` est la clé stable du canal (`google_ads`, `meta`, `seo`, …),
@@ -298,6 +299,9 @@ s'y ajoutera sans qu'on le dise.
 - `attribution` dit *comment* le canal a été trouvé : `utm` (la landing portait
   le taguage), `recurrence` (la personne était déjà venue par un canal),
   `direct` ou `manuel`.
+- `rescheduled_from` : une ligne reprogrammée pointe sa ligne d'origine (son
+  identifiant), `null` sinon ; la granularité UTM se lit sur l'origine — une
+  séance déplacée hérite du canal, pas du taguage.
 - Les quatre `utm_*` sont ceux du rendez-vous, à `null` quand la campagne
   n'était pas taguée. `utm_term` et les identifiants de clic (`gclid`,
   `fbclid`) ne sont **pas** servis : recouper par `utm_campaign` et

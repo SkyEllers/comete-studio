@@ -185,8 +185,37 @@ try {
   await srv(
     "PATCH",
     `radar_bookings?organization_id=eq.${orgs.a.id}&invitee_uri=eq.${encodeURIComponent(uriDe(1))}`,
-    { utm: UTM },
+    { utm: UTM, attribution: "utm" },
   );
+
+  /*
+   * Une séance reprogrammée, et l'origine qu'elle remplace.
+   *
+   * L'origine est la fixture taguée, et la reprogrammée est posée **sans**
+   * `utm` : c'est ce que le webhook produit. Une séance déplacée hérite du
+   * canal et de l'attribution de celle qu'elle remplace, mais pas de son
+   * taguage — la personne a cliqué un lien de report, pas une annonce. Sans
+   * `rescheduled_from`, un rapport lirait une ligne attribuée à `utm` sans
+   * campagne et conclurait à un trou dans le taguage.
+   *
+   * Elle porte le même prénom, le même nom et la même clé d'invité que les
+   * autres : le `grep` d'absence de la section 4 la couvre donc sans qu'on
+   * ait à y toucher.
+   */
+  const origine = (
+    await srv(
+      "GET",
+      `radar_bookings?select=id&organization_id=eq.${orgs.a.id}&invitee_uri=eq.${encodeURIComponent(uriDe(1))}`,
+    )
+  ).data[0];
+
+  const URI_REPORT = `https://api.calendly.com/invitees/zz-report-${marque}`;
+  await creer("radar_bookings", rendezVous(1, {
+    invitee_uri: URI_REPORT,
+    event_uri: `https://api.calendly.com/events/zz-report-${marque}`,
+    attribution: "utm",
+    rescheduled_from: origine.id,
+  }));
 
   // Hors plage : ils ne doivent jamais sortir.
   await creer("radar_bookings", rendezVous(9001, {
@@ -298,9 +327,9 @@ try {
       JSON.stringify([
         "attribution", "canceled_at", "channel", "channel_label", "currency",
         "effective_status", "event_type_name", "event_uri", "invitee_uri",
-        "sale_amount_cents", "sale_date", "sale_recorded_at", "scheduled_end",
-        "scheduled_start", "status", "updated_at", "utm_campaign", "utm_content",
-        "utm_medium", "utm_source",
+        "rescheduled_from", "sale_amount_cents", "sale_date", "sale_recorded_at",
+        "scheduled_end", "scheduled_start", "status", "updated_at", "utm_campaign",
+        "utm_content", "utm_medium", "utm_source",
       ]),
     JSON.stringify(champs),
   );
@@ -360,13 +389,60 @@ try {
       !JSON.stringify(corpsA).includes('"utm_term"'),
   );
 
-  // ------------------------------ 6. La plage sert --------------------------
+  // -------------------------- 6. La reprogrammation -------------------------
+  console.log("\n== 6. La reprogrammation ==");
+
+  const reportee = corpsA.lignes.find((l) => l.invitee_uri === URI_REPORT);
+
+  verifie("la séance reprogrammée est dans la page", Boolean(reportee));
+
+  verifie(
+    "elle pointe la ligne qu'elle remplace",
+    reportee?.rescheduled_from === origine.id,
+    `${reportee?.rescheduled_from} au lieu de ${origine.id}`,
+  );
+
+  const pointeuses = corpsA.lignes.filter((l) => l.rescheduled_from !== null);
+  verifie(
+    "les autres lignes le portent à null, sans l'omettre",
+    corpsA.lignes.every((l) => Object.hasOwn(l, "rescheduled_from")) &&
+      pointeuses.length === 1,
+    JSON.stringify(pointeuses.map((l) => l.invitee_uri)),
+  );
+
+  verifie(
+    "l'origine, elle, ne pointe rien",
+    taguee?.rescheduled_from === null,
+    JSON.stringify(taguee?.rescheduled_from),
+  );
+
+  /*
+   * Le champ ne dit pas seulement « cette ligne a été déplacée » : il dit où
+   * la campagne se lit. La reprogrammée n'a pas d'UTM, l'origine les a, et
+   * les deux portent la même attribution — sans le pointeur, un rapport
+   * verrait une ligne `utm` sans campagne et croirait à un taguage manquant.
+   */
+  verifie(
+    "… et c'est sur elle que la campagne se lit",
+    reportee?.utm_campaign === null &&
+      reportee?.attribution === "utm" &&
+      taguee?.utm_campaign === `campagne-${marque}`,
+    JSON.stringify({ deplacee: reportee?.utm_campaign, origine: taguee?.utm_campaign }),
+  );
+
+  verifie(
+    "chez B, aucune ligne ne pointe une ligne de A",
+    corpsB.lignes.every((l) => l.rescheduled_from === null),
+    JSON.stringify(corpsB.lignes.map((l) => l.rescheduled_from)),
+  );
+
+  // ------------------------------ 7. La plage sert --------------------------
   const horsPlage = JSON.stringify(corpsA);
   verifie("un rendez-vous de 2025 ne sort pas", !horsPlage.includes("-09001"));
   verifie("un rendez-vous de 2027 non plus", !horsPlage.includes("-09002"));
 
-  // ---------------------------- 7. La pagination ----------------------------
-  console.log("\n== 6. La pagination ==");
+  // ---------------------------- 8. La pagination ----------------------------
+  console.log("\n== 7. La pagination ==");
 
   const page1 = corpsA;
   verifie("la première page annonce une suite", typeof page1.meta.suivant === "string");
@@ -421,8 +497,8 @@ try {
       ),
   );
 
-  // --------------------------- 8. Aucune écriture ---------------------------
-  console.log("\n== 7. Ce que la route écrit ==");
+  // --------------------------- 9. Aucune écriture ---------------------------
+  console.log("\n== 8. Ce que la route écrit ==");
 
   /*
    * L'empreinte se prend ici, et non au début du banc : les sections

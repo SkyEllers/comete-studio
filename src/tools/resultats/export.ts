@@ -160,6 +160,7 @@ export const COLONNES_EXPORT = [
   "canceled_at",
   "event_type_name",
   "attribution",
+  "rescheduled_from",
   "utm",
   "status",
   "effective_status",
@@ -181,6 +182,7 @@ export type LigneExport = {
   channel: string | null;
   channel_label: string | null;
   attribution: string | null;
+  rescheduled_from: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -218,6 +220,18 @@ export type CanalLisible = { key: string; label: string };
  * publicitaire recoupe avec ses campagnes ; le reste ne quitte pas la maison.
  * Absent vaut `null` : c'est ce qui distingue « la campagne n'était pas
  * taguée » de « la valeur est vide ».
+ *
+ * `rescheduled_from` porte l'identifiant de la séance que celle-ci remplace,
+ * `null` quand elle n'en remplace aucune. Il sort parce qu'il change la
+ * lecture des UTM : une séance reprogrammée hérite du canal et de
+ * l'attribution de celle qu'elle déplace, mais pas de son taguage — la
+ * personne a cliqué un lien de report, pas une annonce. Sans ce champ, un
+ * rapport compterait une ligne `utm` sans campagne et conclurait à un trou
+ * dans le taguage ; avec lui, il sait où la campagne se lit.
+ *
+ * C'est un pointeur, pas une jointure : `id` ne sort pas, l'origine ne se
+ * retrouve donc pas dans le flux. Servir les deux serait un autre chantier,
+ * décidé pour lui-même, comme l'a été chaque champ de cette liste.
  */
 export function ligneExport(
   ligne: Record<string, unknown>,
@@ -243,6 +257,7 @@ export function ligneExport(
     channel: canal?.key ?? null,
     channel_label: canal?.label ?? null,
     attribution: texte(ligne.attribution),
+    rescheduled_from: texte(ligne.rescheduled_from),
     utm_source: texte(utm.utm_source),
     utm_medium: texte(utm.utm_medium),
     utm_campaign: texte(utm.utm_campaign),
