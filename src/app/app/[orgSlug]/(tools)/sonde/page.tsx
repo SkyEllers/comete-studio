@@ -302,7 +302,7 @@ function Attente({
   sites: { id: string; name: string; token: string; is_active: boolean }[];
   estAdmin: boolean;
 }) {
-  const origine = process.env.NEXT_PUBLIC_SITE_URL ?? "https://cometestudio.fr";
+  const origine = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.cometestudio.fr";
 
   if (sites.length === 0) {
     return (

@@ -139,7 +139,7 @@ Une campagne correctement taguée n'est jamais écrasée par ce filet.
 Ajouter cette ligne dans le `<head>` de la landing du client :
 
 ```html
-<script src="https://cometestudio.fr/radar.js" defer></script>
+<script src="https://www.cometestudio.fr/radar.js" defer></script>
 ```
 
 - [ ] Le script est posé **avant** le script d'embarquement Calendly, ou juste

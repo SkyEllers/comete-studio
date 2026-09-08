@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { origineDuScript } from "@/tools/sonde/origine";
 
 /**
  * La balise à coller sur la landing, et le bouton qui la copie.
@@ -26,7 +27,7 @@ export function Balise({
 }) {
   const [copie, setCopie] = useState(false);
 
-  const texte = `<script src="${origine}/sonde.js" data-site="${jeton}" defer></script>`;
+  const texte = `<script src="${origineDuScript(origine)}/sonde.js" data-site="${jeton}" defer></script>`;
 
   const copier = async () => {
     try {

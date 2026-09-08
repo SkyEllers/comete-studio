@@ -17,6 +17,10 @@ import { describe, it } from "node:test";
 import { createContext, runInNewContext } from "node:vm";
 import { brotliCompressSync, gzipSync } from "node:zlib";
 
+// Chemin relatif et extension explicite : `node --test` déroule ce module sans
+// la résolution d'alias de Next.
+import { origineDuScript } from "./origine.ts";
+
 const CHEMIN = new URL("../../../public/sonde.js", import.meta.url);
 const SOURCE = readFileSync(CHEMIN, "utf8");
 const RADAR = readFileSync(new URL("../../../public/radar.js", import.meta.url), "utf8");
@@ -61,6 +65,7 @@ function charger({
   referrer = "",
   beacon = "ok",
   avecRadar = null,
+  src = "https://www.cometestudio.fr/sonde.js",
 }: {
   jeton?: string | null;
   recherche?: string;
@@ -70,13 +75,15 @@ function charger({
   beacon?: "ok" | "plein" | "casse" | "absent";
   /** `avant` ou `apres` : l'ordre de chargement de radar.js sur la page. */
   avecRadar?: "avant" | "apres" | null;
+  /** L'adresse écrite dans la balise, telle que le client l'a collée. */
+  src?: string;
 } = {}): Faussette {
   const envois: Envoi[] = [];
   let auClic: ((evenement: { target: Element }) => void) | null = null;
   let auPageshow: ((evenement: { persisted: boolean }) => void) | null = null;
 
   const balise = {
-    src: "https://cometestudio.fr/sonde.js",
+    src,
     getAttribute: (nom: string) => (nom === "data-site" ? jeton : null),
   };
 
@@ -174,7 +181,49 @@ describe("sonde.js — la page vue", () => {
     const page = charger({ jeton: "jeton-du-site" });
     assert.equal(
       page.envois[0].url,
-      "https://cometestudio.fr/api/sonde/jeton-du-site",
+      "https://www.cometestudio.fr/api/sonde/jeton-du-site",
+    );
+  });
+
+  /*
+   * Ce test-ci a été écrit après coup, sur une panne réelle, et il mérite d'être
+   * raconté en entier — le commentaire qui lui correspond dans `sonde.js` tient
+   * en trois lignes, parce que ce fichier-là part chez chaque visiteur.
+   *
+   * La landing d'un client portait `https://cometestudio.fr/sonde.js`, sans le
+   * `www`. Le domaine nu redirige en 307 vers `www`. Un `<script src>` suit
+   * cette redirection sans broncher : le script se chargeait, s'exécutait, et
+   * tout avait l'air normal. Mais il déduit son point de collecte de l'adresse
+   * écrite dans la balise — donc il postait vers le domaine nu, qui redirige
+   * lui aussi. Or ni `sendBeacon` ni `fetch` ne suivent une redirection qui
+   * change d'origine en CORS : chaque envoi mourait en silence, ce que ce
+   * script est précisément fait pour ne jamais signaler.
+   *
+   * Résultat : une campagne Google Ads de cent clics mesurée à une visite, sur
+   * un tableau de bord qui n'affichait aucune anomalie — la pire des pannes,
+   * celle qui rend un chiffre faux au lieu de rendre une erreur. La correction
+   * ne peut pas vivre dans la balise, parce qu'elle est chez le client, sur un
+   * site qu'on ne contrôle pas et qu'on ne relit jamais : elle vit ici.
+   */
+  it("4b. une balise sans `www` mesure quand même", () => {
+    const page = charger({
+      jeton: "jeton-du-site",
+      src: "https://cometestudio.fr/sonde.js",
+    });
+    assert.equal(
+      page.envois[0].url,
+      "https://www.cometestudio.fr/api/sonde/jeton-du-site",
+    );
+  });
+
+  it("4c. une préproduction continue de mesurer chez elle", () => {
+    const page = charger({
+      jeton: "jeton-du-site",
+      src: "https://hub-preprod.vercel.app/sonde.js",
+    });
+    assert.equal(
+      page.envois[0].url,
+      "https://hub-preprod.vercel.app/api/sonde/jeton-du-site",
     );
   });
 });
@@ -340,6 +389,34 @@ describe("sonde.js — la cohabitation avec radar.js", () => {
     const page = charger({ avecRadar: "avant", recherche: "?utm_source=google" });
     assert.equal(page.calendly.__sonde, true);
     assert.equal(page.calendly.__radar, true);
+  });
+});
+
+describe("la balise qu'on distribue", () => {
+  it("29. le domaine nu devient `www` : c'est ce qui part chez le client", () => {
+    assert.equal(
+      origineDuScript("https://cometestudio.fr"),
+      "https://www.cometestudio.fr",
+    );
+  });
+
+  it("30. `www` ne se redouble pas", () => {
+    assert.equal(
+      origineDuScript("https://www.cometestudio.fr"),
+      "https://www.cometestudio.fr",
+    );
+  });
+
+  it("31. une préproduction et un poste local sont laissés tels quels", () => {
+    assert.equal(
+      origineDuScript("https://hub-preprod.vercel.app"),
+      "https://hub-preprod.vercel.app",
+    );
+    assert.equal(origineDuScript("http://localhost:3000"), "http://localhost:3000");
+  });
+
+  it("32. une origine illisible s'affiche plutôt que de faire disparaître la balise", () => {
+    assert.equal(origineDuScript("pas une adresse/"), "pas une adresse");
   });
 });
 

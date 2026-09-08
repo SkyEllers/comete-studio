@@ -37,7 +37,7 @@ Résultat attendu : un visiteur arrive sur la landing du client par une annonce 
 2. Côté premier client : Calendly en plan payant (les webhooks et l'encaissement l'exigent, à vérifier sur le plan du moment), Stripe relié, séance payante avec son prix, et une question obligatoire à choix unique « Comment m'avez-vous connu ? » dont les réponses reprennent mot pour mot les libellés des canaux (Google, Instagram ou Facebook, Recherche Google, Bouche à oreille, Newsletter, Autre).
 3. Le client génère un jeton d'accès personnel dans Calendly et le transmet à Louis (canal sûr, pas un SMS).
 4. Contrat : le taux, la fenêtre de récurrence, la règle « séance honorée et payée », et une clause de sous-traitance des données (le hub traite des données de réservation pour le compte du client). Louis n'est pas juriste, ni Claude : à faire relire.
-5. Landing du client : prévoir l'ajout d'une ligne `<script src="https://cometestudio.fr/radar.js" defer></script>` (livré au chantier 6).
+5. Landing du client : prévoir l'ajout d'une ligne `<script src="https://www.cometestudio.fr/radar.js" defer></script>` (livré au chantier 6).
 
 ## Chantier 1 — Migration `0008_radar`
 

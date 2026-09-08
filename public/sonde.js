@@ -32,10 +32,18 @@
   if (!jeton) return;
 
   /* Le point de collecte se déduit de l'adresse du script : une préproduction
-     mesure dans sa base sans qu'on touche à la balise. */
-  var origine = "https://cometestudio.fr";
+     mesure dans sa base sans qu'on touche à la balise.
+
+     Le domaine nu est ramené sur `www` : il redirige, un envoi ne suit pas
+     une redirection, et une balise sans `www` ne mesurerait donc rien — sans
+     un mot. Test 4b. */
+  var origine = "https://www.cometestudio.fr";
   try {
-    if (balise.src) origine = new URL(balise.src).origin;
+    if (balise.src) {
+      var url = new URL(balise.src);
+      if (url.hostname === "cometestudio.fr") url.hostname = "www." + url.hostname;
+      origine = url.origin;
+    }
   } catch {
     /* on garde l'origine par défaut */
   }
