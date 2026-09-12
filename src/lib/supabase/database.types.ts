@@ -790,6 +790,171 @@ export type Database = {
         }
         Relationships: []
       }
+      pulsar_clients: {
+        Row: {
+          created_at: string
+          date_debut: string | null
+          fin_engagement: string | null
+          id: string
+          is_internal: boolean
+          linked_organization_id: string | null
+          modele: Database["public"]["Enums"]["pulsar_modele"]
+          montant_cents: number
+          name: string
+          organization_id: string
+          profil: Database["public"]["Enums"]["pulsar_profil"] | null
+          statut: Database["public"]["Enums"]["pulsar_statut"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_debut?: string | null
+          fin_engagement?: string | null
+          id?: string
+          is_internal?: boolean
+          linked_organization_id?: string | null
+          modele?: Database["public"]["Enums"]["pulsar_modele"]
+          montant_cents?: number
+          name: string
+          organization_id: string
+          profil?: Database["public"]["Enums"]["pulsar_profil"] | null
+          statut?: Database["public"]["Enums"]["pulsar_statut"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_debut?: string | null
+          fin_engagement?: string | null
+          id?: string
+          is_internal?: boolean
+          linked_organization_id?: string | null
+          modele?: Database["public"]["Enums"]["pulsar_modele"]
+          montant_cents?: number
+          name?: string
+          organization_id?: string
+          profil?: Database["public"]["Enums"]["pulsar_profil"] | null
+          statut?: Database["public"]["Enums"]["pulsar_statut"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulsar_clients_linked_organization_id_fkey"
+            columns: ["linked_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pulsar_clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pulsar_entries: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string
+          duration_minutes: number | null
+          ended_at: string | null
+          id: string
+          is_manual: boolean
+          note: string | null
+          organization_id: string
+          phase: Database["public"]["Enums"]["pulsar_phase"]
+          started_at: string
+          task: Database["public"]["Enums"]["pulsar_task"]
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          is_manual?: boolean
+          note?: string | null
+          organization_id: string
+          phase: Database["public"]["Enums"]["pulsar_phase"]
+          started_at: string
+          task: Database["public"]["Enums"]["pulsar_task"]
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          is_manual?: boolean
+          note?: string | null
+          organization_id?: string
+          phase?: Database["public"]["Enums"]["pulsar_phase"]
+          started_at?: string
+          task?: Database["public"]["Enums"]["pulsar_task"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulsar_entries_client_fk"
+            columns: ["client_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "pulsar_clients"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "pulsar_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pulsar_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pulsar_settings: {
+        Row: {
+          created_at: string
+          heures_pilotage_alerte: number
+          organization_id: string
+          taux_alerte_cents: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          heures_pilotage_alerte?: number
+          organization_id: string
+          taux_alerte_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          heures_pilotage_alerte?: number
+          organization_id?: string
+          taux_alerte_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulsar_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_booking_activities: {
         Row: {
           booking_id: string
@@ -1780,6 +1945,7 @@ export type Database = {
       can_access_radar: { Args: { org: string }; Returns: boolean }
       can_access_sas: { Args: { org: string }; Returns: boolean }
       can_access_sonde: { Args: { org: string }; Returns: boolean }
+      can_access_temps: { Args: { org: string }; Returns: boolean }
       est_auteur_objet: {
         Args: { owner: string; owner_id: string }
         Returns: boolean
@@ -1858,6 +2024,19 @@ export type Database = {
     Enums: {
       file_status: "uploading" | "ready"
       membership_role: "owner" | "member"
+      pulsar_modele: "recurrent" | "one_shot" | "commission" | "historique"
+      pulsar_phase: "setup" | "pilotage" | "interne"
+      pulsar_profil: "p1" | "p2" | "p3" | "hors_cible"
+      pulsar_statut: "setup" | "pilotage" | "termine"
+      pulsar_task:
+        | "site"
+        | "ads"
+        | "emails"
+        | "tracking"
+        | "reunion"
+        | "seo"
+        | "prospection"
+        | "admin"
       radar_attribution: "utm" | "recurrence" | "direct" | "manuel"
       radar_commission_basis: "encaissement" | "ventes"
       radar_statement_status: "cloture" | "conteste" | "valide" | "paye"
@@ -1881,12 +2060,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1910,11 +2089,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1935,11 +2114,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1960,11 +2139,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1977,11 +2156,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1998,6 +2177,20 @@ export const Constants = {
     Enums: {
       file_status: ["uploading", "ready"],
       membership_role: ["owner", "member"],
+      pulsar_modele: ["recurrent", "one_shot", "commission", "historique"],
+      pulsar_phase: ["setup", "pilotage", "interne"],
+      pulsar_profil: ["p1", "p2", "p3", "hors_cible"],
+      pulsar_statut: ["setup", "pilotage", "termine"],
+      pulsar_task: [
+        "site",
+        "ads",
+        "emails",
+        "tracking",
+        "reunion",
+        "seo",
+        "prospection",
+        "admin",
+      ],
       radar_attribution: ["utm", "recurrence", "direct", "manuel"],
       radar_commission_basis: ["encaissement", "ventes"],
       radar_statement_status: ["cloture", "conteste", "valide", "paye"],

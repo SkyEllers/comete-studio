@@ -7,6 +7,7 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { preparerPulsar } from "@/tools/pulsar/installation";
 import { preparerRadar } from "@/tools/resultats/installation";
 import {
   membershipRoleSchema,
@@ -269,10 +270,16 @@ export async function toggleTool(input: {
   if (error) return fail("Impossible de changer cet outil pour le moment.");
 
   /*
+   * Deux outils arrivent avec des lignes qu'ils ne savent pas créer eux-mêmes.
+   *
    * Radar a besoin de réglages et de canaux avant son premier webhook, qui
    * peut arriver dans la minute suivant la connexion. Les poser à l'activation
    * évite qu'un rendez-vous trouve une table de canaux vide et parte sans
    * attribution — donc hors commission, en silence.
+   *
+   * Pulsar a besoin de ses seuils et de son client interne « Comète », sans
+   * lequel le premier chronomètre lancé sur de la prospection n'aurait nulle
+   * part où se ranger.
    */
   if (parsed.data.enabled) {
     const { data: outil } = await supabase
@@ -283,6 +290,9 @@ export async function toggleTool(input: {
 
     if (outil?.slug === "resultats") {
       await preparerRadar(supabase, parsed.data.organizationId);
+    }
+    if (outil?.slug === "temps") {
+      await preparerPulsar(supabase, parsed.data.organizationId);
     }
   }
 

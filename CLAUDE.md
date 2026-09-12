@@ -49,6 +49,7 @@ npm run qa:sas       # Sas : isolation, porte d'entrée, contraintes des idées 
 npm run qa:sas-ia    # Sas : le prompt contre la vraie API Anthropic (deux appels)
 npm run qa:sonde     # Sonde : isolation, sel, tâches de nuit, point de collecte ; demande un serveur
 npm run qa:export    # Export Radar : cloisonnement, liste blanche, pagination ; demande un serveur
+npm run qa:pulsar    # Pulsar : isolation, chronomètre unique, quarts d'heure, client interne
 npm run rapport:entonnoir # entonnoir GA4 de la landing de Jonathan ; demande GA4_ACCESS_TOKEN (docs/RAPPORT-ENTONNOIR-GA4.md)
 ```
 
@@ -91,7 +92,8 @@ src/
 │   ├── kanban/                       # Orbite, phase 2 : composants, mutations, hooks, palette
 │   ├── resultats/                    # Radar, phase 4 : attribution, calendly, fixtures
 │   ├── sas/                          # Sas, phase 5 : classement, appel Anthropic, capture, boîtes
-│   └── sonde/                        # Sonde, phase 6 : canaux, collecte, mesure, tableau de bord
+│   ├── sonde/                        # Sonde, phase 6 : canaux, collecte, mesure, tableau de bord
+│   └── pulsar/                       # Pulsar, phase 8 : amorçage, chronomètre, revenus
 public/
 ├── radar.js  sonde.js                # Radar et Sonde : scripts de landing, servis aux clients
 ├── fonts/  brand/  favicon.svg  favicon-16.png  favicon-32.png  apple-touch-icon.png  robots.txt
