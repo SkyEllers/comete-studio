@@ -137,6 +137,40 @@ export const getEntreesDuMois = cache(
 );
 
 /**
+ * Les entrées d'une période choisie, pour l'export.
+ *
+ * Les deux bornes sont des jours parisiens, comprises l'une et l'autre : « du
+ * 1er janvier au 31 mars » contient le 31 mars en entier. Le plafond est haut
+ * — c'est une porte de sortie, elle doit rendre tout ce qu'on lui demande ou
+ * le dire, jamais rendre un fichier tronqué qui a l'air complet.
+ */
+export const getEntreesEntre = cache(
+  async (
+    organizationId: string,
+    depuis: string,
+    jusqua: string,
+  ): Promise<Entree[]> => {
+    const supabase = await createClient();
+    const { debut, fin } = bornesParis(depuis, jusqua);
+
+    const { data } = await supabase
+      .from("pulsar_entries")
+      .select(COLONNES_ENTREE)
+      .eq("organization_id", organizationId)
+      .gte("started_at", debut)
+      .lte("started_at", fin)
+      .not("duration_minutes", "is", null)
+      .order("started_at", { ascending: true })
+      .limit(PLAFOND_EXPORT + 1);
+
+    return data ?? [];
+  },
+);
+
+/** Au-delà, l'export le dit et propose de couper la période. */
+export const PLAFOND_EXPORT = 5000;
+
+/**
  * Les heures comptées par client, depuis toujours.
  *
  * Le cumul ne se déduit pas du mois affiché : il faut tout relire. On ne

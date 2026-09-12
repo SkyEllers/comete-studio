@@ -6,11 +6,12 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Les écrans de Pulsar, en deux liens.
+ * Les écrans de Pulsar, en trois liens.
  *
- * Aujourd'hui, et Par client. On vient ici pour lancer un chronomètre bien
- * plus souvent que pour lire des chiffres : le premier lien est donc l'écran
- * d'accueil, et le second se trouve sans le chercher.
+ * Aujourd'hui, Par client, Comète. On vient ici pour lancer un chronomètre
+ * bien plus souvent que pour lire des chiffres : le premier lien est donc
+ * l'écran d'accueil, et les deux autres se trouvent sans les chercher. Ils
+ * vont du plus fréquent au plus rare, et du plus fin au plus large.
  *
  * `startsWith` sur les clients : le détail d'un client reste sous cet onglet,
  * qui doit rester allumé pendant qu'on s'y promène.
@@ -25,6 +26,11 @@ export function NavPulsar({ orgSlug }: { orgSlug: string }) {
       href: `${racine}/clients`,
       label: "Par client",
       actif: chemin.startsWith(`${racine}/clients`),
+    },
+    {
+      href: `${racine}/comete`,
+      label: "Comète",
+      actif: chemin.startsWith(`${racine}/comete`),
     },
   ];
 

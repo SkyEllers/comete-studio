@@ -163,6 +163,19 @@ try {
     created_by: comptes.a,
   });
 
+  // Trois heures de prospection sur « Comète » : 540 facturables contre 180
+  // internes font un quart du mois en non facturable.
+  await creer("pulsar_entries", {
+    organization_id: orgs.a.id,
+    client_id: clientPulsar.id,
+    task: "prospection",
+    phase: "interne",
+    started_at: new Date().toISOString(),
+    ended_at: new Date().toISOString(),
+    duration_minutes: 180,
+    created_by: comptes.a,
+  });
+
   const ca = await cookiesDeSession(emails.a);
   const cb = await cookiesDeSession(emails.b);
   const sa = `/app/${orgs.a.slug}`;
@@ -279,6 +292,31 @@ try {
     (await visite(ca, `${sa}/temps/clients/pas-un-uuid`)).status === 404,
   );
 
+  console.log("\n== 1 quinquies. La vue Comète ==");
+  const comete = await visite(ca, `${sa}/temps/comete`);
+  verifie(`A · ${sa}/temps/comete`, comete.status === 200, `status ${comete.status}`);
+  verifie(
+    "A · le partage est calculé : 180 min internes sur 720 → 25 %",
+    comete.corps.includes("25 %") && comete.corps.includes("75 % de ton mois"),
+    "le partage n'apparaît pas",
+  );
+  verifie(
+    "A · le taux moyen ne se dilue pas dans les heures internes : 61 €/h",
+    comete.corps.includes(TAUX_ATTENDU),
+    `« ${TAUX_ATTENDU} » est absent de la vue Comète`,
+  );
+  verifie(
+    "A · la ligne prospection compte ses 3 h",
+    comete.corps.includes("Prospection") && comete.corps.includes("3 h"),
+    "la ligne prospection n'apparaît pas",
+  );
+  verifie(
+    "A · les réglages et l'export sont servis avec la vue",
+    comete.corps.includes("Seuil de taux horaire") &&
+      comete.corps.includes("Exporter en CSV"),
+    "les réglages ou l'export manquent",
+  );
+
   console.log("\n== 2. Le membre de B, sans Orbite ==");
   verifie(`B · ${sb}`, (await visite(cb, sb)).status === 200);
   verifie(`B · ${sb}/kanban → 404 (outil non activé)`, (await visite(cb, `${sb}/kanban`)).status === 404);
@@ -290,6 +328,26 @@ try {
   verifie(`B · ${sa}/sas → 404`, (await visite(cb, `${sa}/sas`)).status === 404);
   verifie(`B · ${sb}/temps → 404 (outil non activé)`, (await visite(cb, `${sb}/temps`)).status === 404);
   verifie(`B · ${sa}/temps → 404`, (await visite(cb, `${sa}/temps`)).status === 404);
+  verifie(
+    `B · ${sa}/temps/clients → 404`,
+    (await visite(cb, `${sa}/temps/clients`)).status === 404,
+  );
+  verifie(
+    "B · le détail d'un client de A → 404",
+    (await visite(cb, `${sa}/temps/clients/${clientFacturant.id}`)).status === 404,
+  );
+  verifie(
+    "B · le client de A sous son propre espace → 404",
+    (await visite(cb, `${sb}/temps/clients/${clientFacturant.id}`)).status === 404,
+  );
+  verifie(
+    `B · ${sa}/temps/comete → 404`,
+    (await visite(cb, `${sa}/temps/comete`)).status === 404,
+  );
+  verifie(
+    `B · ${sb}/temps/comete → 404 (outil non activé)`,
+    (await visite(cb, `${sb}/temps/comete`)).status === 404,
+  );
   verifie(
     "B · la boîte de A → 404",
     (await visite(cb, `${sa}/sas/boites/${boite.id}`)).status === 404,
@@ -344,6 +402,18 @@ try {
     "A · /temps → 404 immédiatement, chronomètre en marche ou non",
     (await visite(ca, `${sa}/temps`)).status === 404,
   );
+  verifie(
+    "A · /temps/clients → 404 aussi",
+    (await visite(ca, `${sa}/temps/clients`)).status === 404,
+  );
+  verifie(
+    "A · le détail d'un client → 404 aussi",
+    (await visite(ca, `${sa}/temps/clients/${clientFacturant.id}`)).status === 404,
+  );
+  verifie(
+    "A · la vue Comète → 404 aussi",
+    (await visite(ca, `${sa}/temps/comete`)).status === 404,
+  );
 
   await basculerTemps(true);
   const retour = await visite(ca, `${sa}/temps`);
@@ -383,6 +453,8 @@ try {
     [`${sa}/sas`, ca],
     [`${sa}/sas/boites`, ca],
     [`${sa}/temps`, ca],
+    [`${sa}/temps/clients`, ca],
+    [`${sa}/temps/comete`, ca],
   ]) {
     const reponse = await visite(cookie, chemin);
     const entete = reponse.headers.get("x-robots-tag") ?? "absent";

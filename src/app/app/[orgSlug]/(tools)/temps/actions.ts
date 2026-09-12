@@ -7,7 +7,13 @@ import { getMembership } from "@/lib/access";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { jourParis, midiParis } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
+import { nomDuFichier, versCsv } from "@/tools/pulsar/csv";
 import { arrondirQuartHeure, phaseDuClient } from "@/tools/pulsar/duree";
+import {
+  getClients,
+  getEntreesEntre,
+  PLAFOND_EXPORT,
+} from "@/tools/pulsar/queries";
 import {
   LIMITE_NOTE,
   MAXIMUM_MANUEL,
@@ -675,6 +681,120 @@ function messageDeFiche(
   if (error.code === "23514") return "Ces dates ne tiennent pas ensemble.";
   if (error.code === "P0001" && error.message) return error.message;
   return "Cette fiche n'a pas été enregistrée. Réessaie.";
+}
+
+// -------------------------------- Les réglages -------------------------------
+
+/**
+ * Les deux seuils d'alerte.
+ *
+ * Ils ne changent rien à ce qui est compté : ils décident de ce qui passe en
+ * orange. Les bornes sont larges à dessein — c'est le jugement de Louis, pas
+ * celui de l'outil — mais un plafond à zéro heure allumerait tout, et un seuil
+ * de mille euros de l'heure n'éteindrait plus rien.
+ */
+const reglagesSchema = z.object({
+  tauxAlerteEuros: z
+    .number({ error: "Indique un seuil." })
+    .int({ error: "Un seuil se déclare en euros entiers." })
+    .min(0, { error: "Un seuil ne peut pas être négatif." })
+    .max(1000, { error: "Au-delà de 1 000 €/h, l'alerte ne s'éteindrait jamais." }),
+  heuresPilotageAlerte: z
+    .number({ error: "Indique un plafond." })
+    .int({ error: "Un plafond se compte en heures entières." })
+    .min(1, { error: "Un plafond à zéro heure allumerait tous tes clients." })
+    .max(500, { error: "Ce plafond ne s'atteindra jamais." }),
+});
+
+export async function enregistrerReglages(
+  orgSlug: string,
+  input: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = reglagesSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  /*
+   * `upsert` plutôt qu'`update` : l'amorçage pose la ligne à l'activation,
+   * mais une organisation dont l'outil aurait été activé avant la phase 8
+   * n'en aurait pas, et les réglages doivent rester modifiables sans que
+   * personne n'ait à s'en apercevoir.
+   */
+  const { error } = await membre.supabase.from("pulsar_settings").upsert(
+    {
+      organization_id: membre.org.id,
+      taux_alerte_cents: parsed.data.tauxAlerteEuros * 100,
+      heures_pilotage_alerte: parsed.data.heuresPilotageAlerte,
+    },
+    { onConflict: "organization_id" },
+  );
+
+  if (error) return fail("Ces seuils n'ont pas été enregistrés. Réessaie.");
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+// --------------------------------- L'export ----------------------------------
+
+const periodeSchema = z
+  .object({
+    depuis: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choisis une date de début." }),
+    jusqua: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choisis une date de fin." }),
+  })
+  .refine((periode) => periode.jusqua >= periode.depuis, {
+    error: "La fin de la période tombe avant son début.",
+    path: ["jusqua"],
+  });
+
+/**
+ * Les entrées d'une période, en CSV.
+ *
+ * Le fichier se fabrique ici et non dans le navigateur, contrairement au
+ * relevé de Radar : les lignes d'une période choisie ne sont pas à l'écran,
+ * et les rapatrier pour les recopier ensuite ferait deux fois le travail.
+ * Le navigateur ne pose que le BOM et déclenche le téléchargement.
+ *
+ * Au-delà du plafond, on refuse plutôt que de tronquer : un fichier amputé
+ * ressemble trait pour trait à un fichier complet.
+ */
+export async function exporterEntrees(
+  orgSlug: string,
+  input: unknown,
+): Promise<ActionResult<{ csv: string; nom: string; lignes: number }>> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = periodeSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const { depuis, jusqua } = parsed.data;
+
+  const [clients, entrees] = await Promise.all([
+    getClients(membre.org.id),
+    getEntreesEntre(membre.org.id, depuis, jusqua),
+  ]);
+
+  if (entrees.length > PLAFOND_EXPORT) {
+    return fail(
+      `Cette période dépasse ${PLAFOND_EXPORT.toLocaleString("fr-FR")} entrées. Coupe-la en deux.`,
+      "jusqua",
+    );
+  }
+
+  const noms = new Map(clients.map((client) => [client.id, client.name]));
+
+  const csv = versCsv(
+    entrees.map((entree) => ({
+      jour: jourParis(entree.started_at),
+      client: noms.get(entree.client_id) ?? "Client retiré",
+      entree,
+    })),
+  );
+
+  return ok({ csv, nom: nomDuFichier(depuis, jusqua), lignes: entrees.length });
 }
 
 // --------------------------------- Le reste ----------------------------------
