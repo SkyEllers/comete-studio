@@ -14,6 +14,9 @@ import {
   MINIMUM_MINUTES,
   PAS_MINUTES,
   type ClientPulsar,
+  type Modele,
+  type Profil,
+  type Statut,
 } from "@/tools/pulsar/types";
 
 /**
@@ -429,6 +432,249 @@ export async function supprimer(
 
   rafraichir(orgSlug);
   return ok();
+}
+
+// -------------------------------- Les fiches ---------------------------------
+
+/**
+ * Les montants se déclarent en euros entiers.
+ *
+ * La base range des centimes, comme partout dans le hub, mais un forfait n'a
+ * pas de centimes : 550 €, pas 550,00 €. Accepter la virgule ouvrirait la
+ * porte au « 550.5 » qu'on relit « 550,05 » six mois plus tard.
+ */
+const montantSchema = z
+  .number({ error: "Indique un montant." })
+  .int({ error: "Un montant se déclare en euros entiers." })
+  .min(0, { error: "Un montant ne peut pas être négatif." })
+  .max(1_000_000, { error: "Ce montant dépasse ce que Pulsar sait compter." });
+
+const jourSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Cette date n'est pas lisible." })
+  .nullable()
+  .optional();
+
+const ficheSchema = z
+  .object({
+    id: identifiant.optional(),
+    name: z
+      .string()
+      .trim()
+      .min(1, { error: "Donne un nom à ce client." })
+      .max(60, { error: "Le nom d'un client ne peut pas dépasser 60 caractères." }),
+    profil: z.enum(["p1", "p2", "p3", "hors_cible"]).nullable().optional(),
+    modele: z.enum(["recurrent", "one_shot", "commission", "historique"], {
+      error: "Choisis un modèle.",
+    }),
+    montantEuros: montantSchema,
+    dateDebut: jourSchema,
+    finEngagement: jourSchema,
+    statut: z.enum(["setup", "pilotage", "termine"], { error: "Choisis un statut." }),
+  })
+  /*
+   * Les règles du brief, dites ici plutôt qu'à l'écran seul : un récurrent
+   * sans date de début ne rapporte rien et personne ne comprend pourquoi —
+   * c'est le genre de zéro qu'on met trois mois à remarquer.
+   */
+  .refine((fiche) => fiche.modele !== "recurrent" || Boolean(fiche.dateDebut), {
+    error: "Un récurrent a besoin de sa date de début pour compter ses mois.",
+    path: ["dateDebut"],
+  })
+  .refine((fiche) => fiche.modele !== "one_shot" || Boolean(fiche.dateDebut), {
+    error: "Un one-shot a besoin de sa date pour savoir sur quel mois compter.",
+    path: ["dateDebut"],
+  })
+  .refine((fiche) => fiche.modele !== "one_shot" || fiche.montantEuros > 0, {
+    error: "Un one-shot sans montant ne compte rien.",
+    path: ["montantEuros"],
+  })
+  .refine(
+    (fiche) =>
+      !fiche.finEngagement ||
+      !fiche.dateDebut ||
+      fiche.finEngagement >= fiche.dateDebut,
+    {
+      error: "La fin de l'engagement tombe avant son début.",
+      path: ["finEngagement"],
+    },
+  );
+
+/**
+ * Ce qui part en base, une fois les règles appliquées.
+ *
+ * Deux d'entre elles se voient ici et nulle part ailleurs :
+ *
+ * - `commission` et `historique` rangent zéro. Leur encaissé vaut zéro en v1,
+ *   et garder un montant qui ne compte nulle part ferait dire au taux horaire
+ *   quelque chose que personne n'a demandé. La fiche grise le champ, cette
+ *   ligne le rend vrai.
+ * - un client qu'on passe en `termine` sans date de fin reçoit celle du jour.
+ *   C'est ainsi que « le passage en terminé » de la décision 8 s'écrit : une
+ *   date, pas un état — sans quoi son récurrent continuerait de compter des
+ *   mois après son départ.
+ */
+type LigneFiche = {
+  name: string;
+  profil: Profil | null;
+  modele: Modele;
+  montant_cents: number;
+  date_debut: string | null;
+  fin_engagement: string | null;
+  statut: Statut;
+};
+
+function ligneDeFiche(fiche: z.infer<typeof ficheSchema>): LigneFiche {
+  const facturant = fiche.modele === "recurrent" || fiche.modele === "one_shot";
+
+  const fin =
+    fiche.statut === "termine" && !fiche.finEngagement
+      ? jourParis()
+      : (fiche.finEngagement ?? null);
+
+  return {
+    name: fiche.name,
+    profil: fiche.profil ?? null,
+    modele: fiche.modele,
+    montant_cents: facturant ? fiche.montantEuros * 100 : 0,
+    date_debut: fiche.dateDebut ?? null,
+    fin_engagement: fin,
+    statut: fiche.statut,
+  };
+}
+
+export async function enregistrerClient(
+  orgSlug: string,
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = ficheSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const { supabase, org } = membre;
+  const ligne = ligneDeFiche(parsed.data);
+
+  if (parsed.data.id) {
+    const { data, error } = await supabase
+      .from("pulsar_clients")
+      .update(ligne)
+      .eq("organization_id", org.id)
+      .eq("id", parsed.data.id)
+      .select("id")
+      .maybeSingle();
+
+    if (error) return fail(messageDeFiche(error, parsed.data.name));
+    if (!data) return fail("Ce client n'existe plus, ou ne se modifie pas.");
+
+    rafraichir(orgSlug);
+    return ok({ id: data.id });
+  }
+
+  const { data, error } = await supabase
+    .from("pulsar_clients")
+    .insert({ organization_id: org.id, ...ligne })
+    .select("id")
+    .maybeSingle();
+
+  if (error) return fail(messageDeFiche(error, parsed.data.name));
+  if (!data) return fail("Ce client n'a pas été créé. Réessaie.");
+
+  rafraichir(orgSlug);
+  return ok({ id: data.id });
+}
+
+/**
+ * Archiver : le client sort des listes du chronomètre, ses heures restent dans
+ * les chiffres. C'est le geste prévu à la place de la suppression, et la base
+ * refuse l'autre dès qu'une heure est comptée.
+ */
+export async function archiverClient(
+  orgSlug: string,
+  id: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = identifiant.safeParse(id);
+  if (!parsed.success) return fail("Ce client n'existe plus.");
+
+  const { data: fiche } = await membre.supabase
+    .from("pulsar_clients")
+    .select("id, fin_engagement, is_internal")
+    .eq("organization_id", membre.org.id)
+    .eq("id", parsed.data)
+    .maybeSingle();
+
+  if (!fiche) return fail("Ce client n'existe plus.");
+  if (fiche.is_internal) return fail("« Comète » porte ton non facturable : il reste.");
+
+  const { error } = await membre.supabase
+    .from("pulsar_clients")
+    .update({
+      statut: "termine",
+      fin_engagement: fiche.fin_engagement ?? jourParis(),
+    })
+    .eq("id", fiche.id);
+
+  if (error) return fail("Ce client n'a pas été archivé. Réessaie.");
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+/** Supprimer. Refusé par la base dès qu'une heure pend à ce client. */
+export async function supprimerClient(
+  orgSlug: string,
+  id: unknown,
+): Promise<ActionResult> {
+  const membre = await acces(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = identifiant.safeParse(id);
+  if (!parsed.success) return fail("Ce client n'existe plus.");
+
+  const { data, error } = await membre.supabase
+    .from("pulsar_clients")
+    .delete()
+    .eq("organization_id", membre.org.id)
+    .eq("id", parsed.data)
+    .select("id");
+
+  if (error) {
+    return fail(
+      error.code === "23503"
+        ? "Ce client porte des heures : passe-le en terminé plutôt que de l'effacer."
+        : "Ce client n'a pas pu être supprimé. Réessaie.",
+    );
+  }
+
+  // Zéro ligne : la policy a écarté la cible — « Comète » est le seul cas.
+  if (!data || data.length === 0) {
+    return fail("« Comète » porte ton non facturable : il ne se supprime pas.");
+  }
+
+  rafraichir(orgSlug);
+  return ok();
+}
+
+/**
+ * Les erreurs de la base, dites en français.
+ *
+ * `P0001` est le code des gardes qu'on a posées soi-même dans la migration —
+ * « Comète » qu'on renomme, un client qu'on promeut interne. Leurs messages
+ * sont déjà écrits pour être lus, on les laisse passer tels quels plutôt que
+ * de les traduire une seconde fois et de les laisser diverger.
+ */
+function messageDeFiche(
+  error: { code?: string; message?: string },
+  nom: string,
+): string {
+  if (error.code === "23505") return `Tu as déjà un client nommé « ${nom} ».`;
+  if (error.code === "23514") return "Ces dates ne tiennent pas ensemble.";
+  if (error.code === "P0001" && error.message) return error.message;
+  return "Cette fiche n'a pas été enregistrée. Réessaie.";
 }
 
 // --------------------------------- Le reste ----------------------------------

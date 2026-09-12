@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -15,40 +14,12 @@ import type { PartCanal } from "./queries";
  * juillet » plutôt qu'un « +3 » qui demande de deviner par rapport à quoi.
  */
 
-export function SelecteurMois({
-  mois,
-  choix,
-  href,
-}: {
-  mois: string;
-  choix: string[];
-  /** La page qui reçoit le mois : le tableau de bord ou la liste. */
-  href: (mois: string) => string;
-}) {
-  return (
-    <nav
-      aria-label="Choisir le mois"
-      className="-mx-4 mb-6 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
-    >
-      {choix.map((valeur) => (
-        <Link
-          key={valeur}
-          href={href(valeur)}
-          prefetch
-          aria-current={valeur === mois ? "page" : undefined}
-          className={cn(
-            "shrink-0 snap-start rounded-full border px-3 py-1.5 text-sm transition-colors",
-            valeur === mois
-              ? "border-ember bg-ember text-void font-medium"
-              : "border-line text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {libelleMois(valeur)}
-        </Link>
-      ))}
-    </nav>
-  );
-}
+/**
+ * Le sélecteur de mois vit dans `components/app` depuis que Pulsar s'en sert
+ * aussi. Ré-exporté ici : c'est la porte par laquelle les quatre écrans de
+ * Radar le connaissent.
+ */
+export { SelecteurMois } from "@/components/app/selecteur-mois";
 
 export function Tuile({
   icon: Icon,

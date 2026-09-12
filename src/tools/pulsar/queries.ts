@@ -8,9 +8,10 @@ import {
   jourParis,
   lundiDeLaSemaine,
 } from "@/lib/dates";
+import { moisSuivant } from "@/lib/mois";
 import { createClient } from "@/lib/supabase/server";
 
-import type { ClientPulsar, Entree } from "./types";
+import type { Entree, FicheClient } from "./types";
 
 /**
  * Ce que Pulsar lit, toujours à travers la RLS de l'utilisateur courant.
@@ -36,12 +37,14 @@ const COLONNES_ENTREE =
  * `clientsActifs`, pas cette requête.
  */
 export const getClients = cache(
-  async (organizationId: string): Promise<ClientPulsar[]> => {
+  async (organizationId: string): Promise<FicheClient[]> => {
     const supabase = await createClient();
 
     const { data } = await supabase
       .from("pulsar_clients")
-      .select("id, name, is_internal, statut")
+      .select(
+        "id, name, is_internal, statut, profil, modele, montant_cents, date_debut, fin_engagement",
+      )
       .eq("organization_id", organizationId)
       .order("name");
 
@@ -103,6 +106,109 @@ export const getSemaine = cache(
       .limit(500);
 
     return data ?? [];
+  },
+);
+
+/**
+ * Les entrées d'un mois civil parisien.
+ *
+ * Le mois arrive sous la forme « 2026-09-01 » et se referme sur le dernier
+ * jour du mois, 23 h 59 : une entrée du 1er à 00 h 30 et une du 30 à 23 h 30
+ * appartiennent toutes deux à septembre, ce qu'un calcul en UTC dirait
+ * autrement deux fois par mois.
+ */
+export const getEntreesDuMois = cache(
+  async (organizationId: string, mois: string): Promise<Entree[]> => {
+    const supabase = await createClient();
+    const dernierJour = ajouterJours(moisSuivant(mois), -1);
+    const { debut, fin } = bornesParis(mois, dernierJour);
+
+    const { data } = await supabase
+      .from("pulsar_entries")
+      .select(COLONNES_ENTREE)
+      .eq("organization_id", organizationId)
+      .gte("started_at", debut)
+      .lte("started_at", fin)
+      .order("started_at", { ascending: false })
+      .limit(2000);
+
+    return data ?? [];
+  },
+);
+
+/**
+ * Les heures comptées par client, depuis toujours.
+ *
+ * Le cumul ne se déduit pas du mois affiché : il faut tout relire. On ne
+ * rapatrie donc que ce qui sert à additionner — un client, des minutes — et
+ * jamais les notes ni les horodatages, qui feraient dix fois le poids pour
+ * rien.
+ *
+ * Le plafond tient plusieurs années d'un carnet tenu tous les jours. S'il
+ * devait être atteint, ce serait à une vue SQL de faire la somme, pas au
+ * navigateur ; d'ici là, une requête et une addition valent mieux qu'un
+ * agrégat à maintenir.
+ */
+export const getHeuresCumulees = cache(
+  async (organizationId: string): Promise<Map<string, number>> => {
+    const supabase = await createClient();
+
+    const { data } = await supabase
+      .from("pulsar_entries")
+      .select("client_id, duration_minutes")
+      .eq("organization_id", organizationId)
+      .not("duration_minutes", "is", null)
+      .limit(20000);
+
+    const total = new Map<string, number>();
+    for (const ligne of data ?? []) {
+      total.set(
+        ligne.client_id,
+        (total.get(ligne.client_id) ?? 0) + (ligne.duration_minutes ?? 0),
+      );
+    }
+
+    return total;
+  },
+);
+
+/**
+ * Les mois qui portent des heures, pour les puces.
+ *
+ * Même principe que Radar : on ne propose pas une liste figée de douze mois,
+ * on propose ceux qui existent — plus le mois en cours, toujours, pour qu'un
+ * carnet vide ait quand même une puce.
+ */
+export const getMoisConnus = cache(
+  async (organizationId: string): Promise<string[]> => {
+    const supabase = await createClient();
+
+    const { data } = await supabase
+      .from("pulsar_entries")
+      .select("started_at")
+      .eq("organization_id", organizationId)
+      .order("started_at", { ascending: true })
+      .limit(1);
+
+    const premier = data?.[0]?.started_at;
+    return premier ? [`${jourParis(premier).slice(0, 7)}-01`] : [];
+  },
+);
+
+/** Les deux seuils d'alerte. Absents, ce sont ceux de la migration. */
+export const getReglages = cache(
+  async (
+    organizationId: string,
+  ): Promise<{ taux_alerte_cents: number; heures_pilotage_alerte: number }> => {
+    const supabase = await createClient();
+
+    const { data } = await supabase
+      .from("pulsar_settings")
+      .select("taux_alerte_cents, heures_pilotage_alerte")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    return data ?? { taux_alerte_cents: 4000, heures_pilotage_alerte: 10 };
   },
 );
 

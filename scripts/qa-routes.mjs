@@ -131,6 +131,38 @@ try {
     is_internal: true,
   });
 
+  /*
+   * Un client facturant, et neuf heures dessus : c'est l'exemple du brief —
+   * 550 € par mois pour 9 h font 61 €/h — qu'on veut voir arriver jusqu'à
+   * l'écran. Les tests unitaires prouvent le calcul ; celui-ci prouve qu'il
+   * traverse la requête, la page et le rendu sans se perdre.
+   */
+  const jourParisien = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Europe/Paris",
+  });
+  const premierDuMois = `${jourParisien.slice(0, 8)}01`;
+
+  const clientFacturant = await creer("pulsar_clients", {
+    organization_id: orgs.a.id,
+    name: "Peggy QA",
+    modele: "recurrent",
+    montant_cents: 55000,
+    date_debut: premierDuMois,
+    statut: "pilotage",
+    profil: "p1",
+  });
+
+  await creer("pulsar_entries", {
+    organization_id: orgs.a.id,
+    client_id: clientFacturant.id,
+    task: "emails",
+    phase: "pilotage",
+    started_at: new Date().toISOString(),
+    ended_at: new Date().toISOString(),
+    duration_minutes: 540,
+    created_by: comptes.a,
+  });
+
   const ca = await cookiesDeSession(emails.a);
   const cb = await cookiesDeSession(emails.b);
   const sa = `/app/${orgs.a.slug}`;
@@ -205,6 +237,46 @@ try {
     "A · sa note est repliée tant qu'il n'y a rien à y lire",
     enMarche.corps.includes("Ajouter une note"),
     "le champ de note n'est pas replié",
+  );
+
+  console.log("\n== 1 quater. L'écran Par client ==");
+  const parClient = await visite(ca, `${sa}/temps/clients`);
+  verifie(`A · ${sa}/temps/clients`, parClient.status === 200, `status ${parClient.status}`);
+  verifie(
+    "A · ses deux clients y sont, « Comète » compris",
+    parClient.corps.includes("Peggy QA") && parClient.corps.includes("Comète"),
+    "la liste ne porte pas les clients",
+  );
+
+  /*
+   * 550 € pour 9 h font 61 €/h. L'espace avant le symbole est insécable :
+   * `Intl` la pose, et une comparaison à l'espace ordinaire échouerait sans
+   * qu'on voie pourquoi.
+   */
+  const TAUX_ATTENDU = `61${String.fromCharCode(0xa0)}€/h`;
+  verifie(
+    "A · l'exemple du brief arrive jusqu'à l'écran : 550 € sur 9 h → 61 €/h",
+    parClient.corps.includes(TAUX_ATTENDU),
+    `« ${TAUX_ATTENDU} » est absent de la page`,
+  );
+
+  const detail = await visite(ca, `${sa}/temps/clients/${clientFacturant.id}`);
+  verifie(
+    "A · le détail d'un client s'ouvre, avec ses heures du mois",
+    detail.status === 200 &&
+      detail.corps.includes("Peggy QA") &&
+      detail.corps.includes(TAUX_ATTENDU),
+    `status ${detail.status}`,
+  );
+
+  verifie(
+    "A · un client qui n'existe pas → 404",
+    (await visite(ca, `${sa}/temps/clients/00000000-0000-0000-0000-000000000000`))
+      .status === 404,
+  );
+  verifie(
+    "A · un identifiant de client qui n'en est pas un → 404",
+    (await visite(ca, `${sa}/temps/clients/pas-un-uuid`)).status === 404,
   );
 
   console.log("\n== 2. Le membre de B, sans Orbite ==");

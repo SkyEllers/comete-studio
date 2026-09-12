@@ -23,6 +23,55 @@ export type Tache =
 export type Phase = "setup" | "pilotage" | "interne";
 export type Statut = "setup" | "pilotage" | "termine";
 
+/** Ce qu'on a vendu, et à qui. */
+export type Modele = "recurrent" | "one_shot" | "commission" | "historique";
+export type Profil = "p1" | "p2" | "p3" | "hors_cible";
+
+export const MODELES: { valeur: Modele; label: string; aide: string }[] = [
+  {
+    valeur: "recurrent",
+    label: "Récurrent",
+    aide: "Le montant compte chaque mois, du début à la fin de l'engagement.",
+  },
+  {
+    valeur: "one_shot",
+    label: "One-shot",
+    aide: "Le montant compte une fois. Son taux horaire ne se lit qu'en cumulé.",
+  },
+  {
+    valeur: "commission",
+    label: "Commission",
+    aide: "Zéro pour l'instant : les relevés de Radar ne sont pas encore lus.",
+  },
+  {
+    valeur: "historique",
+    label: "Historique",
+    aide: "Zéro, assumé. Ces heures pèsent sur ton taux moyen, et c'est la vérité.",
+  },
+];
+
+export const STATUTS: { valeur: Statut; label: string }[] = [
+  { valeur: "setup", label: "Setup" },
+  { valeur: "pilotage", label: "Pilotage" },
+  { valeur: "termine", label: "Terminé" },
+];
+
+export const PROFILS: { valeur: Profil; label: string }[] = [
+  { valeur: "p1", label: "P1" },
+  { valeur: "p2", label: "P2" },
+  { valeur: "p3", label: "P3" },
+  { valeur: "hors_cible", label: "Hors cible" },
+];
+
+const LABEL_MODELE = new Map(MODELES.map((m) => [m.valeur, m.label]));
+const LABEL_STATUT = new Map(STATUTS.map((s) => [s.valeur, s.label]));
+const LABEL_PROFIL = new Map(PROFILS.map((p) => [p.valeur, p.label]));
+
+export const libelleModele = (modele: Modele) => LABEL_MODELE.get(modele) ?? modele;
+export const libelleStatut = (statut: Statut) => LABEL_STATUT.get(statut) ?? statut;
+export const libelleProfil = (profil: Profil | null) =>
+  profil === null ? "—" : (LABEL_PROFIL.get(profil) ?? profil);
+
 /**
  * Les libellés, dans l'ordre des puces.
  *
@@ -66,12 +115,24 @@ export const MAXIMUM_MANUEL = 12 * 60;
 /** La note d'une entrée, plafonnée par la base. */
 export const LIMITE_NOTE = 200;
 
-/** Un client, tel que les écrans de chronométrage le manipulent. */
+/**
+ * Un client, tel que le chronomètre le manipule : juste de quoi le nommer, le
+ * ranger en tête des puces, et savoir s'il est encore chronométrable.
+ */
 export type ClientPulsar = {
   id: string;
   name: string;
   is_internal: boolean;
   statut: Statut;
+};
+
+/** La fiche entière, telle que l'écran Par client la lit et l'édite. */
+export type FicheClient = ClientPulsar & {
+  profil: Profil | null;
+  modele: Modele;
+  montant_cents: number;
+  date_debut: string | null;
+  fin_engagement: string | null;
 };
 
 /** Une entrée terminée, ou en marche — `duration_minutes` tranche. */

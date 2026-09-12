@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { requireToolAccess } from "@/lib/access";
+import { NavPulsar } from "@/tools/pulsar/nav";
 import { PastilleChrono } from "@/tools/pulsar/pastille";
 import { getClients, getEnCours } from "@/tools/pulsar/queries";
 
@@ -54,6 +55,8 @@ export default async function PulsarLayout({
           </Button>
         </div>
       </div>
+
+      <NavPulsar orgSlug={orgSlug} />
 
       {children}
     </div>
