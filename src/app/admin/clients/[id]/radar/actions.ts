@@ -217,6 +217,140 @@ export async function testerCalendly(
   });
 }
 
+/**
+ * Déplacer l'abonnement Calendly vers l'adresse courante du hub, sans toucher
+ * aux secrets.
+ *
+ * Le jour où le hub change de domaine, `NEXT_PUBLIC_SITE_URL` suit, mais les
+ * abonnements déjà enregistrés chez Calendly, eux, ne bougent pas : ils
+ * continuent d'appeler l'ancienne adresse. Tant qu'elle répond, personne ne
+ * voit rien ; le jour où elle s'éteint, les rendez-vous cessent d'arriver sans
+ * un mot.
+ *
+ * La réponse évidente — déconnecter puis reconnecter — coûte cher : elle efface
+ * les secrets, donc il faut redemander au client son jeton d'accès personnel,
+ * et elle change le sel, donc la pseudonymisation repart de zéro. Pour un
+ * changement d'adresse, c'est hors de proportion.
+ *
+ * D'où ceci : on ressort le jeton et la clé de signature déjà rangés, et on
+ * recrée l'abonnement **avec la même clé** — la route webhook continue de
+ * valider les signatures sans rien savoir de l'opération.
+ *
+ * L'ordre est création d'abord, suppression ensuite. Entre les deux, les deux
+ * abonnements sont actifs et Calendly livre deux fois : la route est
+ * idempotente, c'est précisément ce qu'elle est faite pour encaisser. Une
+ * seconde de double livraison vaut mieux qu'une minute de trou.
+ */
+export async function repointerWebhook(
+  organizationId: string,
+): Promise<ActionResult<{ message: string }>> {
+  await requireAdmin();
+
+  const parsed = organisation.safeParse(organizationId);
+  if (!parsed.success) return fail("Client introuvable.");
+
+  const url = adresseWebhook(organizationId);
+  if (!url.ok) return url;
+
+  const admin = createAdminClient();
+  const { data: reglages } = await admin
+    .from("radar_settings")
+    .select("calendly_org_uri, calendly_webhook_uri")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (!reglages?.calendly_org_uri) return fail("Ce client n'est pas connecté.");
+  const organisationCalendly = reglages.calendly_org_uri;
+
+  const [jeton, cleSignature] = await Promise.all([
+    admin.rpc("radar_get_secret", { org: organizationId, kind: "token" }),
+    admin.rpc("radar_get_secret", { org: organizationId, kind: "signing_key" }),
+  ]);
+
+  if (!jeton.data || !cleSignature.data) {
+    return fail(
+      "Le jeton ou la clé de signature de ce client est introuvable. Déconnecte puis reconnecte-le.",
+    );
+  }
+
+  const jetonClair = jeton.data;
+  const ancien = reglages.calendly_webhook_uri;
+
+  /* Rien à faire est une réponse : on ne recrée pas un abonnement pour le
+     plaisir, et surtout on ne supprime pas celui qui va bien. */
+  if (ancien) {
+    const liste = await listerAbonnements({
+      jeton: jetonClair,
+      organisation: organisationCalendly,
+    });
+    if (liste.ok) {
+      const notre = liste.data.find((abonnement) => abonnement.uri === ancien);
+      if (notre && notre.callback_url === url.data) {
+        return ok({ message: `L'abonnement pointe déjà sur ${url.data}.` });
+      }
+    }
+  }
+
+  const creer = () =>
+    creerAbonnement({
+      jeton: jetonClair,
+      organisation: organisationCalendly,
+      url: url.data,
+      cleSignature: cleSignature.data,
+    });
+
+  let avertissement = "";
+  let abonnement = await creer();
+
+  if (!abonnement.ok) {
+    /* Calendly a refusé le second abonnement — une limite par organisation, la
+       plus probable. Il faut alors libérer la place avant de reprendre, et
+       c'est le seul chemin où Radar est réellement muet un instant. */
+    if (!ancien) return fail(abonnement.error);
+
+    const retrait = await supprimerAbonnement(jetonClair, ancien);
+    if (!retrait.ok) {
+      return fail(
+        `Calendly refuse un second abonnement (${abonnement.error}) et n'a pas laissé supprimer l'ancien (${retrait.error}). Rien n'a changé.`,
+      );
+    }
+
+    /* L'ancien est parti : on l'écrit avant de retenter, pour que la base ne
+       garde pas l'adresse d'un abonnement qui n'existe plus si la suite casse. */
+    await admin
+      .from("radar_settings")
+      .update({ calendly_webhook_uri: null })
+      .eq("organization_id", organizationId);
+
+    abonnement = await creer();
+    if (!abonnement.ok) {
+      rafraichir(organizationId);
+      return fail(
+        `L'ancien abonnement a été supprimé et la création du nouveau a échoué (${abonnement.error}). Radar ne reçoit plus rien : déconnecte puis reconnecte ce client.`,
+      );
+    }
+  } else if (ancien) {
+    const retrait = await supprimerAbonnement(jetonClair, ancien);
+    if (!retrait.ok) {
+      avertissement = ` L'ancien n'a pas pu être supprimé (${retrait.error}) : il appellera l'ancienne adresse jusqu'à ce que tu l'effaces à la main chez Calendly.`;
+    }
+  }
+
+  const { error } = await admin
+    .from("radar_settings")
+    .update({ calendly_webhook_uri: abonnement.data.uri })
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    return fail(
+      "L'abonnement a été déplacé chez Calendly, mais la nouvelle adresse n'a pas pu être enregistrée ici. Relance l'opération.",
+    );
+  }
+
+  rafraichir(organizationId);
+  return ok({ message: `L'abonnement pointe maintenant sur ${url.data}.${avertissement}` });
+}
+
 /** Débrancher : l'abonnement chez Calendly d'abord, les secrets ensuite. */
 export async function deconnecterCalendly(
   organizationId: string,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Link2Off, PlugZap, Stethoscope } from "lucide-react";
+import { Link2Off, PlugZap, Stethoscope, Waypoints } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import {
   deplacerCanal,
   enregistrerCanal,
   enregistrerReglages,
+  repointerWebhook,
   testerCalendly,
 } from "@/app/admin/clients/[id]/radar/actions";
 import { Reordonner } from "@/components/admin/reordonner";
@@ -82,6 +83,15 @@ export function ConnexionCalendly({
       else toast.error(resultat.error);
     });
 
+  /* Déplacer l'abonnement quand le hub a changé d'adresse. Sans secret à
+     redemander au client, contrairement à une déconnexion. */
+  const repointer = () =>
+    startTransition(async () => {
+      const resultat = await repointerWebhook(organizationId);
+      if (resultat.ok) toast.success(resultat.data.message);
+      else toast.error(resultat.error);
+    });
+
   const deconnecter = () =>
     startTransition(async () => {
       const resultat = await deconnecterCalendly(organizationId);
@@ -100,6 +110,11 @@ export function ConnexionCalendly({
         <Button variant="outline" size="sm" onClick={tester} disabled={enCours}>
           <Stethoscope aria-hidden="true" />
           Tester la connexion
+        </Button>
+
+        <Button variant="outline" size="sm" onClick={repointer} disabled={enCours}>
+          <Waypoints aria-hidden="true" />
+          Repointer le webhook
         </Button>
 
         <AlertDialog>
