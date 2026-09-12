@@ -1,7 +1,7 @@
 /*!
  * sonde.js — Comète Studio
  *
- *     <script src="https://cometestudio.fr/sonde.js" data-site="JETON" defer></script>
+ *     <script src="https://app.cometestudio.fr/sonde.js" data-site="JETON" defer></script>
  *
  * Deux événements, pas un de plus : une page vue à l'arrivée, un clic quand le
  * visiteur part vers Calendly.
@@ -34,14 +34,14 @@
   /* Le point de collecte se déduit de l'adresse du script : une préproduction
      mesure dans sa base sans qu'on touche à la balise.
 
-     Le domaine nu est ramené sur `www` : il redirige, un envoi ne suit pas
-     une redirection, et une balise sans `www` ne mesurerait donc rien — sans
-     un mot. Test 4b. */
-  var origine = "https://www.cometestudio.fr";
+     Le domaine nu est ramené sur `app` : il redirige, un envoi ne suit pas
+     une redirection, et une balise qui le porte ne mesurerait donc rien — sans
+     un mot. `www` sert encore, on le laisse tel quel. Test 4b. */
+  var origine = "https://app.cometestudio.fr";
   try {
     if (balise.src) {
       var url = new URL(balise.src);
-      if (url.hostname === "cometestudio.fr") url.hostname = "www." + url.hostname;
+      if (url.hostname === "cometestudio.fr") url.hostname = "app." + url.hostname;
       origine = url.origin;
     }
   } catch {

@@ -1,4 +1,4 @@
-# CLAUDE.md — cometestudio.fr (hub client Comète Studio)
+# CLAUDE.md — app.cometestudio.fr (hub client Comète Studio)
 
 AGENTS.md est généré par Next ; en cas de conflit, CLAUDE.md prime.
 
@@ -6,7 +6,7 @@ Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventio
 
 ## 1. Le projet en 5 lignes
 
-- `cometestudio.fr` est l'espace client de Comète Studio (Louis Girault, Lyon). Ce n'est plus un site vitrine : la vitrine publique est `louisgirault.fr`.
+- `app.cometestudio.fr` est l'espace client de Comète Studio (Louis Girault, Lyon). Ce n'est plus un site vitrine : la vitrine publique est `louisgirault.fr`.
 - Un client se connecte (email + mot de passe), arrive dans son espace et n'y voit que les outils que Louis lui a activés.
 - Louis administre tout depuis `/admin` : clients (organisations), membres, activation des outils.
 - Premier outil : **Orbite**, un kanban façon Trello, collaboratif (phase 2). Puis **Capsule**, la médiathèque du client (phase 3). D'autres suivront, tous branchés sur le même socle d'accès.

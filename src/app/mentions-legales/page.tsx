@@ -38,7 +38,7 @@ export default function MentionsLegalesPage() {
 
       <LegalSection title="Ce qu'est ce site">
         <p>
-          <span className="font-mono text-xs">cometestudio.fr</span> est
+          <span className="font-mono text-xs">app.cometestudio.fr</span> est
           l&apos;espace client de Comète Studio : un accès privé, réservé aux
           personnes que Louis y a invitées, depuis lequel chaque client retrouve
           les outils qui lui sont ouverts. Il n&apos;est ni public, ni
@@ -103,7 +103,7 @@ export default function MentionsLegalesPage() {
       <LegalSection title="Périmètre">
         <p>
           Les présentes mentions couvrent exclusivement l&apos;espace client{" "}
-          <span className="font-mono text-xs">cometestudio.fr</span>.
+          <span className="font-mono text-xs">app.cometestudio.fr</span>.
         </p>
         <p>
           Les applications livrées aux clientes de Comète Studio dans le cadre

@@ -100,7 +100,7 @@ export default async function AdminSondePage({
 
 async function Liste({ organizationId }: { organizationId: string }) {
   const sites = await getSites(organizationId);
-  const origine = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.cometestudio.fr";
+  const origine = process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.cometestudio.fr";
 
   return (
     <SondeSites organizationId={organizationId} sites={sites} origine={origine} />

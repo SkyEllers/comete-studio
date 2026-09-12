@@ -51,7 +51,7 @@ export default function ConfidentialitePage() {
       <LegalSection title="Périmètre">
         <p>
           Cette politique couvre l&apos;espace client{" "}
-          <span className="font-mono text-xs">cometestudio.fr</span> : la
+          <span className="font-mono text-xs">app.cometestudio.fr</span> : la
           connexion, ton compte, et les outils qui te sont ouverts.
         </p>
         <p>

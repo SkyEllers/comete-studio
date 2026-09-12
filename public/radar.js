@@ -3,7 +3,7 @@
  *
  * À poser sur la landing d'un client suivi par Radar :
  *
- *     <script src="https://cometestudio.fr/radar.js" defer></script>
+ *     <script src="https://app.cometestudio.fr/radar.js" defer></script>
  *
  * Ce que fait ce script, et rien d'autre : à l'arrivée du visiteur, il note
  * les paramètres de campagne présents dans l'adresse (utm_*, gclid, fbclid,

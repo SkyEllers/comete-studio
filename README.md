@@ -1,4 +1,4 @@
-# cometestudio.fr — espace client Comète Studio
+# app.cometestudio.fr — espace client Comète Studio
 
 Hub privé des clients de Comète Studio : chaque client se connecte et n'y voit que
 les outils que Louis lui a activés. La vitrine publique, elle, est sur louisgirault.fr.

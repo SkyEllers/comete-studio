@@ -65,7 +65,7 @@ function charger({
   referrer = "",
   beacon = "ok",
   avecRadar = null,
-  src = "https://www.cometestudio.fr/sonde.js",
+  src = "https://app.cometestudio.fr/sonde.js",
 }: {
   jeton?: string | null;
   recherche?: string;
@@ -181,7 +181,7 @@ describe("sonde.js — la page vue", () => {
     const page = charger({ jeton: "jeton-du-site" });
     assert.equal(
       page.envois[0].url,
-      "https://www.cometestudio.fr/api/sonde/jeton-du-site",
+      "https://app.cometestudio.fr/api/sonde/jeton-du-site",
     );
   });
 
@@ -190,9 +190,9 @@ describe("sonde.js — la page vue", () => {
    * raconté en entier — le commentaire qui lui correspond dans `sonde.js` tient
    * en trois lignes, parce que ce fichier-là part chez chaque visiteur.
    *
-   * La landing d'un client portait `https://cometestudio.fr/sonde.js`, sans le
-   * `www`. Le domaine nu redirige en 307 vers `www`. Un `<script src>` suit
-   * cette redirection sans broncher : le script se chargeait, s'exécutait, et
+   * La landing d'un client portait `https://cometestudio.fr/sonde.js`, sur le
+   * domaine nu. Le domaine nu redirige en 307. Un `<script src>` suit cette
+   * redirection sans broncher : le script se chargeait, s'exécutait, et
    * tout avait l'air normal. Mais il déduit son point de collecte de l'adresse
    * écrite dans la balise — donc il postait vers le domaine nu, qui redirige
    * lui aussi. Or ni `sendBeacon` ni `fetch` ne suivent une redirection qui
@@ -205,10 +205,25 @@ describe("sonde.js — la page vue", () => {
    * ne peut pas vivre dans la balise, parce qu'elle est chez le client, sur un
    * site qu'on ne contrôle pas et qu'on ne relit jamais : elle vit ici.
    */
-  it("4b. une balise sans `www` mesure quand même", () => {
+  it("4b. une balise sur le domaine nu mesure quand même", () => {
     const page = charger({
       jeton: "jeton-du-site",
       src: "https://cometestudio.fr/sonde.js",
+    });
+    assert.equal(
+      page.envois[0].url,
+      "https://app.cometestudio.fr/api/sonde/jeton-du-site",
+    );
+  });
+
+  /* `www` a servi le hub jusqu'à la bascule sur `app`, et continue de servir le
+     temps que les balises posées avant elle soient migrées. Tant qu'il sert, on
+     n'y touche pas : le traduire en `app` ferait voyager la mesure vers une
+     autre origine sans rien y gagner. */
+  it("4b-bis. une balise posée sur `www` mesure toujours chez `www`", () => {
+    const page = charger({
+      jeton: "jeton-du-site",
+      src: "https://www.cometestudio.fr/sonde.js",
     });
     assert.equal(
       page.envois[0].url,
@@ -393,14 +408,25 @@ describe("sonde.js — la cohabitation avec radar.js", () => {
 });
 
 describe("la balise qu'on distribue", () => {
-  it("29. le domaine nu devient `www` : c'est ce qui part chez le client", () => {
+  it("29. le domaine nu devient `app` : c'est ce qui part chez le client", () => {
     assert.equal(
       origineDuScript("https://cometestudio.fr"),
-      "https://www.cometestudio.fr",
+      "https://app.cometestudio.fr",
     );
   });
 
-  it("30. `www` ne se redouble pas", () => {
+  it("30. `app` ne se redouble pas", () => {
+    assert.equal(
+      origineDuScript("https://app.cometestudio.fr"),
+      "https://app.cometestudio.fr",
+    );
+  });
+
+  /* Une balise qu'on distribuerait encore sur `www` marcherait — il sert — mais
+     elle deviendrait fausse le jour où il s'éteint. Elle ne peut sortir d'ici
+     que si `NEXT_PUBLIC_SITE_URL` y est resté : c'est la variable qu'on corrige,
+     pas la fonction. */
+  it("30-bis. `www` est laissé tel quel : il sert encore", () => {
     assert.equal(
       origineDuScript("https://www.cometestudio.fr"),
       "https://www.cometestudio.fr",
