@@ -1,6 +1,6 @@
 "use client";
 
-import { Link2Off, PlugZap, Stethoscope, Waypoints } from "lucide-react";
+import { Eraser, Link2Off, PlugZap, Stethoscope, Waypoints } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import {
   deplacerCanal,
   enregistrerCanal,
   enregistrerReglages,
+  nettoyerAnciensAbonnements,
   repointerWebhook,
   testerCalendly,
 } from "@/app/admin/clients/[id]/radar/actions";
@@ -92,6 +93,15 @@ export function ConnexionCalendly({
       else toast.error(resultat.error);
     });
 
+  /* Ne supprime que nos anciennes adresses, reconnues à leur chemin : une
+     intégration hébergée chez le client ne peut pas être emportée. */
+  const nettoyer = () =>
+    startTransition(async () => {
+      const resultat = await nettoyerAnciensAbonnements(organizationId);
+      if (resultat.ok) toast.success(resultat.data.message);
+      else toast.error(resultat.error);
+    });
+
   const deconnecter = () =>
     startTransition(async () => {
       const resultat = await deconnecterCalendly(organizationId);
@@ -115,6 +125,11 @@ export function ConnexionCalendly({
         <Button variant="outline" size="sm" onClick={repointer} disabled={enCours}>
           <Waypoints aria-hidden="true" />
           Repointer le webhook
+        </Button>
+
+        <Button variant="outline" size="sm" onClick={nettoyer} disabled={enCours}>
+          <Eraser aria-hidden="true" />
+          Nettoyer nos anciennes adresses
         </Button>
 
         <AlertDialog>

@@ -241,6 +241,93 @@ export async function testerCalendly(
 }
 
 /**
+ * Supprimer chez Calendly les abonnements qui sont les nôtres et qui ne
+ * servent plus.
+ *
+ * Un changement de domaine en laisse derrière : l'ancienne adresse reste
+ * abonnée, Calendly continue de l'appeler, et le jour où ce domaine passe à
+ * autre chose — une vitrine, par exemple — il y tape dans le vide et rejoue
+ * pendant des jours. Les abonnements créés par API ne s'affichent pas dans
+ * l'interface de Calendly : sans cette action, ils ne se suppriment qu'en
+ * ressortant le jeton du client du Vault, ce qu'on ne veut pas faire.
+ *
+ * Le tri ne regarde pas le domaine, justement parce que c'est lui qui change :
+ * il regarde le chemin, `/api/webhooks/calendly/<id de l'organisation>`, qui
+ * est notre signature à nous. Une intégration d'un tiers, ou celle qu'un client
+ * héberge sur son propre site, a un autre chemin — elle ne peut donc pas être
+ * emportée, même par un clic distrait. Et l'abonnement en cours est exclu par
+ * son URI avant tout le reste : on ne se coupe pas le bras qui porte.
+ */
+export async function nettoyerAnciensAbonnements(
+  organizationId: string,
+): Promise<ActionResult<{ message: string }>> {
+  await requireAdmin();
+
+  const parsed = organisation.safeParse(organizationId);
+  if (!parsed.success) return fail("Client introuvable.");
+
+  const admin = createAdminClient();
+  const { data: reglages } = await admin
+    .from("radar_settings")
+    .select("calendly_org_uri, calendly_webhook_uri")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (!reglages?.calendly_org_uri) return fail("Ce client n'est pas connecté.");
+
+  const { data: jeton } = await admin.rpc("radar_get_secret", {
+    org: organizationId,
+    kind: "token",
+  });
+  if (!jeton) return fail("Le jeton de ce client est introuvable. Reconnecte-le.");
+
+  const liste = await listerAbonnements({
+    jeton,
+    organisation: reglages.calendly_org_uri,
+  });
+  if (!liste.ok) return fail(liste.error);
+
+  const notreChemin = `/api/webhooks/calendly/${organizationId}`;
+  const anciens = liste.data.filter((abonnement) => {
+    if (abonnement.uri === reglages.calendly_webhook_uri) return false;
+    try {
+      return new URL(abonnement.callback_url).pathname === notreChemin;
+    } catch {
+      /* Une adresse illisible n'est pas identifiable comme nôtre : on n'y
+         touche pas. Le doute profite à ce qui est en place. */
+      return false;
+    }
+  });
+
+  if (anciens.length === 0) {
+    return ok({ message: "Aucun ancien abonnement à nous chez Calendly." });
+  }
+
+  const supprimes: string[] = [];
+  const restants: string[] = [];
+
+  for (const ancien of anciens) {
+    const retrait = await supprimerAbonnement(jeton, ancien.uri);
+    if (retrait.ok) supprimes.push(ancien.callback_url);
+    else restants.push(`${ancien.callback_url} (${retrait.error})`);
+  }
+
+  if (restants.length > 0) {
+    return fail(
+      `${supprimes.length} supprimé${supprimes.length > 1 ? "s" : ""}, ${
+        restants.length
+      } resté${restants.length > 1 ? "s" : ""} : ${restants.join(", ")}.`,
+    );
+  }
+
+  return ok({
+    message: `${supprimes.length} ancien${supprimes.length > 1 ? "s" : ""} abonnement${
+      supprimes.length > 1 ? "s" : ""
+    } supprimé${supprimes.length > 1 ? "s" : ""} : ${supprimes.join(", ")}.`,
+  });
+}
+
+/**
  * Déplacer l'abonnement Calendly vers l'adresse courante du hub, sans toucher
  * aux secrets.
  *
