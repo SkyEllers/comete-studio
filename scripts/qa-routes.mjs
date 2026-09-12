@@ -201,6 +201,11 @@ try {
       enMarche.corps.includes("Passer à autre chose"),
     `status ${enMarche.status}`,
   );
+  verifie(
+    "A · sa note est repliée tant qu'il n'y a rien à y lire",
+    enMarche.corps.includes("Ajouter une note"),
+    "le champ de note n'est pas replié",
+  );
 
   console.log("\n== 2. Le membre de B, sans Orbite ==");
   verifie(`B · ${sb}`, (await visite(cb, sb)).status === 200);

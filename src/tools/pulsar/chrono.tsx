@@ -1,6 +1,6 @@
 "use client";
 
-import { Square } from "lucide-react";
+import { ChevronRight, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -144,6 +144,12 @@ export function Chrono({
  * l'écriture qui arrête. La première parce qu'un chronomètre démarré sur le
  * téléphone s'arrête souvent depuis l'ordinateur ; la seconde parce qu'on
  * appuie sur Arrêter sans toujours sortir du champ d'abord.
+ *
+ * Le champ est replié tant qu'il n'y a rien à y lire : la carte n'a que trois
+ * choses à dire — sur quoi, depuis quand, et le bouton pour arrêter — et un
+ * champ vide entre les deux repousse le bouton sous le pouce. Il s'ouvre déjà
+ * déplié quand une note existe, parce qu'une note qu'on a écrite et qu'on ne
+ * voit plus est une note perdue.
  */
 function CarteEnCours({
   orgSlug,
@@ -157,6 +163,14 @@ function CarteEnCours({
   const [note, setNote] = useState(entree.note ?? "");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+
+  /*
+   * Constante pour la durée de vie de la carte, qui est remontée à chaque
+   * chronomètre : `autoFocus` ne vaut donc vrai que pour un champ ouvert au
+   * doigt, jamais pour celui qu'on trouve déjà déplié en arrivant sur la page.
+   */
+  const avaitUneNote = Boolean(entree.note);
+  const [depliee, setDepliee] = useState(avaitUneNote);
 
   const stopper = () =>
     startTransition(async () => {
@@ -188,17 +202,30 @@ function CarteEnCours({
         <Compteur depuis={entree.started_at} />
       </div>
 
-      <Input
-        value={note}
-        maxLength={LIMITE_NOTE}
-        placeholder="Une note, si tu veux"
-        aria-label="Note du chronomètre en cours"
-        onChange={(evenement) => setNote(evenement.target.value)}
-        onBlur={() => {
-          if (note === (entree.note ?? "")) return;
-          void noter(orgSlug, note);
-        }}
-      />
+      {depliee ? (
+        <Input
+          value={note}
+          autoFocus={!avaitUneNote}
+          maxLength={LIMITE_NOTE}
+          placeholder="Une note, si tu veux"
+          aria-label="Note du chronomètre en cours"
+          onChange={(evenement) => setNote(evenement.target.value)}
+          onBlur={() => {
+            if (note === (entree.note ?? "")) return;
+            void noter(orgSlug, note);
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setDepliee(true)}
+          aria-expanded={false}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-full items-center gap-1.5 rounded-sm text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <ChevronRight aria-hidden="true" className="size-4 shrink-0" />
+          <span className="truncate">{note.length > 0 ? note : "Ajouter une note"}</span>
+        </button>
+      )}
 
       <Button onClick={stopper} disabled={pending} className="h-12 w-full text-base">
         <Square aria-hidden="true" />
