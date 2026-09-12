@@ -200,20 +200,43 @@ export async function testerCalendly(
 
   if (notre.callback_url !== url.data) {
     return fail(
-      `L'abonnement pointe sur ${notre.callback_url}, pas sur notre adresse. Reconnecte ce client.`,
+      `L'abonnement pointe sur ${notre.callback_url}, pas sur notre adresse. Repointe le webhook.`,
     );
   }
 
   const manquants = EVENEMENTS.filter((e) => !(notre.events ?? []).includes(e));
   if (manquants.length > 0) {
-    return fail(`L'abonnement n'écoute pas ${manquants.join(" ni ")}. Reconnecte ce client.`);
+    return fail(`L'abonnement n'écoute pas ${manquants.join(" ni ")}. Déconnecte puis reconnecte ce client.`);
   }
+
+  /*
+   * Ce qui reste à côté du nôtre.
+   *
+   * Calendly peut porter plusieurs abonnements pour une même organisation, et
+   * rien dans le hub ne les montrait : on ne regardait que le nôtre, par son
+   * URI. Un abonnement laissé derrière — une suppression qui a échoué, un
+   * déplacement d'adresse fait deux fois — continue d'appeler une adresse qu'on
+   * croit abandonnée, et personne ne le voit.
+   *
+   * Tant que l'ancienne adresse répond, c'est une double livraison, que la
+   * route encaisse. Le jour où elle s'éteint, c'est une erreur qui se répète
+   * chez un tiers. Dans les deux cas, mieux vaut le savoir : on le nomme.
+   */
+  const autres = liste.data.filter((abonnement) => abonnement.uri !== notre.uri);
+  const encombrement =
+    autres.length > 0
+      ? ` ⚠ ${autres.length} autre${autres.length > 1 ? "s" : ""} abonnement${
+          autres.length > 1 ? "s" : ""
+        } sur cette organisation : ${autres
+          .map((abonnement) => abonnement.callback_url)
+          .join(", ")}. À supprimer chez Calendly s'il ne vient pas de nous.`
+      : "";
 
   return ok({
     message:
-      notre.state && notre.state !== "active"
+      (notre.state && notre.state !== "active"
         ? `Abonnement trouvé, mais son état est « ${notre.state} ».`
-        : "Abonnement actif, à la bonne adresse, sur les deux événements.",
+        : "Abonnement actif, à la bonne adresse, sur les deux événements.") + encombrement,
   });
 }
 
