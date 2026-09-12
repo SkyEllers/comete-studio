@@ -43,17 +43,19 @@ npm run qa:isolation # bancs de QA : isolation entre organisations, via l'API RE
 npm run qa:routes    # gardes de routes ; demande un serveur (npx next start -p 3100)
 npm run qa:fichiers  # isolation de l'outil Capsule : tables et Storage
 npm run qa:notifications # registre des notifications et compteurs d'espace
-npm run test         # tests unitaires (node --test) : attribution Radar, classement Sas
+npm run test         # tests unitaires (node --test) : attribution Radar, classement Sas, rapport GA4
 npm run qa:radar     # Radar : tables, vue, Vault, actions, webhook ; demande un serveur
 npm run qa:sas       # Sas : isolation, porte d'entrée, contraintes des idées et des boîtes
 npm run qa:sas-ia    # Sas : le prompt contre la vraie API Anthropic (deux appels)
 npm run qa:sonde     # Sonde : isolation, sel, tâches de nuit, point de collecte ; demande un serveur
 npm run qa:export    # Export Radar : cloisonnement, liste blanche, pagination ; demande un serveur
+npm run rapport:entonnoir # entonnoir GA4 de la landing de Jonathan ; demande GA4_ACCESS_TOKEN (docs/RAPPORT-ENTONNOIR-GA4.md)
 ```
 
 Les bancs de `scripts/` écrivent dans le projet Supabase lié : ils créent
 des comptes et des organisations préfixés `zz-qa-`, puis les suppriment et
 vérifient qu'il n'en reste rien. À rejouer avant chaque mise en production.
+`scripts/rapports/` fait exception : il lit GA4 et n'écrit nulle part.
 
 ## 4. Structure du repo
 

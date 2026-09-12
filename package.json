@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/rapports/*.test.mjs\"",
     "types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts",
     "qa:isolation": "node scripts/qa-isolation.mjs",
     "qa:routes": "node scripts/qa-routes.mjs",
@@ -17,7 +17,8 @@
     "qa:export": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-export.mjs",
     "qa:sas": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas.mjs",
     "qa:sas-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas-ia.mjs",
-    "qa:sonde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sonde.mjs"
+    "qa:sonde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sonde.mjs",
+    "rapport:entonnoir": "node scripts/rapports/entonnoir-ga4.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
