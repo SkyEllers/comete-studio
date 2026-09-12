@@ -4,6 +4,7 @@ import {
   Inbox,
   Radar,
   SquareKanban,
+  Timer,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +65,13 @@ export const TOOL_REGISTRY: Record<string, ToolMeta> = {
     description: "Qui visite tes pages, d'où, et qui clique pour réserver.",
     icon: Activity,
     href: (orgSlug) => `/app/${orgSlug}/sonde`,
+  },
+  temps: {
+    slug: "temps",
+    name: "Pulsar",
+    description: "Où passe ton temps, et ce qu'il rapporte.",
+    icon: Timer,
+    href: (orgSlug) => `/app/${orgSlug}/temps`,
   },
 };
 

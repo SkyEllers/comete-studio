@@ -57,25 +57,10 @@ export function joursEntre(depuis: string, jusqua: string): number {
 }
 
 /**
- * Le décalage de Paris ce jour-là, « +01:00 » ou « +02:00 ».
- *
- * Sondé à midi UTC : à cette heure-là, aucune date n'est à cheval sur un
- * changement d'heure, quel que soit le sens du basculement. Sonder à minuit
- * donnerait le décalage de la veille deux dimanches par an.
- */
-function decalageParis(jour: string): string {
-  const parties = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Paris",
-    timeZoneName: "longOffset",
-  }).formatToParts(new Date(`${jour}T12:00:00Z`));
-
-  const nom = parties.find((partie) => partie.type === "timeZoneName")?.value ?? "GMT+01:00";
-  const decalage = nom.replace("GMT", "");
-  return decalage.length === 0 ? "+00:00" : decalage;
-}
-
-/**
- * Les deux instants qui bornent la plage, en heure de Paris.
+ * Les bornes de la plage vivent dans `lib/dates.ts` depuis que les semaines de
+ * Pulsar s'en servent aussi. Ré-exportées ici : c'est la porte par laquelle la
+ * route d'export et ses tests les connaissent, et la déplacer n'apprend rien
+ * à personne.
  *
  * Le consommateur demande « du 1er au 30 septembre » et pense en jours de
  * calendrier français ; la base range des instants. Sans cette conversion, un
@@ -83,12 +68,7 @@ function decalageParis(jour: string): string {
  * 23 h 30 dans le lendemain — deux erreurs qu'un rapport publicitaire
  * imputerait à des campagnes.
  */
-export function bornesParis(depuis: string, jusqua: string): { debut: string; fin: string } {
-  return {
-    debut: `${depuis}T00:00:00.000${decalageParis(depuis)}`,
-    fin: `${jusqua}T23:59:59.999${decalageParis(jusqua)}`,
-  };
-}
+export { bornesParis } from "../../lib/dates.ts";
 
 // ------------------------------ Le curseur ----------------------------------
 

@@ -372,6 +372,31 @@ try {
     `statut ${correctionBancale.status}`,
   );
 
+  /*
+   * Ce que `modifier` écrit quand on corrige le client d'une entrée : le
+   * client, la tâche, la durée, la note — jamais la phase. Une entrée passée
+   * du client Peggy au client interne garde donc son `setup`, parce qu'elle
+   * dit ce qu'était le dossier au moment où l'on a travaillé, pas ce qu'il est
+   * devenu. C'est la vérification du brief, faite là où elle se joue.
+   */
+  const changementDeClient = await jetonA(
+    "PATCH",
+    `pulsar_entries?id=eq.${entreeManuelleId}&select=id,client_id,phase`,
+    { client_id: interneA.id, task: "admin" },
+  );
+  verifie(
+    "corriger le client d'une entrée ne déplace pas sa phase d'origine",
+    changementDeClient.status < 300 &&
+      changementDeClient.data?.[0]?.client_id === interneA.id &&
+      changementDeClient.data?.[0]?.phase === "setup",
+    `statut ${changementDeClient.status}, ${JSON.stringify(changementDeClient.data)}`,
+  );
+
+  await jetonA("PATCH", `pulsar_entries?id=eq.${entreeManuelleId}`, {
+    client_id: peggyId,
+    task: "site",
+  });
+
   // ---------------------------- 4. La signature -----------------------------
 
   console.log("\n== 4. La signature ==");

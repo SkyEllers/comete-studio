@@ -115,6 +115,22 @@ try {
     created_by: comptes.a,
   });
 
+  // Pulsar pour A, avec ce que l'activation pose d'ordinaire : ses seuils et
+  // son client interne. Sans eux, l'écran n'aurait rien à proposer et se
+  // rendrait quand même — on veut voir les puces, pas une page vide.
+  const tempsId = (await srv("GET", "tools?select=id&slug=eq.temps")).data[0].id;
+  await creer("organization_tools", {
+    organization_id: orgs.a.id,
+    tool_id: tempsId,
+    enabled: true,
+  });
+  await creer("pulsar_settings", { organization_id: orgs.a.id });
+  const clientPulsar = await creer("pulsar_clients", {
+    organization_id: orgs.a.id,
+    name: "Comète",
+    is_internal: true,
+  });
+
   const ca = await cookiesDeSession(emails.a);
   const cb = await cookiesDeSession(emails.b);
   const sa = `/app/${orgs.a.slug}`;
@@ -150,6 +166,42 @@ try {
     (await visite(ca, `${sa}/sas/boites/pas-un-uuid`)).status === 404,
   );
 
+  console.log("\n== 1 ter. L'écran de Pulsar ==");
+  const pulsar = await visite(ca, `${sa}/temps`);
+  verifie(`A · ${sa}/temps`, pulsar.status === 200, `status ${pulsar.status}`);
+  verifie(
+    "A · les puces de client et de tâche sont servies",
+    /Sur quoi tu travailles/.test(pulsar.corps) &&
+      pulsar.corps.includes("Comète") &&
+      pulsar.corps.includes("Prospection"),
+    "le corps de la page ne porte pas les puces",
+  );
+
+  /*
+   * Le chronomètre vit en base, pas dans le navigateur : celui-ci est lancé
+   * par la clé de service — un autre appareil, une autre session — et doit se
+   * retrouver tel quel dans la page de A, avec son bouton d'arrêt. C'est la
+   * vérification « démarrer sur le téléphone, arrêter sur l'ordinateur » du
+   * brief, faite sans deux appareils.
+   */
+  await creer("pulsar_entries", {
+    organization_id: orgs.a.id,
+    client_id: clientPulsar.id,
+    task: "prospection",
+    phase: "interne",
+    started_at: new Date(Date.now() - 7 * 60_000).toISOString(),
+    created_by: comptes.a,
+  });
+
+  const enMarche = await visite(ca, `${sa}/temps`);
+  verifie(
+    "A · un chronomètre lancé ailleurs s'affiche ici, avec son arrêt",
+    enMarche.status === 200 &&
+      enMarche.corps.includes("Arrêter") &&
+      enMarche.corps.includes("Passer à autre chose"),
+    `status ${enMarche.status}`,
+  );
+
   console.log("\n== 2. Le membre de B, sans Orbite ==");
   verifie(`B · ${sb}`, (await visite(cb, sb)).status === 200);
   verifie(`B · ${sb}/kanban → 404 (outil non activé)`, (await visite(cb, `${sb}/kanban`)).status === 404);
@@ -159,6 +211,8 @@ try {
   verifie("B · le tableau de A sous son propre espace → 404", (await visite(cb, `${sb}/kanban/${board.id}`)).status === 404);
   verifie(`B · ${sb}/sas → 404 (outil non activé)`, (await visite(cb, `${sb}/sas`)).status === 404);
   verifie(`B · ${sa}/sas → 404`, (await visite(cb, `${sa}/sas`)).status === 404);
+  verifie(`B · ${sb}/temps → 404 (outil non activé)`, (await visite(cb, `${sb}/temps`)).status === 404);
+  verifie(`B · ${sa}/temps → 404`, (await visite(cb, `${sa}/temps`)).status === 404);
   verifie(
     "B · la boîte de A → 404",
     (await visite(cb, `${sa}/sas/boites/${boite.id}`)).status === 404,
@@ -200,6 +254,28 @@ try {
     (await srv("GET", `sas_boxes?select=id&id=eq.${boite.id}`)).data.length === 1,
   );
 
+  console.log("\n== 3 ter. Pulsar coupé pour A ==");
+  const basculerTemps = (enabled) =>
+    srv(
+      "PATCH",
+      `organization_tools?organization_id=eq.${orgs.a.id}&tool_id=eq.${tempsId}`,
+      { enabled },
+    );
+
+  await basculerTemps(false);
+  verifie(
+    "A · /temps → 404 immédiatement, chronomètre en marche ou non",
+    (await visite(ca, `${sa}/temps`)).status === 404,
+  );
+
+  await basculerTemps(true);
+  const retour = await visite(ca, `${sa}/temps`);
+  verifie(
+    "A · Pulsar revient, et son chronomètre avec",
+    retour.status === 200 && retour.corps.includes("Arrêter"),
+    `status ${retour.status}`,
+  );
+
   console.log("\n== 4. Membre retiré de son organisation ==");
   await srv("DELETE", `memberships?organization_id=eq.${orgs.a.id}&user_id=eq.${comptes.a}`);
   verifie(`A retiré · ${sa} → 404`, (await visite(ca, sa)).status === 404);
@@ -229,6 +305,7 @@ try {
     [`${sa}/kanban`, ca],
     [`${sa}/sas`, ca],
     [`${sa}/sas/boites`, ca],
+    [`${sa}/temps`, ca],
   ]) {
     const reponse = await visite(cookie, chemin);
     const entete = reponse.headers.get("x-robots-tag") ?? "absent";

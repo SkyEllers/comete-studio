@@ -19,6 +19,103 @@ export function jourParis(instant: string | number | Date = new Date()): string 
   );
 }
 
+/**
+ * Le décalage de Paris ce jour-là, « +01:00 » ou « +02:00 ».
+ *
+ * Sondé à midi UTC : à cette heure-là, aucune date n'est à cheval sur un
+ * changement d'heure, quel que soit le sens du basculement. Sonder à minuit
+ * donnerait le décalage de la veille deux dimanches par an.
+ */
+function decalageParis(jour: string): string {
+  const parties = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Paris",
+    timeZoneName: "longOffset",
+  }).formatToParts(new Date(`${jour}T12:00:00Z`));
+
+  const nom =
+    parties.find((partie) => partie.type === "timeZoneName")?.value ?? "GMT+01:00";
+  const decalage = nom.replace("GMT", "");
+  return decalage.length === 0 ? "+00:00" : decalage;
+}
+
+/**
+ * Les deux instants qui bornent la plage, en heure de Paris.
+ *
+ * Celui qui lit pense en jours de calendrier français ; la base range des
+ * instants. Sans cette conversion, un rendez-vous du 1er à 00 h 30 tomberait
+ * dans la veille, et celui du 30 à 23 h 30 dans le lendemain.
+ *
+ * Écrite pour l'export de Radar, elle a servi ensuite aux semaines de Pulsar :
+ * elle vit ici, avec le reste du découpage du temps, plutôt que dans l'outil
+ * qui l'a demandée en premier.
+ */
+export function bornesParis(
+  depuis: string,
+  jusqua: string,
+): { debut: string; fin: string } {
+  return {
+    debut: `${depuis}T00:00:00.000${decalageParis(depuis)}`,
+    fin: `${jusqua}T23:59:59.999${decalageParis(jusqua)}`,
+  };
+}
+
+/**
+ * Midi, ce jour-là, à Paris.
+ *
+ * L'ancre des saisies qui n'ont pas d'heure — une demi-journée rattrapée le
+ * lendemain, par exemple. Midi plutôt que minuit parce qu'aucune heure d'été
+ * ne le déplace d'un jour, et parce qu'une entrée de deux heures posée à midi
+ * ne déborde jamais sur le lendemain.
+ */
+export function midiParis(jour: string): string {
+  return `${jour}T12:00:00.000${decalageParis(jour)}`;
+}
+
+/**
+ * Le jour qui suit celui-ci de `nombre` jours, en arithmétique de calendrier.
+ *
+ * Menée en UTC sur une date sans heure : il n'y a pas de fuseau à ce stade,
+ * le jour parisien a déjà été décidé par `jourParis`. Ajouter 86 400 000
+ * millisecondes à un instant, en revanche, se trompe deux fois par an.
+ */
+export function ajouterJours(jour: string, nombre: number): string {
+  const date = new Date(`${jour}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + nombre);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Le lundi de la semaine d'un jour donné. « 2026-09-12 » → « 2026-09-07 ».
+ *
+ * La semaine commence le lundi — c'est la semaine de travail — et `getUTCDay`
+ * compte à partir du dimanche, d'où le décalage.
+ */
+export function lundiDeLaSemaine(jour: string): string {
+  const date = new Date(`${jour}T00:00:00Z`);
+  return ajouterJours(jour, -((date.getUTCDay() + 6) % 7));
+}
+
+/** Le dimanche qui ferme cette semaine-là. */
+export function dimancheDeLaSemaine(jour: string): string {
+  return ajouterJours(lundiDeLaSemaine(jour), 6);
+}
+
+const HEURE_PARIS = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "Europe/Paris",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/**
+ * L'heure d'un instant, à Paris : « 14:07 ».
+ *
+ * À calculer côté serveur et à passer en texte aux composants clients : sinon
+ * le rendu diverge entre le serveur et le navigateur.
+ */
+export function heureParis(instant: string | number | Date): string {
+  return HEURE_PARIS.format(instant instanceof Date ? instant : new Date(instant));
+}
+
 const relative = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
 
 const PALIERS: {
