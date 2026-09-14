@@ -55,6 +55,7 @@ export type Activite = {
 
 const LIBELLES_ACTIVITE: Record<string, string> = {
   "booking.created": "Rendez-vous reçu de Calendly",
+  "booking.imported": "Repris de l'historique Calendly",
   "booking.rescheduled": "Reprogrammé depuis une autre séance",
   "booking.canceled": "Annulé dans Calendly",
   "status.changed": "Statut modifié",
