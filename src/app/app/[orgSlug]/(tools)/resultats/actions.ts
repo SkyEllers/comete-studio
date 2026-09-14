@@ -159,6 +159,82 @@ export async function refuserVente(
 }
 
 /**
+ * « Pas de vente », avec sa raison et, si la personne a dit quand, le mois où
+ * en reparler.
+ *
+ * `radar_note_non_vente` dit aussi « pas de vente » si ce n'était pas fait :
+ * une seule réponse du client. Ni le statut ni la commission ne bougent.
+ */
+const nonVenteSchema = z.object({
+  bookingId: z.uuid({ error: "Rendez-vous introuvable." }),
+  motif: z.enum(["argent", "moment", "conjoint", "pas_convaincue", "autre"], {
+    error: "Choisis une raison.",
+  }),
+  recontacter: z
+    .string()
+    .regex(/^\d{4}-\d{2}-01$/, { error: "Choisis un mois." })
+    .nullable()
+    .optional(),
+});
+
+export async function noterNonVente(
+  orgSlug: string,
+  input: unknown,
+): Promise<ActionResult> {
+  const membre = await getMembership(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = nonVenteSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("radar_note_non_vente", {
+    booking_id: parsed.data.bookingId,
+    motif: parsed.data.motif,
+    recontacter: parsed.data.recontacter ?? undefined,
+  });
+
+  if (error) {
+    const lisible = error.message?.trim();
+    return fail(
+      lisible && lisible.endsWith(".") ? lisible : "Cette raison n'a pas pu être enregistrée.",
+    );
+  }
+
+  revalidatePath(`/app/${orgSlug}/resultats`);
+  revalidatePath(`/app/${orgSlug}/resultats/rendez-vous`);
+  return ok();
+}
+
+/** « C'est fait » : la personne à recontacter l'a été. */
+export async function marquerRecontactee(
+  orgSlug: string,
+  input: unknown,
+): Promise<ActionResult> {
+  const membre = await getMembership(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = z
+    .object({ bookingId: z.uuid({ error: "Rendez-vous introuvable." }) })
+    .safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("radar_recontact_fait", {
+    booking_id: parsed.data.bookingId,
+  });
+
+  if (error) {
+    const lisible = error.message?.trim();
+    return fail(lisible && lisible.endsWith(".") ? lisible : "Ça n'a pas pu être noté.");
+  }
+
+  revalidatePath(`/app/${orgSlug}/resultats`);
+  revalidatePath(`/app/${orgSlug}/resultats/rendez-vous`);
+  return ok();
+}
+
+/**
  * Noter ce qu'a donné l'appel de la veille : « a confirmé » ou « sans réponse ».
  *
  * `radar_note_appel` vérifie l'accès et que l'espace suit bien cet appel ; elle

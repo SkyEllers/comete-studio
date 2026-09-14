@@ -201,6 +201,14 @@ C'est le moment de vérifier deux choses :
   vérifier »), le tableau de bord liste les rendez-vous du lendemain et compte,
   sur 30 jours, combien des personnes sans réponse sont venues. Les réponses
   vivent dans les activités (`call.confirmed`, `call.no_answer`).
+- **« Pas de vente » demande pourquoi**, pour tout client en mode `ventes` (pas
+  de réglage) : l'argent, pas le bon moment, le conjoint, pas convaincue, autre,
+  et, si la personne a dit quand, le mois où la recontacter (bloc « À vérifier »
+  et fiche d'une séance honorée sans vente ; « Sans raison » reste possible). Le
+  tableau de bord liste **À recontacter** les personnes dont le mois est arrivé,
+  avec leur nom, et un bouton « C'est fait ». Tout vit dans les activités
+  (`sale.reason` avec le motif et le mois, `recontact.done`) : aucun email,
+  aucun nom recopié (0024).
 
 ## Ouvrir un export à un rapport externe
 

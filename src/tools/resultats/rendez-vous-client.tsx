@@ -4,6 +4,7 @@ import {
   BadgeEuro,
   CalendarX2,
   Check,
+  CircleSlash,
   Pencil,
   PhoneCall,
   PhoneMissed,
@@ -43,6 +44,8 @@ import {
   venteEncoreImpossible,
 } from "./format";
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
+import { etatsParRendezVous, type EtatRecontact, type Motif } from "./non-vente";
+import { FormulaireNonVente, texteRaison, useNonVente } from "./non-vente-client";
 import type { Canal, RendezVous } from "./queries";
 import { FormulaireVente, ResumeVente, RetirerVente, type Vente } from "./vente";
 
@@ -77,7 +80,18 @@ const LIBELLES_ACTIVITE: Record<string, string> = {
   "sale.declined": "Pas de vente",
   "call.confirmed": "Appel de la veille : a confirmé",
   "call.no_answer": "Appel de la veille : sans réponse",
+  "sale.reason": "Raison notée",
+  "recontact.done": "Recontactée",
 };
+
+/** Le libellé d'une activité ; une raison de non-vente dit laquelle. */
+function libelleActivite(activite: Activite): string {
+  if (activite.type === "sale.reason") {
+    const etat = etatsParRendezVous([{ ...activite, booking_id: activite.id }])[activite.id];
+    if (etat) return texteRaison(etat.raison);
+  }
+  return LIBELLES_ACTIVITE[activite.type] ?? activite.type;
+}
 
 /**
  * « Appel de la veille : a confirmé / sans réponse ».
@@ -177,6 +191,7 @@ export function ListeRendezVous({
   const [ouvert, setOuvert] = useState<string | null>(null);
   const [enCours, startTransition] = useTransition();
   const { enCoursAppel, noter } = useNoterAppel(orgSlug);
+  const { enCoursNonVente, noterRaison } = useNonVente(orgSlug);
   const router = useRouter();
 
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
@@ -209,6 +224,18 @@ export function ListeRendezVous({
         return;
       }
       toast.success(vente ? "Vente enregistrée" : "Vente retirée");
+      router.refresh();
+    });
+
+  /** « Pas de vente » sans raison, depuis la fiche. */
+  const refuser = (bookingId: string) =>
+    startTransition(async () => {
+      const resultat = await refuserVente(orgSlug, { bookingId });
+      if (!resultat.ok) {
+        toast.error(resultat.error);
+        return;
+      }
+      toast.success("C'est noté");
       router.refresh();
     });
 
@@ -318,12 +345,14 @@ export function ListeRendezVous({
               activites={activites[choisi.id] ?? []}
               sources={sources}
               moisClotures={moisClotures}
-              enCours={enCours || enCoursAppel}
+              enCours={enCours || enCoursAppel || enCoursNonVente}
               onChanger={changer}
               onVente={enregistrerVente}
               suiviAppel={suiviAppel}
               reponseAppel={derniereReponse(activites[choisi.id] ?? [])}
               onAppel={noter}
+              onRaison={noterRaison}
+              onRefuser={refuser}
             />
           ) : null}
         </SheetContent>
@@ -353,6 +382,8 @@ function FicheRendezVous({
   suiviAppel,
   reponseAppel,
   onAppel,
+  onRaison,
+  onRefuser,
 }: {
   rdv: RendezVous;
   canal: Canal | null;
@@ -365,8 +396,11 @@ function FicheRendezVous({
   suiviAppel: boolean;
   reponseAppel: ReponseAppel | null;
   onAppel: (bookingId: string, reponse: ReponseAppel) => void;
+  onRaison: (bookingId: string, motif: Motif, recontacter: string | null, apres?: () => void) => void;
+  onRefuser: (bookingId: string) => void;
 }) {
   const [saisie, setSaisie] = useState(false);
+  const [raisonOuverte, setRaisonOuverte] = useState(false);
 
   const modifiable = rdv.status !== "honore";
   const nom = nomComplet(rdv.invitee_first_name, rdv.invitee_last_name);
@@ -393,6 +427,22 @@ function FicheRendezVous({
    */
   const venteFigee =
     rdv.sale_date !== null && moisClotures.includes(moisDeLaVente(rdv.sale_date));
+
+  /*
+   * « Pas de vente » et sa raison : seulement en mode `ventes`, sur une séance
+   * honorée qui n'a pas vendu. Pas de verrou de relevé — la raison ne déplace
+   * pas un centime — si bien qu'une séance d'un mois clôturé peut encore dire
+   * pourquoi, et quand en reparler.
+   */
+  const questionVente =
+    rdv.commission_basis === "ventes" &&
+    rdv.effective_status === "honore" &&
+    !rdv.has_sale &&
+    !tropTot;
+  const declinee = activites.some((activite) => activite.type === "sale.declined");
+  const etatNonVente: EtatRecontact | undefined = etatsParRendezVous(
+    activites.map((activite) => ({ ...activite, booking_id: rdv.id })),
+  )[rdv.id];
 
   return (
     <>
@@ -465,6 +515,63 @@ function FicheRendezVous({
             <Button variant="outline" size="sm" onClick={() => setSaisie(true)}>
               <BadgeEuro aria-hidden="true" />
               Vente conclue
+            </Button>
+          )
+        ) : null}
+
+        {questionVente ? (
+          raisonOuverte ? (
+            <FormulaireNonVente
+              idBase={rdv.id}
+              raison={etatNonVente?.raison ?? null}
+              enCours={enCours}
+              onEnregistrer={(motif, recontacter) =>
+                onRaison(rdv.id, motif, recontacter, () => setRaisonOuverte(false))
+              }
+              onSansRaison={
+                declinee
+                  ? undefined
+                  : () => {
+                      onRefuser(rdv.id);
+                      setRaisonOuverte(false);
+                    }
+              }
+              onAnnuler={() => setRaisonOuverte(false)}
+            />
+          ) : etatNonVente ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm">{texteRaison(etatNonVente.raison, etatNonVente.fait)}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={enCours}
+                onClick={() => setRaisonOuverte(true)}
+              >
+                <Pencil aria-hidden="true" />
+                Modifier
+              </Button>
+            </div>
+          ) : declinee ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-muted-foreground text-sm">Pas de vente, sans raison notée.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={enCours}
+                onClick={() => setRaisonOuverte(true)}
+              >
+                Dire pourquoi
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={enCours}
+              onClick={() => setRaisonOuverte(true)}
+            >
+              <CircleSlash aria-hidden="true" />
+              Pas de vente
             </Button>
           )
         ) : null}
@@ -576,7 +683,7 @@ function FicheRendezVous({
                     className="text-muted-foreground mt-0.5 size-3 shrink-0"
                   />
                   <span>
-                    {LIBELLES_ACTIVITE[activite.type] ?? activite.type}
+                    {libelleActivite(activite)}
                     <span className="text-muted-foreground">
                       {" · "}
                       {dateHeure(activite.created_at)}
@@ -623,8 +730,11 @@ export function AVerifier({
 }) {
   const [enCoursStatut, startTransition] = useTransition();
   const { enCoursAppel, noter } = useNoterAppel(orgSlug);
-  const enCours = enCoursStatut || enCoursAppel;
+  const { enCoursNonVente, noterRaison } = useNonVente(orgSlug);
+  const enCours = enCoursStatut || enCoursAppel || enCoursNonVente;
   const [saisie, setSaisie] = useState<string | null>(null);
+  /** La ligne dont on dit pourquoi elle n'a pas vendu. */
+  const [raison, setRaison] = useState<string | null>(null);
   const router = useRouter();
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
 
@@ -720,16 +830,25 @@ export function AVerifier({
                     variant="outline"
                     size="sm"
                     disabled={enCours}
-                    onClick={() => setSaisie(saisie === rdv.id ? null : rdv.id)}
+                    onClick={() => {
+                      setRaison(null);
+                      setSaisie(saisie === rdv.id ? null : rdv.id);
+                    }}
                   >
                     <BadgeEuro aria-hidden="true" />
                     Vente conclue
                   </Button>
+                  {/* Plus d'enregistrement direct : on demande d'abord pourquoi,
+                      et « Sans raison » reste à portée pour qui ne veut rien dire. */}
                   <Button
                     variant="ghost"
                     size="sm"
                     disabled={enCours}
-                    onClick={() => refuser(rdv.id)}
+                    aria-expanded={raison === rdv.id}
+                    onClick={() => {
+                      setSaisie(null);
+                      setRaison(raison === rdv.id ? null : rdv.id);
+                    }}
                   >
                     Pas de vente
                   </Button>
@@ -757,6 +876,24 @@ export function AVerifier({
                 enCours={enCours}
                 onEnregistrer={(vente) => vendre(rdv.id, vente)}
                 onAnnuler={() => setSaisie(null)}
+              />
+            </div>
+          ) : null}
+
+          {raison === rdv.id ? (
+            <div className="mt-3">
+              <FormulaireNonVente
+                idBase={rdv.id}
+                raison={null}
+                enCours={enCours}
+                onEnregistrer={(motif, recontacter) =>
+                  noterRaison(rdv.id, motif, recontacter, () => setRaison(null))
+                }
+                onSansRaison={() => {
+                  refuser(rdv.id);
+                  setRaison(null);
+                }}
+                onAnnuler={() => setRaison(null)}
               />
             </div>
           ) : null}

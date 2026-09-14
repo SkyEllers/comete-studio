@@ -2356,6 +2356,161 @@ try {
     `statut ${parAdmin.status} ${JSON.stringify(parAdmin.data)}`,
   );
 
+  // ======================================================================
+  //  16 b. « Pas de vente » : la raison, et le mois où en reparler
+  // ======================================================================
+  console.log("\n== 16 b. Pas de vente : raison et mois à recontacter ==");
+
+  /*
+   * Le client dit pourquoi une séance honorée n'a pas vendu et, si la
+   * personne a dit quand, le mois où la recontacter. Tout vit dans les
+   * activités : la dernière raison fait foi, la même deux fois n'écrit rien,
+   * et rien de nominatif n'y entre.
+   */
+  const moisParis = (decalage) => {
+    const [annee, mois] = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" })
+      .format(new Date())
+      .split("-")
+      .map(Number);
+    const total = annee * 12 + (mois - 1) + decalage;
+    return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}-01`;
+  };
+  const ceMois = moisParis(0);
+  const moisProchain = moisParis(1);
+
+  const nonVendue = await rdvV({ scheduled_start: jours(-3), scheduled_end: jours(-3) });
+  const noter = (client, bookingId, motifNV, recontacter) =>
+    client("POST", "rpc/radar_note_non_vente", {
+      booking_id: bookingId,
+      motif: motifNV,
+      ...(recontacter === undefined ? {} : { recontacter }),
+    });
+  const raisons = async (bookingId) =>
+    (
+      await srv(
+        "GET",
+        `radar_booking_activities?select=type,payload,user_id,created_at&booking_id=eq.${bookingId}&type=in.(sale.declined,sale.reason,recontact.done)&order=created_at.desc`,
+      )
+    ).data;
+
+  verifie(
+    "un motif inconnu est refusé",
+    refuse(await noter(v1, nonVendue.id, "fatigue", moisProchain)),
+  );
+  verifie(
+    "un mois passé est refusé",
+    refuse(await noter(v1, nonVendue.id, "argent", moisParis(-1))),
+  );
+  verifie(
+    "un mois à plus de deux ans est refusé",
+    refuse(await noter(v1, nonVendue.id, "argent", moisParis(25))),
+  );
+
+  const raison1 = await noter(v1, nonVendue.id, "argent", moisProchain);
+  const raison1Bis = await noter(v1, nonVendue.id, "argent", moisProchain);
+  const journalNV = await raisons(nonVendue.id);
+  verifie(
+    "la raison se note une fois, et dit « pas de vente » avec elle",
+    raison1.data === true &&
+      raison1Bis.data === false &&
+      journalNV.filter((a) => a.type === "sale.declined").length === 1 &&
+      journalNV.filter((a) => a.type === "sale.reason").length === 1,
+    `${motif(raison1)} / ${motif(raison1Bis)} / ${JSON.stringify(journalNV)}`,
+  );
+  // « Pas de vente » et la raison partent de la même transaction : même
+  // horodatage, d'où la lecture par type plutôt que par position.
+  const raisonNV = journalNV.find((a) => a.type === "sale.reason");
+  verifie(
+    "… motif et mois lisibles, signés par la personne qui les a notés",
+    raisonNV?.payload?.motif === "argent" &&
+      raisonNV?.payload?.recontacter === moisProchain &&
+      journalNV.every((a) => a.user_id === comptes.v1),
+    JSON.stringify(journalNV),
+  );
+  verifie(
+    "… sans rien de nominatif dans le journal",
+    !JSON.stringify(journalNV).includes("Camille") && !JSON.stringify(journalNV).includes("Dupont"),
+  );
+
+  const sansDate = await noter(v1, nonVendue.id, "moment", null);
+  const raisonsApres = (await raisons(nonVendue.id)).filter((a) => a.type === "sale.reason");
+  verifie(
+    "la raison change, l'ancienne reste au journal",
+    sansDate.data === true &&
+      raisonsApres.length === 2 &&
+      raisonsApres[0]?.payload?.motif === "moment" &&
+      raisonsApres[0]?.payload?.recontacter === null,
+    `${motif(sansDate)} / ${JSON.stringify(raisonsApres)}`,
+  );
+
+  const faitSansDate = await v1("POST", "rpc/radar_recontact_fait", { booking_id: nonVendue.id });
+  verifie(
+    "sans mois à recontacter, « c'est fait » est refusé",
+    refuse(faitSansDate) && motif(faitSansDate).includes("recontacter"),
+    motif(faitSansDate),
+  );
+
+  await noter(v1, nonVendue.id, "argent", ceMois);
+  const fait1 = await v1("POST", "rpc/radar_recontact_fait", { booking_id: nonVendue.id });
+  const fait2 = await v1("POST", "rpc/radar_recontact_fait", { booking_id: nonVendue.id });
+  verifie("« c'est fait » se note une fois", fait1.data === true && fait2.data === false,
+    `${motif(fait1)} / ${motif(fait2)}`);
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await noter(v1, nonVendue.id, "conjoint", ceMois);
+  const fait3 = await v1("POST", "rpc/radar_recontact_fait", { booking_id: nonVendue.id });
+  verifie(
+    "une nouvelle raison notée après rouvre le rappel",
+    fait3.data === true,
+    motif(fait3),
+  );
+
+  verifie(
+    "le statut et la vente n'ont pas bougé",
+    (await srv("GET", `radar_bookings?select=status,sale_amount_cents&id=eq.${nonVendue.id}`)).data[0]
+      ?.sale_amount_cents === null,
+  );
+
+  const dejaDeclinee = await rdvV({ scheduled_start: jours(-4), scheduled_end: jours(-4) });
+  await v1("POST", "rpc/radar_decline_sale", { booking_id: dejaDeclinee.id });
+  const apresDeclin = await noter(v1, dejaDeclinee.id, "pas_convaincue", null);
+  verifie(
+    "sur un « pas de vente » déjà dit, la raison s'ajoute sans le redire",
+    apresDeclin.data === true &&
+      (await raisons(dejaDeclinee.id)).filter((a) => a.type === "sale.declined").length === 1,
+    motif(apresDeclin),
+  );
+
+  const vendueNV = await rdvV({
+    scheduled_start: jours(-5), scheduled_end: jours(-5),
+    sale_amount_cents: 30000, sale_date: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date()),
+  });
+  verifie("une séance vendue n'a pas de raison de non-vente", refuse(await noter(v1, vendueNV.id, "argent", null)));
+
+  const absenteNV = await rdvV({ scheduled_start: jours(-6), scheduled_end: jours(-6), status: "no_show" });
+  verifie("une séance non venue non plus", refuse(await noter(v1, absenteNV.id, "argent", null)));
+
+  const futureNV = await rdvV({ scheduled_start: jours(3), scheduled_end: jours(3) });
+  verifie("ni une séance à venir", refuse(await noter(v1, futureNV.id, "argent", null)));
+
+  verifie(
+    "un membre d'un autre client ne note pas de raison",
+    refuse(await noter(b1, nonVendue.id, "argent", ceMois)),
+  );
+  verifie(
+    "… ni « c'est fait »",
+    refuse(await b1("POST", "rpc/radar_recontact_fait", { booking_id: nonVendue.id })),
+  );
+  verifie(
+    "sans session, aucune des deux fonctions n'est appelable",
+    refuse(await noter(par(null), nonVendue.id, "argent", ceMois)) &&
+      refuse(await par(null)("POST", "rpc/radar_recontact_fait", { booking_id: nonVendue.id })),
+  );
+  verifie(
+    "B ne lit pas les raisons notées chez V",
+    vide(await b1("GET", `radar_booking_activities?select=id&booking_id=eq.${nonVendue.id}`)),
+  );
+
   // ---------------- 17. Supprimer un client connecté ----------------------
   console.log("\n== 17. Supprimer un client connecté ==");
 

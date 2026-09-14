@@ -5,6 +5,7 @@ import {
   CalendarX2,
   Coins,
   FileText,
+  MessageCircleHeart,
   PhoneCall,
   Radar,
   SlidersHorizontal,
@@ -27,6 +28,7 @@ import {
   aVerifier,
   bilan,
   getAppelsVeille,
+  getARecontacter,
   getBilanAppelVeille,
   getBilanPrecedent,
   getCanaux,
@@ -39,6 +41,7 @@ import {
   getVentesRefusees,
   parCanal,
 } from "@/tools/resultats/queries";
+import { ARecontacter } from "@/tools/resultats/non-vente-client";
 import { AppelsDeDemain, AVerifier } from "@/tools/resultats/rendez-vous-client";
 import {
   comparer,
@@ -137,6 +140,12 @@ async function TableauDeBord({
       ])
     : [{}, null];
 
+  /*
+   * Les personnes venues sans acheter qui ont dit quand en reparler : la liste
+   * suit le calendrier, pas le mois affiché, comme les appels de demain.
+   */
+  const recontacts = surLesVentes ? await getARecontacter(organizationId) : null;
+
   return (
     <>
       <SelecteurMois
@@ -175,6 +184,22 @@ async function TableauDeBord({
               {bilanDesAppels.confirme.nonVenues > 1 ? "s" : ""}.
             </p>
           ) : null}
+        </section>
+      ) : null}
+
+      {recontacts && recontacts.lignes.length > 0 ? (
+        <section className="mb-8 space-y-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <MessageCircleHeart aria-hidden="true" className="text-muted-foreground size-4" />
+              <h2 className="text-sm">À recontacter</h2>
+            </div>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Elles sont venues sans acheter et t&apos;ont dit quand en reparler. Ce mois est
+              arrivé : un message de ta part, puis « C&apos;est fait ».
+            </p>
+          </div>
+          <ARecontacter orgSlug={orgSlug} donnees={recontacts} />
         </section>
       ) : null}
 

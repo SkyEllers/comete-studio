@@ -2012,6 +2012,10 @@ export type Database = {
         Args: { booking_id: string; reponse: string }
         Returns: boolean
       }
+      radar_note_non_vente: {
+        Args: { booking_id: string; motif: string; recontacter?: string }
+        Returns: boolean
+      }
       radar_purger_identite: {
         Args: { avec_vente?: string; sans_vente?: string }
         Returns: number
@@ -2021,6 +2025,7 @@ export type Database = {
         Args: { anciennete?: string }
         Returns: number
       }
+      radar_recontact_fait: { Args: { booking_id: string }; Returns: boolean }
       radar_review_statement: {
         Args: {
           comment?: string

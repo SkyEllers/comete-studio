@@ -10,7 +10,14 @@ import {
   type BilanAppel,
   type ReponseAppel,
 } from "./appel-veille";
-import { moisPrecedent } from "./mois";
+import { moisCourant, moisPrecedent } from "./mois";
+import {
+  aRecontacter,
+  etatsParRendezVous,
+  nombrePlusTard,
+  TYPES_NON_VENTE,
+  type Raison,
+} from "./non-vente";
 
 /**
  * Ce que le client lit de Radar.
@@ -467,6 +474,53 @@ export async function getBilanAppelVeille(
       rdv.id && rdv.effective_status ? [{ id: rdv.id, effective_status: rdv.effective_status }] : [],
     ),
   );
+}
+
+export type ARecontacter = {
+  lignes: { rdv: RendezVous; raison: Raison }[];
+  /** Combien sont prévues pour un mois à venir. */
+  plusTard: number;
+};
+
+/**
+ * Les personnes venues sans acheter qu'il est temps de recontacter.
+ *
+ * Tous mois confondus, comme l'appel de demain : la liste suit le calendrier,
+ * pas le mois affiché. Une personne qui a acheté depuis sort de la liste.
+ */
+export async function getARecontacter(organizationId: string): Promise<ARecontacter> {
+  const supabase = await createClient();
+  const { data: activites } = await supabase
+    .from("radar_booking_activities")
+    .select("booking_id, type, payload, created_at")
+    .eq("organization_id", organizationId)
+    .in("type", TYPES_NON_VENTE)
+    .order("created_at", { ascending: false })
+    .limit(1000);
+
+  const etats = etatsParRendezVous(activites ?? []);
+  const courant = moisCourant();
+  const dues = aRecontacter(etats, courant);
+  const plusTard = nombrePlusTard(etats, courant);
+  if (dues.length === 0) return { lignes: [], plusTard };
+
+  const { data: rendezVous } = await supabase
+    .from("radar_bookings_effective")
+    .select(COLONNES)
+    .in(
+      "id",
+      dues.map((due) => due.id),
+    )
+    .limit(PLAFOND);
+
+  const parId = new Map(((rendezVous ?? []) as RendezVous[]).map((rdv) => [rdv.id, rdv]));
+  return {
+    lignes: dues.flatMap((due) => {
+      const rdv = parId.get(due.id);
+      return rdv && !rdv.has_sale ? [{ rdv, raison: due.raison }] : [];
+    }),
+    plusTard,
+  };
 }
 
 /** Le relevé d'un mois, s'il existe : c'est lui qui ferme les corrections. */
