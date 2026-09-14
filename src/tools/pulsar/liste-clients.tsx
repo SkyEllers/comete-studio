@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -165,13 +165,36 @@ function LigneClient({
   mois: string;
 }) {
   const [depliee, setDepliee] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [edition, setEdition] = useState(false);
   const [suppression, setSuppression] = useState(false);
   const [pending, startTransition] = useTransition();
+  const declencheur = useRef<HTMLButtonElement>(null);
   const router = useRouter();
 
   const { client } = bilan;
   const enAlerte = bilan.alerteTaux || bilan.alerteHeures;
+
+  /*
+   * Agir depuis le menu — le même motif que les lignes d'entrée de la journée.
+   *
+   * Laissé à lui-même, le menu se referme sur la sélection et rend le focus à
+   * son bouton, hors de la fenêtre qui vient de s'ouvrir, qui se referme
+   * aussitôt. L'empêcher de se fermer ne valait pas mieux : il restait ouvert,
+   * modal, et la page ne répondait plus une fois la fenêtre fermée. On le ferme
+   * donc soi-même, sans le laisser reprendre le focus, et c'est la fenêtre qui
+   * rend le focus au bouton en partant.
+   */
+  const depuisLeMenu = (agirEnsuite: () => void) => (evenement: Event) => {
+    evenement.preventDefault();
+    setMenu(false);
+    agirEnsuite();
+  };
+
+  const rendreLeFocus = (evenement: Event) => {
+    evenement.preventDefault();
+    declencheur.current?.focus();
+  };
 
   const agir = (
     action: () => Promise<{ ok: boolean; error?: string }>,
@@ -240,9 +263,10 @@ function LigneClient({
         {client.is_internal ? (
           <span className="w-7 shrink-0" aria-hidden="true" />
         ) : (
-          <DropdownMenu>
+          <DropdownMenu open={menu} onOpenChange={setMenu}>
             <DropdownMenuTrigger asChild>
               <Button
+                ref={declencheur}
                 variant="ghost"
                 size="icon-sm"
                 disabled={pending}
@@ -251,23 +275,20 @@ function LigneClient({
                 <MoreHorizontal aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={(evenement) => {
-                  evenement.preventDefault();
-                  setEdition(true);
-                }}
-              >
+            <DropdownMenuContent
+              align="end"
+              onCloseAutoFocus={(evenement) => evenement.preventDefault()}
+            >
+              <DropdownMenuItem onSelect={depuisLeMenu(() => setEdition(true))}>
                 <Pencil aria-hidden="true" />
                 Modifier la fiche
               </DropdownMenuItem>
 
               {client.statut === "termine" ? null : (
                 <DropdownMenuItem
-                  onSelect={(evenement) => {
-                    evenement.preventDefault();
-                    agir(() => archiverClient(orgSlug, client.id), "Client archivé");
-                  }}
+                  onSelect={depuisLeMenu(() =>
+                    agir(() => archiverClient(orgSlug, client.id), "Client archivé"),
+                  )}
                 >
                   <Archive aria-hidden="true" />
                   Archiver
@@ -278,10 +299,7 @@ function LigneClient({
 
               <DropdownMenuItem
                 className="text-destructive"
-                onSelect={(evenement) => {
-                  evenement.preventDefault();
-                  setSuppression(true);
-                }}
+                onSelect={depuisLeMenu(() => setSuppression(true))}
               >
                 <Trash2 aria-hidden="true" />
                 Supprimer
@@ -319,7 +337,7 @@ function LigneClient({
       ) : null}
 
       <Dialog open={edition} onOpenChange={setEdition}>
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={rendreLeFocus}>
           <DialogHeader>
             <DialogTitle>Fiche de {client.name}</DialogTitle>
             <DialogDescription>
@@ -345,7 +363,7 @@ function LigneClient({
       </Dialog>
 
       <AlertDialog open={suppression} onOpenChange={setSuppression}>
-        <AlertDialogContent>
+        <AlertDialogContent onCloseAutoFocus={rendreLeFocus}>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer {client.name} ?</AlertDialogTitle>
             <AlertDialogDescription>
