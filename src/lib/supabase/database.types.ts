@@ -1271,6 +1271,44 @@ export type Database = {
           },
         ]
       }
+      radar_event_filters: {
+        Row: {
+          event_type_name: string
+          event_type_uri: string
+          first_seen_at: string
+          id: string
+          organization_id: string
+          tracked: boolean
+          updated_at: string
+        }
+        Insert: {
+          event_type_name: string
+          event_type_uri: string
+          first_seen_at?: string
+          id?: string
+          organization_id: string
+          tracked?: boolean
+          updated_at?: string
+        }
+        Update: {
+          event_type_name?: string
+          event_type_uri?: string
+          first_seen_at?: string
+          id?: string
+          organization_id?: string
+          tracked?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_event_filters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_export_tokens: {
         Row: {
           created_at: string
@@ -1996,6 +2034,13 @@ export type Database = {
       radar_set_secret: {
         Args: { kind: string; org: string; value: string }
         Returns: undefined
+      }
+      radar_supprimer_lignes_du_type: {
+        Args: { filtre: string }
+        Returns: {
+          figees: number
+          supprimees: number
+        }[]
       }
       sas_compteurs: {
         Args: { org: string }

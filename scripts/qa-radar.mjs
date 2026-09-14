@@ -14,6 +14,11 @@
  *
  * Chantier 1 : le socle. Les webhooks, l'attribution et les relevés
  * s'ajouteront ici aux chantiers 2 et 7.
+ *
+ * Section 15 (migration 0021) : les types de séance. Un type coupé n'entre
+ * plus par le webhook et le journal le dit, un type inconnu entre suivi, la
+ * suppression des lignes d'un type refuse celles qu'un relevé a figées, et la
+ * nouvelle table se cloisonne comme les autres.
  */
 import {
   annoncerCible,
@@ -1926,6 +1931,332 @@ try {
   verifie(
     "un membre ne déclenche pas la purge d'identité",
     refuse(await v1("POST", "rpc/radar_purger_identite", {})),
+  );
+
+  // ------------------------ 15. Les types de séance ------------------------
+  console.log("\n== 15. Les types de séance ==");
+
+  /*
+   * Les séances de suivi de clientes existantes n'ont rien à faire dans Radar.
+   * Le filtre porte sur l'URI du type : c'est elle que le banc fait varier,
+   * dans le client D déjà connecté plus haut, et c'est le webhook qu'on
+   * interroge — pas la table qu'on relit.
+   */
+  const TYPE_ETINCELLE = `https://api.calendly.com/event_types/zz-${marque}-etincelle`;
+  const TYPE_DIAGNOSTIC = `https://api.calendly.com/event_types/zz-${marque}-diagnostic`;
+
+  const avecType = (fichier, remplacements, typeUri, nom) => {
+    const corps = JSON.parse(gabarit(fichier, remplacements));
+    corps.payload.scheduled_event.event_type = typeUri;
+    if (nom) corps.payload.scheduled_event.name = nom;
+    return JSON.stringify(corps);
+  };
+
+  const reservation = (fichier, suffixe, typeUri, nom, email = `t-${suffixe}-${marque}@example.com`) =>
+    avecType(
+      fichier,
+      {
+        EMAIL: email,
+        INVITEE_URI: invitee(suffixe),
+        EVENT_URI: uri(suffixe),
+        START: dans(9),
+        END: dans(9),
+      },
+      typeUri,
+      nom,
+    );
+
+  const filtresDe = async (org, typeUri) =>
+    (
+      await srv(
+        "GET",
+        `radar_event_filters?select=id,event_type_name,tracked,first_seen_at&organization_id=eq.${org}&event_type_uri=eq.${encodeURIComponent(typeUri)}`,
+      )
+    ).data;
+
+  const lignesD = async (suffixe) =>
+    (
+      await srv(
+        "GET",
+        `radar_bookings?select=id,status,statement_id&organization_id=eq.${orgD.id}` +
+          (suffixe ? `&invitee_uri=eq.${encodeURIComponent(invitee(suffixe))}` : ""),
+      )
+    ).data;
+
+  const journalD = async () =>
+    (
+      await srv(
+        "GET",
+        `radar_webhook_log?select=outcome,message,invitee_key,received_at&organization_id=eq.${orgD.id}&order=received_at.asc,id.asc&limit=200`,
+      )
+    ).data;
+
+  const dernierAppelD = async () =>
+    (await srv("GET", `radar_settings?select=last_webhook_at&organization_id=eq.${orgD.id}`)).data[0]
+      ?.last_webhook_at;
+
+  // --------------------- Un type jamais vu entre, suivi ---------------------
+
+  const NOM_ETINCELLE = "RDV individuel pour les clientes Programme Etincelle";
+  verifie(
+    "une réservation d'un type jamais vu → 200",
+    (await poster(reservation("cree-gratuit.json", "t1", TYPE_ETINCELLE, NOM_ETINCELLE), {
+      org: orgD.id,
+    })) === 200,
+  );
+
+  const [etincelle] = await filtresDe(orgD.id, TYPE_ETINCELLE);
+  verifie(
+    "le type inconnu est créé, suivi, avec son nom et sa première apparition",
+    etincelle?.tracked === true &&
+      etincelle?.event_type_name === NOM_ETINCELLE &&
+      Boolean(etincelle?.first_seen_at),
+    JSON.stringify(etincelle),
+  );
+  verifie("… et sa réservation est entrée", (await lignesD("t1")).length === 1);
+
+  const NOM_RENOMME = "Suivi Etincelle (clientes)";
+  await poster(reservation("cree-gratuit.json", "t2", TYPE_ETINCELLE, NOM_RENOMME), {
+    org: orgD.id,
+  });
+  const apresRenommage = await filtresDe(orgD.id, TYPE_ETINCELLE);
+  verifie(
+    "renommé chez Calendly, le type reste une seule ligne et prend son nouveau nom",
+    apresRenommage.length === 1 &&
+      apresRenommage[0].id === etincelle?.id &&
+      apresRenommage[0].event_type_name === NOM_RENOMME,
+    JSON.stringify(apresRenommage),
+  );
+
+  const doublonType = await srv("POST", "radar_event_filters", {
+    organization_id: orgD.id,
+    event_type_uri: TYPE_ETINCELLE,
+    event_type_name: "Doublon",
+  });
+  verifie(
+    "un type ne s'enregistre qu'une fois par client",
+    doublonType.status >= 400,
+    `statut ${doublonType.status}`,
+  );
+  const memeTypeAilleurs = await srv("POST", "radar_event_filters?select=id", {
+    organization_id: orgC.id,
+    event_type_uri: TYPE_ETINCELLE,
+    event_type_name: NOM_ETINCELLE,
+  });
+  verifie(
+    "… mais la même URI reste libre chez un autre client",
+    memeTypeAilleurs.status < 300,
+    `statut ${memeTypeAilleurs.status}`,
+  );
+
+  // ------------------------- Coupé, il n'entre plus -------------------------
+
+  await srv("PATCH", `radar_event_filters?id=eq.${etincelle.id}`, { tracked: false });
+
+  const lignesAvantCoupe = (await lignesD()).length;
+  const appelAvantCoupe = await dernierAppelD();
+  const EMAIL_COUPE = `coupe-${marque}@example.com`;
+  const corpsCoupe = reservation("cree-paye.json", "t3", TYPE_ETINCELLE, NOM_RENOMME, EMAIL_COUPE);
+
+  verifie(
+    "une réservation d'un type coupé → 200",
+    (await poster(corpsCoupe, { org: orgD.id })) === 200,
+  );
+  verifie(
+    "… et le webhook n'insère rien",
+    (await lignesD("t3")).length === 0 && (await lignesD()).length === lignesAvantCoupe,
+    `${(await lignesD()).length} ligne(s), ${lignesAvantCoupe} avant`,
+  );
+
+  const filtre = (await journalD()).at(-1);
+  verifie(
+    "… le journal dit filtered, et nomme le type",
+    filtre?.outcome === "filtered" && (filtre?.message ?? "").includes(NOM_RENOMME),
+    JSON.stringify(filtre),
+  );
+  verifie(
+    "… sans l'email ni le nom de la personne",
+    !JSON.stringify(await journalD()).includes(EMAIL_COUPE) &&
+      !JSON.stringify(await journalD()).includes("Dupont"),
+  );
+  verifie(
+    "… et l'appel compte comme reçu : last_webhook_at avance",
+    Date.parse((await dernierAppelD()) ?? 0) > Date.parse(appelAvantCoupe ?? 0),
+    JSON.stringify({ avant: appelAvantCoupe, apres: await dernierAppelD() }),
+  );
+
+  verifie(
+    "rejouée, la réservation coupée reste dehors",
+    (await poster(corpsCoupe, { org: orgD.id })) === 200 && (await lignesD("t3")).length === 0,
+  );
+
+  verifie(
+    "une annulation d'une séance déjà reçue d'un type coupé → 200",
+    (await poster(
+      avecType(
+        "annule.json",
+        {
+          EMAIL: `t-t1-${marque}@example.com`,
+          INVITEE_URI: invitee("t1"),
+          EVENT_URI: uri("t1"),
+          START: dans(9),
+          END: dans(9),
+        },
+        TYPE_ETINCELLE,
+      ),
+      { org: orgD.id },
+    )) === 200,
+  );
+  verifie(
+    "… elle s'annule quand même : la coupe ne regarde que les créations",
+    (await lignesD("t1"))[0]?.status === "annule",
+    JSON.stringify(await lignesD("t1")),
+  );
+
+  verifie(
+    "un type suivi continue d'entrer à côté d'un type coupé",
+    (await poster(reservation("cree-gratuit.json", "t4", TYPE_DIAGNOSTIC, "RDV diagnostic offert"), {
+      org: orgD.id,
+    })) === 200 &&
+      (await lignesD("t4")).length === 1 &&
+      (await filtresDe(orgD.id, TYPE_DIAGNOSTIC))[0]?.tracked === true,
+  );
+
+  // ------------------- Supprimer les lignes d'un type coupé -----------------
+
+  /*
+   * La ligne t2 est rattachée à un relevé : elle est figée, et la suppression
+   * doit la refuser. La ligne t1 est libre : elle part, et ses activités avec.
+   */
+  const releveD = await creer("radar_statements", {
+    organization_id: orgD.id,
+    month: "2020-01-01",
+    commission_rate: 20,
+    window_days: 90,
+  });
+  const [ligneFigee] = await lignesD("t2");
+  const [ligneLibre] = await lignesD("t1");
+  await srv("PATCH", `radar_bookings?id=eq.${ligneFigee.id}`, { statement_id: releveD.id });
+
+  const [diagnostic] = await filtresDe(orgD.id, TYPE_DIAGNOSTIC);
+  const surSuivi = await srv("POST", "rpc/radar_supprimer_lignes_du_type", {
+    filtre: diagnostic.id,
+  });
+  verifie(
+    "sur un type suivi, la suppression est refusée",
+    surSuivi.status >= 400 && (await lignesD("t4")).length === 1,
+    `statut ${surSuivi.status} ${motif(surSuivi)}`,
+  );
+
+  const purgeType = await srv("POST", "rpc/radar_supprimer_lignes_du_type", {
+    filtre: etincelle.id,
+  });
+  verifie(
+    "sur un type coupé, la ligne libre part et la ligne à relevé est refusée",
+    purgeType.status < 300 &&
+      purgeType.data?.[0]?.supprimees === 1 &&
+      purgeType.data?.[0]?.figees === 1,
+    `statut ${purgeType.status} ${JSON.stringify(purgeType.data)}`,
+  );
+  verifie(
+    "… la ligne figée est toujours là, rattachée à son relevé",
+    (await lignesD("t2"))[0]?.statement_id === releveD.id,
+  );
+  verifie(
+    "… la libre a disparu, et ses activités avec",
+    (await lignesD("t1")).length === 0 &&
+      (await srv("GET", `radar_booking_activities?select=id&booking_id=eq.${ligneLibre.id}`)).data
+        .length === 0,
+  );
+  verifie("… et l'autre type n'a pas été touché", (await lignesD("t4")).length === 1);
+
+  const purgeRejouee = await srv("POST", "rpc/radar_supprimer_lignes_du_type", {
+    filtre: etincelle.id,
+  });
+  verifie(
+    "rejouée, la suppression n'emporte plus rien et compte toujours la figée",
+    purgeRejouee.data?.[0]?.supprimees === 0 && purgeRejouee.data?.[0]?.figees === 1,
+    JSON.stringify(purgeRejouee.data),
+  );
+
+  // ------------------------------ L'isolation -------------------------------
+
+  const typeDeA = await creer("radar_event_filters", {
+    organization_id: orgs.a.id,
+    event_type_uri: `https://api.calendly.com/event_types/zz-${marque}-a`,
+    event_type_name: "Séance de A",
+  });
+  await creer("radar_event_filters", {
+    organization_id: orgs.b.id,
+    event_type_uri: `https://api.calendly.com/event_types/zz-${marque}-b`,
+    event_type_name: "Séance de B",
+  });
+
+  verifie(
+    "A1 lit les types de séance de son client",
+    (await a1("GET", `radar_event_filters?select=id&organization_id=eq.${orgs.a.id}`)).data
+      ?.length === 1,
+  );
+  verifie(
+    "B1 ne lit aucun type de séance de A",
+    vide(await b1("GET", `radar_event_filters?select=id&organization_id=eq.${orgs.a.id}`)),
+  );
+  verifie(
+    "… ni ceux des clients dont il n'est pas membre",
+    vide(
+      await b1("GET", `radar_event_filters?select=id&organization_id=in.(${orgC.id},${orgD.id})`),
+    ),
+  );
+  verifie(
+    "A1 ne coupe pas un type, même chez lui",
+    refuse(await a1("PATCH", `radar_event_filters?id=eq.${typeDeA.id}&select=id`, { tracked: false })),
+  );
+  verifie(
+    "A1 n'ajoute pas de type",
+    refuse(
+      await a1("POST", "radar_event_filters?select=id", {
+        organization_id: orgs.a.id,
+        event_type_uri: `https://api.calendly.com/event_types/zz-${marque}-intrus`,
+        event_type_name: "Intrus",
+      }),
+    ),
+  );
+  verifie(
+    "A1 n'efface pas de type",
+    refuse(await a1("DELETE", `radar_event_filters?id=eq.${typeDeA.id}&select=id`)),
+  );
+  verifie(
+    "B1 ne coupe pas un type de A",
+    refuse(await b1("PATCH", `radar_event_filters?id=eq.${typeDeA.id}&select=id`, { tracked: false })),
+  );
+  verifie(
+    "après ces tentatives, le type de A est intact et suivi",
+    (await srv("GET", `radar_event_filters?select=tracked&id=eq.${typeDeA.id}`)).data[0]?.tracked ===
+      true,
+  );
+  verifie(
+    "un membre n'appelle pas la suppression des lignes d'un type",
+    refuse(await a1("POST", "rpc/radar_supprimer_lignes_du_type", { filtre: typeDeA.id })),
+  );
+
+  await basculer(orgs.a.id, false);
+  verifie(
+    "outil coupé · A1 ne voit plus ses types de séance",
+    vide(await a1("GET", `radar_event_filters?select=id&organization_id=eq.${orgs.a.id}`)),
+  );
+  await basculer(orgs.a.id, true);
+
+  // L'écriture est à Louis : un compte promu admin le temps d'une vérification,
+  // comme le banc de Sonde, puis rendu à son rang.
+  await srv("PATCH", `profiles?id=eq.${comptes.b1}`, { is_admin: true });
+  const parAdmin = await b1("PATCH", `radar_event_filters?id=eq.${typeDeA.id}&select=tracked`, {
+    tracked: false,
+  });
+  await srv("PATCH", `profiles?id=eq.${comptes.b1}`, { is_admin: false });
+  verifie(
+    "un admin, lui, coupe un type",
+    parAdmin.status < 300 && parAdmin.data?.[0]?.tracked === false,
+    `statut ${parAdmin.status} ${JSON.stringify(parAdmin.data)}`,
   );
 
 } finally {
