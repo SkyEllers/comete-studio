@@ -25,8 +25,8 @@ import { IDENTIFIANTS_DE_CLIC } from "./attribution.ts";
  * On valide donc ce qu'on lit, et on laisse passer ce qu'on ignore.
  *
  * Le garde-fou de dernier recours est ailleurs : `last_webhook_at` n'avance
- * que sur un appel accepté, et l'administration alerte au-delà de quatorze
- * jours sans nouvelles.
+ * que sur un appel compris — accepté, ou venu d'un type de séance coupé — et
+ * l'administration alerte au-delà de quatorze jours sans nouvelles.
  */
 
 const objetSouple = z.looseObject;

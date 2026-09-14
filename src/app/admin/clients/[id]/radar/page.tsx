@@ -40,6 +40,7 @@ import {
   statutLisible,
 } from "@/tools/resultats/format";
 import { ExportsRadar, type JetonExport } from "@/app/admin/clients/[id]/radar/radar-exports";
+import { TypesDeSeance, type TypeDeSeance } from "@/app/admin/clients/[id]/radar/radar-types";
 import { ChercherNom } from "@/tools/resultats/chercher-nom";
 import { libelleMois, moisAOffrir, moisCourant, moisDemande } from "@/tools/resultats/mois";
 import { nettoyerRecherche } from "@/tools/resultats/recherche";
@@ -143,6 +144,51 @@ async function SectionReglages({ organizationId }: { organizationId: string }) {
       </section>
     </>
   );
+}
+
+/**
+ * Les types de séance vus pour ce client, et combien de lignes chacun porte.
+ *
+ * Deux comptes par type, en tête seule : un client en a une poignée, et
+ * rapatrier ses rendez-vous pour les compter ici ferait voyager des noms pour
+ * rien. Le second compte — les lignes figées par un relevé — est ce que la
+ * suppression laissera en place, et la confirmation doit pouvoir le dire.
+ */
+async function SectionTypes({ organizationId }: { organizationId: string }) {
+  const supabase = await createClient();
+
+  const { data: filtres } = await supabase
+    .from("radar_event_filters")
+    .select("id, event_type_uri, event_type_name, tracked, first_seen_at")
+    .eq("organization_id", organizationId)
+    .order("first_seen_at");
+
+  const types: TypeDeSeance[] = await Promise.all(
+    (filtres ?? []).map(async (filtre) => {
+      const lignesDuType = () =>
+        supabase
+          .from("radar_bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", organizationId)
+          .eq("event_type_uri", filtre.event_type_uri);
+
+      const [toutes, figees] = await Promise.all([
+        lignesDuType(),
+        lignesDuType().not("statement_id", "is", null),
+      ]);
+
+      return {
+        id: filtre.id,
+        event_type_name: filtre.event_type_name,
+        tracked: filtre.tracked,
+        vuLe: jour(filtre.first_seen_at),
+        lignes: toutes.count ?? 0,
+        figees: figees.count ?? 0,
+      };
+    }),
+  );
+
+  return <TypesDeSeance organizationId={organizationId} types={types} />;
 }
 
 async function SectionRendezVous({
@@ -675,6 +721,7 @@ const RESULTATS = [
   "accepted",
   "duplicate",
   "ignored",
+  "filtered",
   "invalid_signature",
   "invalid_payload",
   "error",
@@ -867,6 +914,13 @@ export default async function RadarAdminPage({
             <h2 className="text-lg">Réglages</h2>
             <Suspense fallback={<TableSkeleton rows={2} />}>
               <SectionReglages organizationId={org.id} />
+            </Suspense>
+          </section>
+
+          <section className="mt-10 space-y-4">
+            <h2 className="text-lg">Types de séance</h2>
+            <Suspense fallback={<TableSkeleton rows={2} />}>
+              <SectionTypes organizationId={org.id} />
             </Suspense>
           </section>
 

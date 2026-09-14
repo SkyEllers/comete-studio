@@ -192,6 +192,9 @@ C'est le moment de vérifier deux choses :
 - **Marquer payé** une fois le virement reçu.
 - Les **saisies mensuelles** (dépense, visiteurs, clics) alimentent l'entonnoir
   et la marge. Elles ne sortent jamais de l'administration.
+- Les **séances de suivi interne** (clientes déjà acquises, programme en cours)
+  se coupent dans **Types de séance**, sur l'onglet Radar du client : un type
+  apparaît à sa première réservation, suivi par défaut.
 
 ## Ouvrir un export à un rapport externe
 

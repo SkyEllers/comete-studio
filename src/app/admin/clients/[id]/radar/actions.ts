@@ -753,6 +753,127 @@ export async function enregistrerCanal(
   return ok();
 }
 
+// ---------------------------- Types de séance -------------------------------
+
+const typeSchema = z.object({
+  organizationId: organisation,
+  filterId: z.uuid({ error: "Type de séance introuvable." }),
+});
+
+/**
+ * Suivre ou ignorer un type de séance.
+ *
+ * Couper un type ne touche à aucune ligne : il ferme la porte aux réservations
+ * suivantes, et c'est tout. Les lignes déjà reçues se suppriment à part, par
+ * un geste qui dit combien il en emporte.
+ *
+ * Le geste est noté dans le journal des réglages, à côté des changements de
+ * base de commission : ignorer un type change ce que Radar compte, et « depuis
+ * quand ces séances n'entrent plus ? » est exactement la question qu'on y vient
+ * poser.
+ */
+export async function suivreTypeDeSeance(input: unknown): Promise<ActionResult> {
+  const { userId } = await requireAdmin();
+
+  const parsed = typeSchema
+    .extend({ tracked: z.boolean({ error: "Choix inconnu." }) })
+    .safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const { organizationId, filterId, tracked } = parsed.data;
+
+  const admin = createAdminClient();
+  const { data: type, error } = await admin
+    .from("radar_event_filters")
+    .update({ tracked })
+    .eq("id", filterId)
+    .eq("organization_id", organizationId)
+    .select("event_type_uri, event_type_name")
+    .maybeSingle();
+
+  if (error) return fail("Impossible de changer le suivi de ce type pour le moment.");
+  if (!type) return fail("Ce type de séance n'existe plus.");
+
+  await admin
+    .from("radar_settings_log")
+    .insert({
+      organization_id: organizationId,
+      user_id: userId,
+      type: tracked ? "event_type.tracked" : "event_type.ignored",
+      payload: { event_type_uri: type.event_type_uri, event_type_name: type.event_type_name },
+    })
+    .then(
+      () => undefined,
+      () => undefined, // journaliser ne doit pas faire échouer un réglage valide
+    );
+
+  rafraichir(organizationId);
+  return ok();
+}
+
+/**
+ * Supprimer les lignes déjà reçues d'un type coupé.
+ *
+ * Toute la règle est dans `radar_supprimer_lignes_du_type` : pas de
+ * suppression sur un type suivi, et aucune ligne rattachée à un relevé — elles
+ * sont figées, et un relevé signé ne perd pas ses lignes. L'action rend les
+ * deux comptes pour que l'écran dise ce qui est parti et ce qui est resté.
+ */
+export async function supprimerLignesDuType(
+  input: unknown,
+): Promise<ActionResult<{ supprimees: number; figees: number }>> {
+  const { userId } = await requireAdmin();
+
+  const parsed = typeSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const { organizationId, filterId } = parsed.data;
+
+  const admin = createAdminClient();
+
+  // La fonction ne connaît que le filtre : on vérifie ici qu'il appartient
+  // bien au client de la page, pour qu'un identifiant recopié d'un autre
+  // onglet ne vide pas les rendez-vous d'un autre client.
+  const { data: type } = await admin
+    .from("radar_event_filters")
+    .select("id, event_type_uri, event_type_name, tracked")
+    .eq("id", filterId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (!type) return fail("Ce type de séance n'existe plus.");
+  if (type.tracked) {
+    return fail("Ce type de séance est suivi : coupe-le avant d'en supprimer les lignes.");
+  }
+
+  const { data, error } = await admin
+    .rpc("radar_supprimer_lignes_du_type", { filtre: type.id })
+    .single();
+
+  if (error || !data) return fail("Impossible de supprimer ces lignes pour le moment.");
+
+  await admin
+    .from("radar_settings_log")
+    .insert({
+      organization_id: organizationId,
+      user_id: userId,
+      type: "event_type.purged",
+      payload: {
+        event_type_uri: type.event_type_uri,
+        event_type_name: type.event_type_name,
+        supprimees: data.supprimees,
+        figees: data.figees,
+      },
+    })
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+
+  rafraichir(organizationId);
+  return ok({ supprimees: data.supprimees, figees: data.figees });
+}
+
 // --------------------------- Corriger un rendez-vous ------------------------
 
 const correctionCanalSchema = z.object({

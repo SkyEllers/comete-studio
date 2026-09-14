@@ -33,9 +33,9 @@ import {
  *
  *   404  cette adresse ne correspond à aucun client connecté. Sans corps.
  *   401  signature absente, fausse, ou trop vieille. Sans corps.
- *   200  message reçu et traité — ou volontairement ignoré. Jamais de 4xx
- *        pour un payload qui ne passera jamais : Calendly le rejouerait
- *        pendant des heures.
+ *   200  message reçu et traité — ou volontairement ignoré, y compris une
+ *        séance d'un type coupé. Jamais de 4xx pour un payload qui ne
+ *        passera jamais : Calendly le rejouerait pendant des heures.
  *   500  c'est nous qui sommes en panne. Là, oui, qu'il rejoue.
  *
  * Une séance manquée, c'est une commission perdue ou facturée à tort. C'est
@@ -253,6 +253,72 @@ export async function POST(
       return sansCorps(200);
     }
 
+    /*
+     * Le type de séance, suivi ou coupé.
+     *
+     * Un type jamais vu est enregistré, suivi, et la réservation continue : un
+     * nouveau diagnostic que Peggy ouvrirait demain doit entrer dans Radar sans
+     * que personne n'y pense. Couper est un geste de Louis, jamais un défaut.
+     *
+     * Un type coupé n'insère rien et le dit au journal. Ce n'est pas un refus
+     * pour Calendly — un 200, comme tout message compris — et c'est un appel
+     * reçu : `last_webhook_at` avance, sans quoi une semaine de seules séances
+     * de suivi ferait croire à un Calendly muet.
+     *
+     * Le nom est celui de la dernière réservation : il suit les renommages,
+     * l'URI ne bouge pas. Une séance sans URI de type — le champ est facultatif
+     * chez Calendly — n'a pas de clé à filtrer, et entre comme avant.
+     */
+    const typeUri = invite.scheduled_event.event_type ?? null;
+    const typeNom = invite.scheduled_event.name.slice(0, 200);
+
+    if (typeUri) {
+      const { data: filtre, error: filtreIllisible } = await admin
+        .from("radar_event_filters")
+        .select("id, tracked, event_type_name")
+        .eq("organization_id", orgId)
+        .eq("event_type_uri", typeUri)
+        .maybeSingle();
+
+      if (filtreIllisible) {
+        await noter({
+          event_kind: message.event,
+          invitee_key,
+          outcome: "error",
+          message: "types de séance illisibles",
+        });
+        return sansCorps(500);
+      }
+
+      if (!filtre) {
+        // Deux premières réservations simultanées du même type : la contrainte
+        // d'unicité garde la première, la seconde n'a rien à ajouter.
+        await admin.from("radar_event_filters").upsert(
+          { organization_id: orgId, event_type_uri: typeUri, event_type_name: typeNom },
+          { onConflict: "organization_id,event_type_uri", ignoreDuplicates: true },
+        );
+      } else if (filtre.event_type_name !== typeNom) {
+        await admin
+          .from("radar_event_filters")
+          .update({ event_type_name: typeNom })
+          .eq("id", filtre.id);
+      }
+
+      if (filtre && !filtre.tracked) {
+        await admin
+          .from("radar_settings")
+          .update({ last_webhook_at: new Date().toISOString() })
+          .eq("organization_id", orgId);
+        await noter({
+          event_kind: message.event,
+          invitee_key,
+          outcome: "filtered",
+          message: `type ignoré : ${typeNom}`,
+        });
+        return sansCorps(200);
+      }
+    }
+
     const [canaux, historique, ancien] = await Promise.all([
       admin
         .from("radar_channels")
@@ -331,7 +397,7 @@ export async function POST(
         scheduled_start: debut,
         scheduled_end: invite.scheduled_event.end_time,
         event_type_name: invite.scheduled_event.name,
-        event_type_uri: invite.scheduled_event.event_type ?? null,
+        event_type_uri: typeUri,
         utm,
         declared_source: reponseDeclaree(invite.questions_and_answers ?? []),
         channel_id: verdict.channel_id,
