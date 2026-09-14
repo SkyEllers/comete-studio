@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import {
+  AppelVeille,
   CanalForm,
   ConnexionCalendly,
   CorrigerRendezVous,
@@ -67,7 +68,7 @@ async function reglagesEtCanaux(organizationId: string) {
     supabase
       .from("radar_settings")
       .select(
-        "commission_rate, window_days, currency, commission_basis, calendly_user_uri, calendly_webhook_uri, connected_at, last_webhook_at",
+        "commission_rate, window_days, currency, commission_basis, suivi_appel_veille, calendly_user_uri, calendly_webhook_uri, connected_at, last_webhook_at",
       )
       .eq("organization_id", organizationId)
       .maybeSingle(),
@@ -118,6 +119,11 @@ async function SectionReglages({ organizationId }: { organizationId: string }) {
         windowDays={reglages?.window_days ?? 90}
         currency={reglages?.currency ?? "EUR"}
         commissionBasis={reglages?.commission_basis ?? "encaissement"}
+      />
+
+      <AppelVeille
+        organizationId={organizationId}
+        actif={reglages?.suivi_appel_veille ?? false}
       />
 
       <section className="mt-10 space-y-4">

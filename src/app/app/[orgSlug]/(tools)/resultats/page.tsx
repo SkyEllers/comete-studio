@@ -5,6 +5,7 @@ import {
   CalendarX2,
   Coins,
   FileText,
+  PhoneCall,
   Radar,
   SlidersHorizontal,
   UserX,
@@ -25,17 +26,20 @@ import {
   aVendre,
   aVerifier,
   bilan,
+  getAppelsVeille,
+  getBilanAppelVeille,
   getBilanPrecedent,
   getCanaux,
   getMoisConnus,
   getReglages,
   getReleve,
   getRendezVous,
+  getRendezVousDeDemain,
   getVentesDuMois,
   getVentesRefusees,
   parCanal,
 } from "@/tools/resultats/queries";
-import { AVerifier } from "@/tools/resultats/rendez-vous-client";
+import { AppelsDeDemain, AVerifier } from "@/tools/resultats/rendez-vous-client";
 import {
   comparer,
   comparerMontant,
@@ -120,6 +124,19 @@ async function TableauDeBord({
       ].sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start))
     : aVerifier(lignes);
 
+  /*
+   * L'appel de la veille, pour les espaces qui le suivent : la liste de demain,
+   * les réponses déjà notées, et ce que le test donne sur trente jours.
+   */
+  const suiviAppel = reglages.suivi_appel_veille;
+  const demain = suiviAppel ? await getRendezVousDeDemain(organizationId) : [];
+  const [appels, bilanDesAppels] = suiviAppel
+    ? await Promise.all([
+        getAppelsVeille([...aRegarder, ...demain].map((rdv) => rdv.id)),
+        getBilanAppelVeille(organizationId, 30),
+      ])
+    : [{}, null];
+
   return (
     <>
       <SelecteurMois
@@ -127,6 +144,39 @@ async function TableauDeBord({
         choix={moisAOffrir(moisConnus)}
         href={(valeur) => `/app/${orgSlug}/resultats?mois=${valeur}`}
       />
+
+      {suiviAppel ? (
+        <section className="mb-8 space-y-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <PhoneCall aria-hidden="true" className="text-muted-foreground size-4" />
+              <h2 className="text-sm">Appels de la veille : les rendez-vous de demain</h2>
+            </div>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Note ce que chaque appel a donné. Sans réponse, garde le rendez-vous : c&apos;est
+              ce qui dira combien de ces personnes viennent quand même.
+            </p>
+          </div>
+          <AppelsDeDemain orgSlug={orgSlug} lignes={demain} appels={appels} />
+          {bilanDesAppels && bilanDesAppels.sans_reponse.total + bilanDesAppels.confirme.total > 0 ? (
+            <p className="text-muted-foreground text-sm">
+              Sur 30 jours, sans réponse à l&apos;appel :{" "}
+              <span className="text-foreground">
+                {bilanDesAppels.sans_reponse.venues} venue
+                {bilanDesAppels.sans_reponse.venues > 1 ? "s" : ""}
+              </span>
+              , {bilanDesAppels.sans_reponse.nonVenues} non venue
+              {bilanDesAppels.sans_reponse.nonVenues > 1 ? "s" : ""},{" "}
+              {bilanDesAppels.sans_reponse.annulees} annulée
+              {bilanDesAppels.sans_reponse.annulees > 1 ? "s" : ""},{" "}
+              {bilanDesAppels.sans_reponse.aVenir} à venir. Ayant confirmé :{" "}
+              {bilanDesAppels.confirme.venues} venue{bilanDesAppels.confirme.venues > 1 ? "s" : ""},{" "}
+              {bilanDesAppels.confirme.nonVenues} non venue
+              {bilanDesAppels.confirme.nonVenues > 1 ? "s" : ""}.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {lignes.length === 0 ? (
         <EmptyState
@@ -239,6 +289,8 @@ async function TableauDeBord({
                 lignes={aRegarder}
                 canaux={canaux}
                 demanderLaVente={surLesVentes}
+                suiviAppel={suiviAppel}
+                appels={appels}
               />
             </section>
           ) : null}

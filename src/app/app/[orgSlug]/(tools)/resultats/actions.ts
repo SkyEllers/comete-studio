@@ -159,6 +159,46 @@ export async function refuserVente(
 }
 
 /**
+ * Noter ce qu'a donné l'appel de la veille : « a confirmé » ou « sans réponse ».
+ *
+ * `radar_note_appel` vérifie l'accès et que l'espace suit bien cet appel ; elle
+ * ne touche ni au statut ni à la commission. La réponse peut changer : la
+ * dernière fait foi.
+ */
+const appelSchema = z.object({
+  bookingId: z.uuid({ error: "Rendez-vous introuvable." }),
+  reponse: z.enum(["confirme", "sans_reponse"], { error: "Réponse inconnue." }),
+});
+
+export async function noterAppel(
+  orgSlug: string,
+  input: unknown,
+): Promise<ActionResult> {
+  const membre = await getMembership(orgSlug);
+  if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const parsed = appelSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("radar_note_appel", {
+    booking_id: parsed.data.bookingId,
+    reponse: parsed.data.reponse,
+  });
+
+  if (error) {
+    const lisible = error.message?.trim();
+    return fail(
+      lisible && lisible.endsWith(".") ? lisible : "Cette réponse n'a pas pu être enregistrée.",
+    );
+  }
+
+  revalidatePath(`/app/${orgSlug}/resultats`);
+  revalidatePath(`/app/${orgSlug}/resultats/rendez-vous`);
+  return ok();
+}
+
+/**
  * Répondre à un relevé : le valider, ou le contester en disant pourquoi.
  *
  * Comme pour les statuts, c'est `radar_review_statement` qui décide — elle

@@ -2179,6 +2179,96 @@ try {
     JSON.stringify(purgeRejouee.data),
   );
 
+  // ======================================================================
+  //  16. L'appel de la veille
+  // ======================================================================
+  console.log("\n== 16. L'appel de la veille ==");
+
+  /*
+   * « a confirmé » ou « sans réponse », noté par le client sur chaque
+   * rendez-vous, et seulement si Louis a allumé le réglage. La réponse vit
+   * dans les activités : la dernière fait foi, et la même réponse deux fois
+   * n'écrit rien de plus.
+   */
+  const aAppeler = await rdvV({
+    scheduled_start: jours(1), scheduled_end: jours(1),
+  });
+
+  const avantReglage = await v1("POST", "rpc/radar_note_appel", {
+    booking_id: aAppeler.id, reponse: "sans_reponse",
+  });
+  verifie(
+    "réglage éteint : la réponse est refusée",
+    avantReglage.status >= 400 && motif(avantReglage).includes("pas suivi"),
+    motif(avantReglage),
+  );
+
+  const reglageParMembre = await v1("PATCH", `radar_settings?organization_id=eq.${orgV.id}&select=suivi_appel_veille`, {
+    suivi_appel_veille: true,
+  });
+  verifie(
+    "un membre n'allume pas le réglage lui-même",
+    refuse(reglageParMembre) || vide(reglageParMembre),
+    `statut ${reglageParMembre.status} ${JSON.stringify(reglageParMembre.data)}`,
+  );
+
+  await srv("PATCH", `radar_settings?organization_id=eq.${orgV.id}`, { suivi_appel_veille: true });
+
+  const premiere = await v1("POST", "rpc/radar_note_appel", {
+    booking_id: aAppeler.id, reponse: "sans_reponse",
+  });
+  const repetee = await v1("POST", "rpc/radar_note_appel", {
+    booking_id: aAppeler.id, reponse: "sans_reponse",
+  });
+  verifie(
+    "réglage allumé : « sans réponse » se note, une fois",
+    premiere.data === true && repetee.data === false,
+    `${motif(premiere)} / ${motif(repetee)}`,
+  );
+
+  const changee = await v1("POST", "rpc/radar_note_appel", {
+    booking_id: aAppeler.id, reponse: "confirme",
+  });
+  const journalAppel = (
+    await srv(
+      "GET",
+      `radar_booking_activities?select=type,user_id&booking_id=eq.${aAppeler.id}&type=in.(call.confirmed,call.no_answer)&order=created_at.desc`,
+    )
+  ).data;
+  verifie(
+    "la réponse change, l'ancienne reste au journal",
+    changee.data === true &&
+      journalAppel.length === 2 &&
+      journalAppel[0].type === "call.confirmed" &&
+      journalAppel[1].type === "call.no_answer",
+    JSON.stringify(journalAppel),
+  );
+  verifie(
+    "… signée par la personne qui l'a notée",
+    journalAppel.every((a) => a.user_id === comptes.v1),
+  );
+
+  const inconnue = await v1("POST", "rpc/radar_note_appel", {
+    booking_id: aAppeler.id, reponse: "peut-etre",
+  });
+  verifie("une réponse inconnue est refusée", refuse(inconnue), motif(inconnue));
+
+  verifie(
+    "le statut et la vente n'ont pas bougé",
+    (await srv("GET", `radar_bookings?select=status,sale_amount_cents&id=eq.${aAppeler.id}`)).data[0]
+      ?.status === "confirme",
+  );
+
+  const parUnAutre = await b1("POST", "rpc/radar_note_appel", {
+    booking_id: aAppeler.id, reponse: "sans_reponse",
+  });
+  verifie("un membre d'un autre client ne note rien", refuse(parUnAutre), motif(parUnAutre));
+
+  const sansSession = await par(null)("POST", "rpc/radar_note_appel", {
+    booking_id: aAppeler.id, reponse: "sans_reponse",
+  });
+  verifie("sans session, la fonction n'est pas appelable", refuse(sansSession), motif(sansSession));
+
   // ------------------------------ L'isolation -------------------------------
 
   const typeDeA = await creer("radar_event_filters", {

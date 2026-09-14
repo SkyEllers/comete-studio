@@ -1359,6 +1359,7 @@ export type Database = {
           currency: string
           last_webhook_at: string | null
           organization_id: string
+          suivi_appel_veille: boolean
           updated_at: string
           window_days: number
         }
@@ -1373,6 +1374,7 @@ export type Database = {
           currency?: string
           last_webhook_at?: string | null
           organization_id: string
+          suivi_appel_veille?: boolean
           updated_at?: string
           window_days?: number
         }
@@ -1387,6 +1389,7 @@ export type Database = {
           currency?: string
           last_webhook_at?: string | null
           organization_id?: string
+          suivi_appel_veille?: boolean
           updated_at?: string
           window_days?: number
         }
@@ -2005,6 +2008,10 @@ export type Database = {
       radar_decline_sale: { Args: { booking_id: string }; Returns: boolean }
       radar_get_secret: { Args: { kind: string; org: string }; Returns: string }
       radar_mois: { Args: { quand: string }; Returns: string }
+      radar_note_appel: {
+        Args: { booking_id: string; reponse: string }
+        Returns: boolean
+      }
       radar_purger_identite: {
         Args: { avec_vente?: string; sans_vente?: string }
         Returns: number

@@ -1,7 +1,15 @@
 import "server-only";
 
+import { ajouterJours, bornesParis, jourParis } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 
+import {
+  bilanAppel,
+  reponsesParRendezVous,
+  TYPES_APPEL,
+  type BilanAppel,
+  type ReponseAppel,
+} from "./appel-veille";
 import { moisPrecedent } from "./mois";
 
 /**
@@ -349,6 +357,8 @@ export type Reglages = {
   connected_at: string | null;
   last_webhook_at: string | null;
   commission_basis: "encaissement" | "ventes";
+  /** Vrai quand le client note ce qu'a donné son appel de la veille (0022). */
+  suivi_appel_veille: boolean;
 };
 
 export async function getReglages(organizationId: string): Promise<Reglages> {
@@ -356,7 +366,7 @@ export async function getReglages(organizationId: string): Promise<Reglages> {
   const { data } = await supabase
     .from("radar_settings")
     .select(
-      "commission_rate, window_days, currency, connected_at, last_webhook_at, commission_basis",
+      "commission_rate, window_days, currency, connected_at, last_webhook_at, commission_basis, suivi_appel_veille",
     )
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -370,7 +380,93 @@ export async function getReglages(organizationId: string): Promise<Reglages> {
     // Le défaut suit celui de la base : un client sans ligne de réglages est
     // en `encaissement`, comme tous ceux d'avant la phase 7.
     commission_basis: data?.commission_basis ?? "encaissement",
+    suivi_appel_veille: data?.suivi_appel_veille ?? false,
   };
+}
+
+/**
+ * La dernière réponse à l'appel de la veille de chaque rendez-vous demandé.
+ *
+ * Comme « pas de vente », elle vit dans les activités : on la relit là où elle
+ * est écrite.
+ */
+export async function getAppelsVeille(
+  bookingIds: string[],
+): Promise<Record<string, ReponseAppel>> {
+  if (bookingIds.length === 0) return {};
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("radar_booking_activities")
+    .select("booking_id, type, created_at")
+    .in("booking_id", bookingIds)
+    .in("type", TYPES_APPEL)
+    .limit(1000);
+
+  return reponsesParRendezVous(data ?? []);
+}
+
+/**
+ * Les rendez-vous de demain, pour la tournée d'appels de la veille.
+ *
+ * Demain au sens de Paris, quel que soit le mois affiché : c'est la liste que
+ * le client a sous les yeux au moment de décrocher son téléphone.
+ */
+export async function getRendezVousDeDemain(organizationId: string): Promise<RendezVous[]> {
+  const demain = ajouterJours(jourParis(), 1);
+  const { debut, fin } = bornesParis(demain, demain);
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("radar_bookings_effective")
+    .select(COLONNES)
+    .eq("organization_id", organizationId)
+    .gte("scheduled_start", debut)
+    .lte("scheduled_start", fin)
+    .neq("status", "annule")
+    .order("scheduled_start")
+    .limit(PLAFOND);
+
+  return (data ?? []) as RendezVous[];
+}
+
+/**
+ * Ce que le test de l'appel de la veille a donné, sur une période.
+ *
+ * Les rendez-vous qui portent une réponse et dont la séance tombe dans les
+ * `jours` derniers jours. Le calcul est dans `bilanAppel`, ici on ne fait que lire.
+ */
+export async function getBilanAppelVeille(
+  organizationId: string,
+  jours = 30,
+): Promise<BilanAppel> {
+  const depuis = bornesParis(ajouterJours(jourParis(), -jours), jourParis()).debut;
+  const supabase = await createClient();
+  const { data: activites } = await supabase
+    .from("radar_booking_activities")
+    .select("booking_id, type, created_at")
+    .eq("organization_id", organizationId)
+    .in("type", TYPES_APPEL)
+    .order("created_at", { ascending: false })
+    .limit(1000);
+
+  const reponses = reponsesParRendezVous(activites ?? []);
+  const ids = Object.keys(reponses);
+  if (ids.length === 0) return bilanAppel({}, []);
+
+  const { data: rendezVous } = await supabase
+    .from("radar_bookings_effective")
+    .select("id, effective_status")
+    .in("id", ids)
+    .gte("scheduled_start", depuis)
+    .limit(PLAFOND);
+
+  return bilanAppel(
+    reponses,
+    (rendezVous ?? []).flatMap((rdv) =>
+      rdv.id && rdv.effective_status ? [{ id: rdv.id, effective_status: rdv.effective_status }] : [],
+    ),
+  );
 }
 
 /** Le relevé d'un mois, s'il existe : c'est lui qui ferme les corrections. */

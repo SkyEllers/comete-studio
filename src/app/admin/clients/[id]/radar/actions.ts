@@ -622,6 +622,51 @@ export async function enregistrerReglages(
   return ok();
 }
 
+/**
+ * Suivre ou non l'appel de la veille pour ce client.
+ *
+ * Allumé, chaque rendez-vous demande « Appel de la veille : a confirmé / sans
+ * réponse », et le tableau de bord montre les rendez-vous de demain. Éteint, la
+ * question disparaît de l'écran ; les réponses déjà notées restent au journal.
+ * Le geste est noté dans le journal des réglages, comme les autres.
+ */
+export async function suivreAppelVeille(input: unknown): Promise<ActionResult> {
+  const { userId } = await requireAdmin();
+
+  const parsed = z
+    .object({ organizationId: organisation, actif: z.boolean({ error: "Choix inconnu." }) })
+    .safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const { organizationId, actif } = parsed.data;
+
+  const admin = createAdminClient();
+  await preparerRadar(admin, organizationId);
+
+  const { error } = await admin
+    .from("radar_settings")
+    .update({ suivi_appel_veille: actif, updated_at: new Date().toISOString() })
+    .eq("organization_id", organizationId);
+
+  if (error) return fail("Impossible de changer ce réglage pour le moment.");
+
+  await admin
+    .from("radar_settings_log")
+    .insert({
+      organization_id: organizationId,
+      user_id: userId,
+      type: actif ? "call_check.enabled" : "call_check.disabled",
+      payload: {},
+    })
+    .then(
+      () => undefined,
+      () => undefined, // journaliser ne doit pas faire échouer un réglage valide
+    );
+
+  rafraichir(organizationId);
+  return ok();
+}
+
 // ------------------------------- Canaux ------------------------------------
 
 /** « google, cpc , ppc » → ["google", "cpc", "ppc"]. */

@@ -1,6 +1,15 @@
 "use client";
 
-import { BadgeEuro, CalendarX2, Check, Pencil, Undo2, UserX } from "lucide-react";
+import {
+  BadgeEuro,
+  CalendarX2,
+  Check,
+  Pencil,
+  PhoneCall,
+  PhoneMissed,
+  Undo2,
+  UserX,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -8,6 +17,7 @@ import { toast } from "sonner";
 import {
   declarerVente,
   marquerStatut,
+  noterAppel,
   refuserVente,
 } from "@/app/app/[orgSlug]/(tools)/resultats/actions";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +42,7 @@ import {
   statutLisible,
   venteEncoreImpossible,
 } from "./format";
+import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
 import type { Canal, RendezVous } from "./queries";
 import { FormulaireVente, ResumeVente, RetirerVente, type Vente } from "./vente";
 
@@ -64,7 +75,72 @@ const LIBELLES_ACTIVITE: Record<string, string> = {
   "sale.updated": "Vente corrigée",
   "sale.removed": "Vente retirée",
   "sale.declined": "Pas de vente",
+  "call.confirmed": "Appel de la veille : a confirmé",
+  "call.no_answer": "Appel de la veille : sans réponse",
 };
+
+/**
+ * « Appel de la veille : a confirmé / sans réponse ».
+ *
+ * Deux boutons plutôt qu'un menu : on répond d'un pouce, téléphone encore à
+ * l'oreille. Le choix actif est le seul en couleur ; en retaper un autre le
+ * remplace, et l'ancien reste au journal.
+ */
+function ChoixAppel({
+  reponse,
+  enCours,
+  taille = "sm",
+  onChoisir,
+}: {
+  reponse: ReponseAppel | null;
+  enCours: boolean;
+  taille?: "xs" | "sm";
+  onChoisir: (reponse: ReponseAppel) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Appel de la veille">
+      <Button
+        variant={reponse === "confirme" ? "default" : "outline"}
+        size={taille}
+        disabled={enCours}
+        aria-pressed={reponse === "confirme"}
+        onClick={() => onChoisir("confirme")}
+      >
+        <PhoneCall aria-hidden="true" />
+        {LIBELLES_APPEL.confirme}
+      </Button>
+      <Button
+        variant={reponse === "sans_reponse" ? "default" : "outline"}
+        size={taille}
+        disabled={enCours}
+        aria-pressed={reponse === "sans_reponse"}
+        onClick={() => onChoisir("sans_reponse")}
+      >
+        <PhoneMissed aria-hidden="true" />
+        {LIBELLES_APPEL.sans_reponse}
+      </Button>
+    </div>
+  );
+}
+
+/** Le même geste depuis n'importe quel bloc : noter, dire que c'est noté, relire. */
+function useNoterAppel(orgSlug: string) {
+  const [enCours, startTransition] = useTransition();
+  const router = useRouter();
+
+  const noter = (bookingId: string, reponse: ReponseAppel) =>
+    startTransition(async () => {
+      const resultat = await noterAppel(orgSlug, { bookingId, reponse });
+      if (!resultat.ok) {
+        toast.error(resultat.error);
+        return;
+      }
+      toast.success("C'est noté");
+      router.refresh();
+    });
+
+  return { enCoursAppel: enCours, noter };
+}
 
 /**
  * Ce qu'on dit d'un rendez-vous qui n'a pas de nom.
@@ -82,6 +158,7 @@ export function ListeRendezVous({
   activites,
   sourcesAttribution,
   moisClotures,
+  suiviAppel = false,
 }: {
   orgSlug: string;
   rendezVous: RendezVous[];
@@ -94,9 +171,12 @@ export function ListeRendezVous({
    * recherche par nom traverse les mois, et chaque ligne a le sien.
    */
   moisClotures: string[];
+  /** L'espace note ce qu'a donné l'appel de la veille (réglage de Louis). */
+  suiviAppel?: boolean;
 }) {
   const [ouvert, setOuvert] = useState<string | null>(null);
   const [enCours, startTransition] = useTransition();
+  const { enCoursAppel, noter } = useNoterAppel(orgSlug);
   const router = useRouter();
 
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
@@ -189,6 +269,10 @@ export function ListeRendezVous({
                               Vente
                             </Badge>
                           ) : null}
+                          {suiviAppel &&
+                          derniereReponse(activites[rdv.id] ?? []) === "sans_reponse" ? (
+                            <Badge variant="outline">Sans réponse à l&apos;appel</Badge>
+                          ) : null}
                           {declareDiverge ? (
                             <span className="text-muted-foreground text-xs">
                               déclaré : {rdv.declared_source}
@@ -234,9 +318,12 @@ export function ListeRendezVous({
               activites={activites[choisi.id] ?? []}
               sources={sources}
               moisClotures={moisClotures}
-              enCours={enCours}
+              enCours={enCours || enCoursAppel}
               onChanger={changer}
               onVente={enregistrerVente}
+              suiviAppel={suiviAppel}
+              reponseAppel={derniereReponse(activites[choisi.id] ?? [])}
+              onAppel={noter}
             />
           ) : null}
         </SheetContent>
@@ -263,6 +350,9 @@ function FicheRendezVous({
   enCours,
   onChanger,
   onVente,
+  suiviAppel,
+  reponseAppel,
+  onAppel,
 }: {
   rdv: RendezVous;
   canal: Canal | null;
@@ -272,6 +362,9 @@ function FicheRendezVous({
   enCours: boolean;
   onChanger: (bookingId: string, statut: string) => void;
   onVente: (bookingId: string, vente: Vente | null) => void;
+  suiviAppel: boolean;
+  reponseAppel: ReponseAppel | null;
+  onAppel: (bookingId: string, reponse: ReponseAppel) => void;
 }) {
   const [saisie, setSaisie] = useState(false);
 
@@ -374,6 +467,19 @@ function FicheRendezVous({
               Vente conclue
             </Button>
           )
+        ) : null}
+
+        {/* Avant le détail : c'est la question du test, et elle se pose la
+            veille, quand le reste de la fiche n'a encore rien à dire. */}
+        {suiviAppel ? (
+          <section className="space-y-2">
+            <h3 className="text-muted-foreground text-xs">Appel de la veille</h3>
+            <ChoixAppel
+              reponse={reponseAppel}
+              enCours={enCours}
+              onChoisir={(reponse) => onAppel(rdv.id, reponse)}
+            />
+          </section>
         ) : null}
 
         <dl className="divide-line divide-y">
@@ -504,13 +610,20 @@ export function AVerifier({
    * réponse est la moitié du relevé du mois.
    */
   demanderLaVente = false,
+  suiviAppel = false,
+  appels = {},
 }: {
   orgSlug: string;
   lignes: RendezVous[];
   canaux: Canal[];
   demanderLaVente?: boolean;
+  /** L'espace note ce qu'a donné l'appel de la veille : la question se pose aussi ici. */
+  suiviAppel?: boolean;
+  appels?: Record<string, ReponseAppel>;
 }) {
-  const [enCours, startTransition] = useTransition();
+  const [enCoursStatut, startTransition] = useTransition();
+  const { enCoursAppel, noter } = useNoterAppel(orgSlug);
+  const enCours = enCoursStatut || enCoursAppel;
   const [saisie, setSaisie] = useState<string | null>(null);
   const router = useRouter();
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
@@ -625,6 +738,18 @@ export function AVerifier({
             </div>
           </div>
 
+          {suiviAppel ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground text-xs">Appel de la veille</span>
+              <ChoixAppel
+                taille="xs"
+                reponse={appels[rdv.id] ?? null}
+                enCours={enCours}
+                onChoisir={(reponse) => noter(rdv.id, reponse)}
+              />
+            </div>
+          ) : null}
+
           {saisie === rdv.id ? (
             <div className="mt-3">
               <FormulaireVente
@@ -635,6 +760,64 @@ export function AVerifier({
               />
             </div>
           ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Les rendez-vous de demain, pour la tournée d'appels.
+ *
+ * Le client appelle chaque personne la veille. Ce bloc lui met la liste sous
+ * les yeux, et la réponse se note à côté du nom, sans ouvrir de fiche. Il ne
+ * s'affiche que si l'espace suit l'appel de la veille.
+ */
+export function AppelsDeDemain({
+  orgSlug,
+  lignes,
+  appels,
+}: {
+  orgSlug: string;
+  lignes: RendezVous[];
+  appels: Record<string, ReponseAppel>;
+}) {
+  const { enCoursAppel, noter } = useNoterAppel(orgSlug);
+
+  if (lignes.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">Aucun rendez-vous demain.</p>
+    );
+  }
+
+  return (
+    <ul className="border-line divide-line divide-y overflow-hidden rounded-lg border">
+      {lignes.map((rdv) => (
+        <li key={rdv.id} className="flex flex-wrap items-center gap-3 p-3">
+          <span className="text-muted-foreground w-12 shrink-0 font-mono text-xs">
+            {heure(rdv.scheduled_start)}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span
+              className={cn(
+                "block truncate text-sm font-medium",
+                rdv.invitee_first_name === "" &&
+                  rdv.invitee_last_name === "" &&
+                  "text-muted-foreground",
+              )}
+            >
+              {rdv.invitee_display}
+            </span>
+            <span className="text-muted-foreground block truncate text-xs">
+              {rdv.event_type_name}
+            </span>
+          </span>
+          <ChoixAppel
+            taille="xs"
+            reponse={appels[rdv.id] ?? null}
+            enCours={enCoursAppel}
+            onChoisir={(reponse) => noter(rdv.id, reponse)}
+          />
         </li>
       ))}
     </ul>

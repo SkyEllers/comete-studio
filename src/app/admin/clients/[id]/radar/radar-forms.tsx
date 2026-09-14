@@ -15,6 +15,7 @@ import {
   enregistrerReglages,
   nettoyerAnciensAbonnements,
   repointerWebhook,
+  suivreAppelVeille,
   testerCalendly,
 } from "@/app/admin/clients/[id]/radar/actions";
 import { Reordonner } from "@/components/admin/reordonner";
@@ -305,6 +306,56 @@ export function ReglagesRadar({
         <FieldError state={state} id="reglages-error" />
       </div>
     </form>
+  );
+}
+
+/**
+ * L'appel de la veille : un interrupteur, effet immédiat, comme l'activation
+ * d'un outil. On revient en arrière si l'action échoue.
+ */
+export function AppelVeille({
+  organizationId,
+  actif: initial,
+}: {
+  organizationId: string;
+  actif: boolean;
+}) {
+  const [actif, setActif] = useState(initial);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const changer = (suivant: boolean) => {
+    setActif(suivant);
+    startTransition(async () => {
+      const resultat = await suivreAppelVeille({ organizationId, actif: suivant });
+      if (!resultat.ok) {
+        setActif(!suivant);
+        toast.error(resultat.error);
+        return;
+      }
+      toast.success(suivant ? "Appel de la veille suivi" : "Appel de la veille plus suivi");
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="border-line mt-6 flex items-start justify-between gap-4 rounded-lg border p-4">
+      <div className="space-y-1">
+        <Label htmlFor="appel-veille">Appel de la veille</Label>
+        <p className="text-muted-foreground text-sm">
+          Pour un client qui appelle chaque personne la veille de son rendez-vous. Chaque
+          rendez-vous demande alors « a confirmé » ou « sans réponse », et le tableau de bord
+          montre les rendez-vous du lendemain. Éteint, la question disparaît ; les réponses déjà
+          notées restent au journal.
+        </p>
+      </div>
+      <Switch
+        id="appel-veille"
+        checked={actif}
+        disabled={pending}
+        onCheckedChange={changer}
+      />
+    </div>
   );
 }
 

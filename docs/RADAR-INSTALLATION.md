@@ -195,6 +195,12 @@ C'est le moment de vérifier deux choses :
 - Les **séances de suivi interne** (clientes déjà acquises, programme en cours)
   se coupent dans **Types de séance**, sur l'onglet Radar du client : un type
   apparaît à sa première réservation, suivi par défaut.
+- L'**appel de la veille** s'allume dans les Réglages de l'onglet Radar, pour un
+  client qui appelle chaque personne la veille de son rendez-vous. Chaque
+  rendez-vous demande alors « a confirmé » ou « sans réponse » (fiche, bloc « À
+  vérifier »), le tableau de bord liste les rendez-vous du lendemain et compte,
+  sur 30 jours, combien des personnes sans réponse sont venues. Les réponses
+  vivent dans les activités (`call.confirmed`, `call.no_answer`).
 
 ## Ouvrir un export à un rapport externe
 

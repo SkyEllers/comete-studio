@@ -16,6 +16,7 @@ import {
   getCanaux,
   getMoisClotures,
   getMoisConnus,
+  getReglages,
   getReleve,
   getRendezVous,
   getSourcesAttribution,
@@ -135,9 +136,10 @@ async function Liste({
       (!venteFiltre || (venteFiltre === "avec" ? ligne.has_sale : !ligne.has_sale)),
   );
 
-  const [activites, sources] = await Promise.all([
+  const [activites, sources, reglages] = await Promise.all([
     getActivitesDuMois(lignes.map((ligne) => ligne.id)),
     getSourcesAttribution(lignes),
+    getReglages(organizationId),
   ]);
 
   /*
@@ -234,6 +236,7 @@ async function Liste({
           activites={activites}
           sourcesAttribution={sources}
           moisClotures={moisClotures}
+          suiviAppel={reglages.suivi_appel_veille}
         />
       )}
     </>
