@@ -71,6 +71,76 @@ export function midiParis(jour: string): string {
   return `${jour}T12:00:00.000${decalageParis(jour)}`;
 }
 
+const DECALAGE_PARIS = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Paris",
+  timeZoneName: "longOffset",
+});
+
+/** L'avance de Paris sur UTC à cet instant précis, en millisecondes. */
+function avanceParis(instant: number): number {
+  const nom =
+    DECALAGE_PARIS.formatToParts(new Date(instant)).find(
+      (partie) => partie.type === "timeZoneName",
+    )?.value ?? "GMT+01:00";
+
+  const lu = /GMT([+-])(\d{2}):(\d{2})/.exec(nom);
+  if (!lu) return 0;
+
+  const signe = lu[1] === "-" ? -1 : 1;
+  return signe * (Number(lu[2]) * 60 + Number(lu[3])) * 60_000;
+}
+
+/**
+ * L'instant où il est telle heure, ce jour-là, à Paris.
+ *
+ * `minutes` se compte depuis minuit, et peut dépasser la journée : 1 455, c'est
+ * 00 h 15 le lendemain. C'est ce qui permet de finir une séance après minuit
+ * sans avoir à parler de deux dates.
+ *
+ * Contrairement à `midiParis`, l'heure n'est pas choisie pour éviter les
+ * changements d'heure : c'est celle qu'on a tapée. Le décalage se lit donc à
+ * l'instant visé et non à midi — en deux passes, parce qu'on ne connaît
+ * l'instant qu'une fois le décalage appliqué. Une heure qui n'existe pas (le
+ * 29 mars à 2 h 30) glisse d'une heure vers l'avant ; une heure qui existe deux
+ * fois (le 25 octobre à 2 h 30) prend la seconde.
+ */
+export function instantParis(jour: string, minutes: number): string {
+  const murale = Date.parse(`${jour}T00:00:00Z`) + minutes * 60_000;
+  const approche = murale - avanceParis(murale);
+  return new Date(murale - avanceParis(approche)).toISOString();
+}
+
+const HORLOGE_PARIS = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Paris",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/**
+ * L'heure d'un instant à Paris, en minutes depuis minuit : 14 h 07 → 847.
+ *
+ * Le pendant chiffré de `heureParis`, pour calculer plutôt qu'afficher. Lu
+ * partie par partie : la chaîne formatée change d'une locale à l'autre, pas
+ * les nombres.
+ */
+export function minutesParis(instant: string | number | Date): number {
+  const parties = HORLOGE_PARIS.formatToParts(
+    instant instanceof Date ? instant : new Date(instant),
+  );
+  const valeur = (type: "hour" | "minute") =>
+    Number(parties.find((partie) => partie.type === type)?.value ?? 0);
+
+  return valeur("hour") * 60 + valeur("minute");
+}
+
+/** Les jours qui séparent deux jours ISO, en arithmétique de calendrier. */
+export function ecartJours(de: string, a: string): number {
+  return Math.round(
+    (Date.parse(`${a}T00:00:00Z`) - Date.parse(`${de}T00:00:00Z`)) / 86_400_000,
+  );
+}
+
 /**
  * Le jour qui suit celui-ci de `nombre` jours, en arithmétique de calendrier.
  *

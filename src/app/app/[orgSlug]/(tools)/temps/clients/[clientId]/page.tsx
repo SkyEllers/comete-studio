@@ -8,6 +8,7 @@ import { requireMembership } from "@/lib/access";
 import { heureParis, jourParis } from "@/lib/dates";
 import { libelleMois, moisAOffrir, moisDemande } from "@/lib/mois";
 import { formatDuree } from "@/tools/pulsar/duree";
+import { LigneEntree } from "@/tools/pulsar/journee";
 import { Repartition } from "@/tools/pulsar/liste-clients";
 import {
   getClients,
@@ -30,6 +31,11 @@ import {
  * C'est l'écran où l'on va quand un total surprend. La liste des entrées est
  * donc dans l'ordre du mois, la plus récente d'abord, avec la note telle
  * qu'elle a été tapée — c'est elle qui explique les chiffres, pas le total.
+ *
+ * Et c'est donc là qu'on corrige ce qui surprend : chaque heure terminée s'y
+ * reprend en début, fin, durée et note, quel que soit son jour, sans repasser
+ * par l'écran Aujourd'hui où elle n'est plus. Un chronomètre encore en marche
+ * se corrige sur sa carte, pas ici.
  */
 export default async function DetailClientPage({
   params,
@@ -60,6 +66,15 @@ export default async function DetailClientPage({
   );
 
   const siennes = entrees.filter((entree) => entree.client_id === client.id);
+  const aujourdhui = jourParis();
+
+  /* Le jour se lit à Paris : une entrée de 00 h 30 appartient à ce jour-là,
+     pas à la veille d'UTC. Une saisie sans heure ne porte que sa date. */
+  const repere = (instant: string, sansHeure: boolean) => {
+    const jour = jourParis(instant);
+    const date = `${jour.slice(8, 10)}/${jour.slice(5, 7)}`;
+    return sansHeure ? date : `${date} ${heureParis(instant)}`;
+  };
 
   return (
     <div className="space-y-6">
@@ -131,35 +146,47 @@ export default async function DetailClientPage({
           </p>
         ) : (
           <ul className="space-y-2">
-            {siennes.map((entree) => (
-              <li
-                key={entree.id}
-                className="border-line bg-surface-1 flex items-start gap-3 rounded-lg border p-3"
-              >
-                {/* Le jour se lit à Paris : une entrée de 00 h 30 appartient à
-                    ce jour-là, pas à la veille d'UTC. */}
-                <span className="text-muted-foreground mt-0.5 w-20 shrink-0 font-mono text-xs tabular-nums">
-                  {jourParis(entree.started_at).slice(8, 10)}/
-                  {jourParis(entree.started_at).slice(5, 7)}{" "}
-                  {entree.is_manual ? "" : heureParis(entree.started_at)}
-                </span>
+            {siennes.map((entree) =>
+              entree.ended_at === null ? (
+                <li
+                  key={entree.id}
+                  className="border-line bg-surface-1 flex items-start gap-3 rounded-lg border p-3"
+                >
+                  <span className="text-muted-foreground mt-0.5 w-20 shrink-0 font-mono text-xs tabular-nums">
+                    {repere(entree.started_at, false)}
+                  </span>
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm">{libelleTache(entree.task)}</p>
-                  {entree.note ? (
-                    <p className="text-muted-foreground mt-0.5 text-sm break-words">
-                      {entree.note}
-                    </p>
-                  ) : null}
-                </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm">{libelleTache(entree.task)}</p>
+                    {entree.note ? (
+                      <p className="text-muted-foreground mt-0.5 text-sm break-words">
+                        {entree.note}
+                      </p>
+                    ) : null}
+                  </div>
 
-                <span className="shrink-0 font-mono text-sm tabular-nums">
-                  {entree.duration_minutes === null
-                    ? "en cours"
-                    : formatDuree(entree.duration_minutes)}
-                </span>
-              </li>
-            ))}
+                  <span className="text-muted-foreground shrink-0 font-mono text-sm">
+                    en cours
+                  </span>
+                  {/* La place du menu, pour que les durées restent alignées. */}
+                  <span className="w-7 shrink-0" aria-hidden="true" />
+                </li>
+              ) : (
+                <LigneEntree
+                  key={entree.id}
+                  orgSlug={orgSlug}
+                  entree={{
+                    ...entree,
+                    clientNom: client.name,
+                    repere: repere(entree.started_at, entree.is_manual),
+                  }}
+                  clients={clients}
+                  aujourdhui={aujourdhui}
+                  avecClient={false}
+                  largeurRepere="w-20"
+                />
+              ),
+            )}
           </ul>
         )}
       </section>

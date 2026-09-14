@@ -53,20 +53,21 @@ export const getClients = cache(
 );
 
 /**
- * Le chronomètre en marche, s'il y en a un.
+ * Les chronomètres en marche, du plus ancien au plus récent.
  *
  * Sans borne de date, contrairement à tout le reste : un chronomètre oublié
  * jeudi soir doit se retrouver vendredi matin, et c'est même le seul moment
  * où l'on a vraiment besoin de le voir.
  *
- * Le filtre porte sur l'auteur autant que sur l'organisation. L'index unique
- * de la base est posé sur la personne seule, si bien que la question « qu'est-
- * ce qui tourne ? » n'a qu'une réponse — mais la poser sans dire qui l'on est
- * ferait apparaître, le jour où Louis ne serait plus seul, le chronomètre d'un
- * autre dans son en-tête.
+ * Le plus ancien en tête : c'est le plus probablement oublié, et une carte
+ * qui s'ajoute se range en dessous plutôt que de pousser les autres.
+ *
+ * Le filtre porte sur l'auteur autant que sur l'organisation — exactement ce
+ * que compte le plafond de la base. Sans lui, le jour où Louis ne serait plus
+ * seul, le chronomètre d'un autre apparaîtrait dans son en-tête.
  */
 export const getEnCours = cache(
-  async (organizationId: string, userId: string): Promise<Entree | null> => {
+  async (organizationId: string, userId: string): Promise<Entree[]> => {
     const supabase = await createClient();
 
     const { data } = await supabase
@@ -75,9 +76,9 @@ export const getEnCours = cache(
       .eq("organization_id", organizationId)
       .eq("created_by", userId)
       .is("ended_at", null)
-      .maybeSingle();
+      .order("started_at", { ascending: true });
 
-    return data;
+    return data ?? [];
   },
 );
 

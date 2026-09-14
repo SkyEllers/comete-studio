@@ -2,10 +2,10 @@
 
 import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { modifier, saisir, supprimer } from "@/app/app/[orgSlug]/(tools)/temps/actions";
+import { corriger, saisir, supprimer } from "@/app/app/[orgSlug]/(tools)/temps/actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +31,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 import { formatDuree } from "./duree";
-import { FormulaireEntree, valeursParDefaut, type Valeurs } from "./formulaire";
+import { FormulaireEntree, versCorrection, type Valeurs } from "./formulaire";
 import { libelleTache, type ClientPulsar, type Entree } from "./types";
 
 /**
@@ -44,14 +45,15 @@ import { libelleTache, type ClientPulsar, type Entree } from "./types";
  * une décision, pas un oubli. La suppression demande quand même confirmation,
  * parce qu'elle part d'une liste où le doigt glisse.
  *
- * Le chronomètre en marche n'est pas ici : il a sa carte au-dessus, et une
- * ligne qui n'a pas encore de durée n'aurait rien à montrer dans une colonne
- * de durées.
+ * Les chronomètres en marche ne sont pas ici : ils ont leurs cartes au-dessus,
+ * et une ligne qui n'a pas encore de durée n'aurait rien à montrer dans une
+ * colonne de durées.
  */
 
 export type EntreeAffichee = Entree & {
   clientNom: string;
-  heureLabel: string;
+  /** Ce qui situe la ligne : « 14:07 », « Saisie », « 12/09 14:07 ». */
+  repere: string;
 };
 
 export function Journee({
@@ -62,7 +64,10 @@ export function Journee({
 }: {
   orgSlug: string;
   entrees: EntreeAffichee[];
-  /** Les clients encore chronométrables : les archivés ne sont pas proposés. */
+  /**
+   * Tous les clients, archivés compris : la saisie n'en propose que les
+   * actifs, la correction garde en plus celui de l'entrée.
+   */
   clients: ClientPulsar[];
   aujourdhui: string;
 }) {
@@ -91,7 +96,7 @@ export function Journee({
       ) : (
         <ul className="space-y-2">
           {entrees.map((entree) => (
-            <Ligne
+            <LigneEntree
               key={entree.id}
               orgSlug={orgSlug}
               entree={entree}
@@ -115,30 +120,66 @@ export function Journee({
 
 // --------------------------------- Une ligne ---------------------------------
 
-function Ligne({
+/**
+ * Une entrée terminée, corrigeable et supprimable en place.
+ *
+ * La même ligne sert à la journée et au détail d'un client : une heure de la
+ * semaine dernière se corrige depuis Par client exactement comme celle de ce
+ * matin — début, fin, durée, jour et note — sans passer par la journée où
+ * elle n'est plus.
+ */
+export function LigneEntree({
   orgSlug,
   entree,
   clients,
   aujourdhui,
+  avecClient = true,
+  largeurRepere = "w-12",
 }: {
   orgSlug: string;
   entree: EntreeAffichee;
   clients: ClientPulsar[];
   aujourdhui: string;
+  /** Le détail d'un client ne répète pas son nom sur chaque ligne. */
+  avecClient?: boolean;
+  largeurRepere?: string;
 }) {
+  const [menu, setMenu] = useState(false);
   const [edition, setEdition] = useState(false);
   const [suppression, setSuppression] = useState(false);
   const [pending, startTransition] = useTransition();
+  const declencheur = useRef<HTMLButtonElement>(null);
   const router = useRouter();
+
+  /*
+   * Ouvrir une fenêtre depuis le menu.
+   *
+   * Laissé à lui-même, le menu se referme sur la sélection et rend le focus à
+   * son bouton — hors de la fenêtre qui vient de s'ouvrir, qui se referme
+   * aussitôt. L'empêcher de se fermer ne valait pas mieux : il restait ouvert
+   * derrière la fenêtre, modal, et la page ne répondait plus une fois celle-ci
+   * fermée. On le ferme donc soi-même, sans le laisser reprendre le focus, et
+   * c'est la fenêtre qui rend le focus au bouton en partant.
+   */
+  const depuisLeMenu = (ouvrir: () => void) => (evenement: Event) => {
+    evenement.preventDefault();
+    setMenu(false);
+    ouvrir();
+  };
+
+  const rendreLeFocus = (evenement: Event) => {
+    evenement.preventDefault();
+    declencheur.current?.focus();
+  };
 
   const enregistrer = (valeurs: Valeurs) =>
     startTransition(async () => {
-      const resultat = await modifier(orgSlug, {
+      const resultat = await corriger(orgSlug, {
         id: entree.id,
         clientId: valeurs.clientId,
         task: valeurs.task,
-        minutes: valeurs.minutes,
         note: valeurs.note,
+        ...versCorrection(valeurs, false),
       });
 
       if (!resultat.ok) {
@@ -167,15 +208,24 @@ function Ligne({
 
   return (
     <li className="border-line bg-surface-1 flex items-start gap-3 rounded-lg border p-3">
-      <span className="text-muted-foreground mt-0.5 w-12 shrink-0 font-mono text-xs tabular-nums">
-        {entree.heureLabel}
+      <span
+        className={cn(
+          "text-muted-foreground mt-0.5 shrink-0 font-mono text-xs tabular-nums",
+          largeurRepere,
+        )}
+      >
+        {entree.repere}
       </span>
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">
-          <span className="font-medium">{entree.clientNom}</span>
-          <span className="text-muted-foreground">
-            {" · "}
+          {avecClient ? (
+            <>
+              <span className="font-medium">{entree.clientNom}</span>
+              <span className="text-muted-foreground"> · </span>
+            </>
+          ) : null}
+          <span className={avecClient ? "text-muted-foreground" : undefined}>
             {libelleTache(entree.task)}
           </span>
         </p>
@@ -190,9 +240,10 @@ function Ligne({
         {formatDuree(entree.duration_minutes ?? 0)}
       </span>
 
-      <DropdownMenu>
+      <DropdownMenu open={menu} onOpenChange={setMenu}>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={declencheur}
             variant="ghost"
             size="icon-sm"
             disabled={pending}
@@ -201,27 +252,20 @@ function Ligne({
             <MoreHorizontal aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onSelect={(evenement) => {
-              evenement.preventDefault();
-              setEdition(true);
-            }}
-          >
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(evenement) => evenement.preventDefault()}
+        >
+          <DropdownMenuItem onSelect={depuisLeMenu(() => setEdition(true))}>
             <Pencil aria-hidden="true" />
-            Modifier
+            Corriger
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
             className="text-destructive"
-            onSelect={(evenement) => {
-              // Le menu se referme sur la sélection : sans ça, il emporterait
-              // la fenêtre de confirmation avec lui.
-              evenement.preventDefault();
-              setSuppression(true);
-            }}
+            onSelect={depuisLeMenu(() => setSuppression(true))}
           >
             <Trash2 aria-hidden="true" />
             Supprimer
@@ -230,7 +274,7 @@ function Ligne({
       </DropdownMenu>
 
       <Dialog open={edition} onOpenChange={setEdition}>
-        <DialogContent>
+        <DialogContent onCloseAutoFocus={rendreLeFocus}>
           <DialogHeader>
             <DialogTitle>Corriger cette entrée</DialogTitle>
             <DialogDescription>
@@ -241,17 +285,9 @@ function Ligne({
 
           <FormulaireEntree
             clients={clients}
-            initiales={{
-              clientId: entree.client_id,
-              task: entree.task,
-              minutes: entree.duration_minutes ?? 15,
-              jour: aujourdhui,
-              note: entree.note ?? "",
-            }}
-            avecDate={false}
+            entree={entree}
             maxJour={aujourdhui}
             pending={pending}
-            libelleAction="Enregistrer"
             onValider={enregistrer}
             onAnnuler={() => setEdition(false)}
           />
@@ -259,7 +295,7 @@ function Ligne({
       </Dialog>
 
       <AlertDialog open={suppression} onOpenChange={setSuppression}>
-        <AlertDialogContent>
+        <AlertDialogContent onCloseAutoFocus={rendreLeFocus}>
           <AlertDialogHeader>
             <AlertDialogTitle>Supprimer cette entrée ?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -312,11 +348,15 @@ function Saisie({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
-  const premier = clients[0]?.id ?? "";
-
   const enregistrer = (valeurs: Valeurs) =>
     startTransition(async () => {
-      const resultat = await saisir(orgSlug, valeurs);
+      const resultat = await saisir(orgSlug, {
+        clientId: valeurs.clientId,
+        task: valeurs.task,
+        minutes: valeurs.minutes,
+        jour: valeurs.jour,
+        note: valeurs.note,
+      });
 
       if (!resultat.ok) {
         toast.error(resultat.error);
@@ -343,11 +383,8 @@ function Saisie({
         <FormulaireEntree
           key={ouverte ? "ouverte" : "fermee"}
           clients={clients}
-          initiales={valeursParDefaut(premier, aujourdhui)}
-          avecDate
           maxJour={aujourdhui}
           pending={pending}
-          libelleAction="Ajouter"
           onValider={enregistrer}
           onAnnuler={onFermer}
         />

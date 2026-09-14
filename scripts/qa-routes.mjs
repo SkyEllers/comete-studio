@@ -240,16 +240,46 @@ try {
 
   const enMarche = await visite(ca, `${sa}/temps`);
   verifie(
-    "A · un chronomètre lancé ailleurs s'affiche ici, avec son arrêt",
+    "A · un chronomètre lancé ailleurs s'affiche ici, avec son arrêt et sa correction",
     enMarche.status === 200 &&
       enMarche.corps.includes("Arrêter") &&
-      enMarche.corps.includes("Passer à autre chose"),
+      enMarche.corps.includes("Corriger") &&
+      enMarche.corps.includes("En lancer un autre"),
     `status ${enMarche.status}`,
   );
   verifie(
     "A · sa note est repliée tant qu'il n'y a rien à y lire",
     enMarche.corps.includes("Ajouter une note"),
     "le champ de note n'est pas replié",
+  );
+
+  /*
+   * Un second, sur le même client et le même créneau : il ne remplace pas le
+   * premier, il s'ajoute. Chacun a sa carte ; ailleurs dans l'outil, la
+   * pastille les compte.
+   */
+  await creer("pulsar_entries", {
+    organization_id: orgs.a.id,
+    client_id: clientPulsar.id,
+    task: "admin",
+    phase: "interne",
+    started_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+    created_by: comptes.a,
+  });
+
+  const deuxEnMarche = await visite(ca, `${sa}/temps`);
+  const cartes = deuxEnMarche.corps.match(/Corriger<\/button>/g) ?? [];
+  verifie(
+    "A · deux chronomètres en marche, deux cartes",
+    deuxEnMarche.status === 200 && cartes.length === 2,
+    `status ${deuxEnMarche.status}, ${cartes.length} carte(s)`,
+  );
+
+  const pastille = await visite(ca, `${sa}/temps/comete`);
+  verifie(
+    "A · ailleurs dans l'outil, la pastille les compte",
+    pastille.status === 200 && pastille.corps.includes("2 chronomètres en cours"),
+    `status ${pastille.status}`,
   );
 
   console.log("\n== 1 quater. L'écran Par client ==");

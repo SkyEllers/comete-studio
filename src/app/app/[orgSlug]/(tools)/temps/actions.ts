@@ -9,6 +9,7 @@ import { jourParis, midiParis } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 import { nomDuFichier, versCsv } from "@/tools/pulsar/csv";
 import { arrondirQuartHeure, phaseDuClient } from "@/tools/pulsar/duree";
+import { resoudreCorrection } from "@/tools/pulsar/horaire";
 import {
   getClients,
   getEntreesEntre,
@@ -28,12 +29,17 @@ import {
 /**
  * Les cinq gestes de Pulsar : démarrer, arrêter, saisir, corriger, supprimer.
  *
- * Une règle commande tout le fichier : **le geste le plus fréquent de la
- * journée ne doit jamais afficher d'erreur**. Démarrer un chronomètre pendant
- * qu'un autre tourne n'est pas une faute à signaler, c'est ce qu'on fait vingt
- * fois par jour quand on passe d'un client à l'autre — l'ancien s'arrête,
- * arrondi et enregistré, et le nouveau part. Ce qui remonte à l'écran est une
- * phrase qui dit ce qui a été compté, pas un refus.
+ * Démarrer ajoute, et n'arrête rien. Deux chronomètres sur le même créneau
+ * sont un choix — un appel pendant qu'un export tourne — et la journée peut
+ * compter plus d'heures que l'horloge : ni chevauchement interdit, ni
+ * avertissement. Le seul refus est le plafond de quatre, que la base tient et
+ * dont elle écrit la phrase : au-delà, on n'a pas cinq fronts ouverts, on a
+ * oublié d'en arrêter un.
+ *
+ * Corriger ne demande jamais de supprimer puis ressaisir : un chronomètre
+ * parti trop tard se recale, un chronomètre oublié s'arrête à la durée qu'il
+ * aurait dû compter, une entrée d'un autre jour reprend son début, sa fin et
+ * sa durée.
  *
  * Le chronomètre vit ici, côté serveur, et nulle part ailleurs : il survit à
  * la fermeture du téléphone et se retrouve sur l'ordinateur. Ce qui défile à
@@ -115,13 +121,45 @@ const saisirSchema = z.object({
   note: noteSchema,
 });
 
-const modifierSchema = z.object({
-  id: identifiant,
-  clientId: identifiant,
-  task: tacheSchema,
-  minutes: minutesSchema,
-  note: noteSchema,
-});
+/**
+ * Une correction : l'horaire en minutes depuis le minuit du jour, à Paris.
+ *
+ * La durée n'a pas de plafond ici, contrairement à la saisie : une entrée
+ * d'avant les règles — un chronomètre oublié vingt heures — doit pouvoir
+ * s'annoter sans qu'on lui demande d'abord d'être raisonnable. Les douze
+ * heures se jugent dans `resoudreCorrection`, sur ce qu'on déplace.
+ */
+const corrigerSchema = z
+  .object({
+    id: identifiant,
+    clientId: identifiant,
+    task: tacheSchema,
+    jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choisis une date." }),
+    debut: z
+      .number({ error: "Indique un début." })
+      .int()
+      .min(0, { error: "Indique un début." })
+      .max(24 * 60 - 1, { error: "Indique un début." }),
+    fin: z
+      .number({ error: "Indique une fin." })
+      .int()
+      .min(1, { error: "Indique une fin." })
+      .max(7 * 24 * 60, { error: "Indique une fin." })
+      .nullable(),
+    minutes: z
+      .number({ error: "Indique une durée." })
+      .int({ error: "Une durée se compte en minutes entières." })
+      .min(MINIMUM_MINUTES, { error: "Un quart d'heure au minimum." })
+      .refine((valeur) => valeur % PAS_MINUTES === 0, {
+        error: "Les durées se comptent par quarts d'heure.",
+      })
+      .nullable(),
+    note: noteSchema,
+  })
+  .refine((saisie) => (saisie.fin === null) === (saisie.minutes === null), {
+    error: "Donne une fin et une durée, ou ni l'une ni l'autre.",
+    path: ["fin"],
+  });
 
 // --------------------------------- Le client ---------------------------------
 
@@ -155,62 +193,19 @@ async function clientOuvert(
   return { ok: true, client: data };
 }
 
-/**
- * Arrête le chronomètre en marche, s'il y en a un, et dit ce qu'il a compté.
- *
- * L'arrondi se fait sur l'écart réel entre le départ et maintenant ; la fin
- * enregistrée, elle, est l'instant vrai. Les deux ne coïncident pas, et c'est
- * voulu : sept minutes de travail valent quinze minutes comptées, mais elles
- * ont bien eu lieu à 14 h 07.
- */
-async function arreterEnCours(
-  { supabase, org, userId }: Acces,
-  note?: string | null,
-): Promise<{ minutes: number; clientId: string } | null> {
-  const { data: enCours } = await supabase
-    .from("pulsar_entries")
-    .select("id, client_id, started_at")
-    .eq("organization_id", org.id)
-    .eq("created_by", userId)
-    .is("ended_at", null)
-    .maybeSingle();
-
-  if (!enCours) return null;
-
-  const fin = new Date();
-  const minutes = arrondirQuartHeure(fin.getTime() - Date.parse(enCours.started_at));
-
-  const { error } = await supabase
-    .from("pulsar_entries")
-    .update({
-      ended_at: fin.toISOString(),
-      duration_minutes: minutes,
-      // La note part dans la même écriture que l'arrêt : celle qu'on vient de
-      // taper ne doit pas dépendre d'un second aller-retour qui peut échouer.
-      ...(note === undefined ? {} : { note }),
-    })
-    .eq("id", enCours.id);
-
-  if (error) return null;
-
-  return { minutes, clientId: enCours.client_id };
-}
-
 // -------------------------------- Les actions --------------------------------
 
-export type Bascule = { minutes: number; client: string } | null;
-
 /**
- * Démarrer. Bascule l'ancien chronomètre si un tournait.
+ * Démarrer. N'arrête rien : un chronomètre de plus, jusqu'à quatre.
  *
  * Ce que l'action rend n'est pas « c'est parti » — l'écran le sait déjà — mais
- * ce qui a été rangé au passage, pour que la confirmation soit une information
- * et non une félicitation.
+ * combien tournent désormais, pour que la confirmation rappelle les autres
+ * plutôt que de féliciter.
  */
 export async function demarrer(
   orgSlug: string,
   input: unknown,
-): Promise<ActionResult<{ remplace: Bascule }>> {
+): Promise<ActionResult<{ enCours: number }>> {
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
 
@@ -221,8 +216,6 @@ export async function demarrer(
   if (!cible.ok) return fail(cible.error);
 
   const { supabase, org, userId } = membre;
-
-  const arrete = await arreterEnCours(membre);
 
   const { error } = await supabase.from("pulsar_entries").insert({
     organization_id: org.id,
@@ -235,57 +228,105 @@ export async function demarrer(
   });
 
   /*
-   * 23505 : l'index unique du chronomètre. Il ne se déclenche que si un
-   * chronomètre tourne ailleurs que dans cet espace — celui d'ici vient d'être
-   * arrêté — et c'est le seul cas où démarrer refuse quelque chose.
+   * P0001 : le plafond de la migration 0020, le seul refus possible ici. Sa
+   * phrase est écrite pour être lue ; on la laisse passer plutôt que de la
+   * réécrire et de la laisser diverger. L'écran la dit déjà quand quatre
+   * tournent — elle ne remonte que d'un autre appareil, ou d'un double tap.
    */
   if (error) {
     return fail(
-      error.code === "23505"
-        ? "Un chronomètre tourne déjà dans un autre espace. Arrête-le d'abord."
+      error.code === "P0001" && error.message
+        ? error.message
         : "Le chronomètre n'est pas parti. Réessaie.",
     );
   }
 
   rafraichir(orgSlug);
 
-  if (!arrete) return ok({ remplace: null });
+  const { count } = await supabase
+    .from("pulsar_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", org.id)
+    .eq("created_by", userId)
+    .is("ended_at", null);
 
-  const nom = await nomDuClient(membre, arrete.clientId);
-  return ok({ remplace: { minutes: arrete.minutes, client: nom } });
+  return ok({ enCours: count ?? 1 });
 }
 
-/** Arrêter. Rend `null` si rien ne tournait : appuyer deux fois n'est pas une faute. */
+/**
+ * Arrêter un chronomètre, et dire ce qu'il a compté.
+ *
+ * L'arrondi se fait sur l'écart réel entre le départ et maintenant ; la fin
+ * enregistrée, elle, est l'instant vrai. Les deux ne coïncident pas, et c'est
+ * voulu : sept minutes de travail valent quinze minutes comptées, mais elles
+ * ont bien eu lieu à 14 h 07.
+ *
+ * Rend `null` si celui-là ne tournait plus : arrêté depuis l'ordinateur
+ * pendant qu'on tapait sur le téléphone, ou appuyé deux fois. Ce n'est pas une
+ * faute, et l'écriture ne vise que ce qui tourne encore — le second appui ne
+ * réécrit pas la fin du premier.
+ *
+ * Ne pas passer de note, c'est ne pas y toucher — ce que fait la pastille de
+ * l'en-tête, qui arrête sans rien savoir de ce qui a été écrit ailleurs.
+ * Passer une chaîne vide, en revanche, efface : c'est le champ vidé exprès.
+ */
 export async function arreter(
   orgSlug: string,
+  id: unknown,
   note?: unknown,
 ): Promise<ActionResult<{ minutes: number; client: string } | null>> {
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
 
+  const cible = identifiant.safeParse(id);
+  if (!cible.success) return fail("Ce chronomètre n'existe plus.");
+
   const parsed = noteSchema.safeParse(note);
   if (!parsed.success) return failFromZod(parsed.error);
 
-  /*
-   * Ne rien passer, c'est ne pas toucher à la note — ce que fait la pastille
-   * de l'en-tête, qui arrête sans rien savoir de ce qui a été écrit ailleurs.
-   * Passer une chaîne vide, en revanche, efface, et c'est le champ vidé
-   * exprès.
-   */
-  const arrete = await arreterEnCours(
-    membre,
-    note === undefined ? undefined : (parsed.data ?? null),
-  );
+  const { supabase, org, userId } = membre;
+
+  const { data: enCours } = await supabase
+    .from("pulsar_entries")
+    .select("id, client_id, started_at")
+    .eq("organization_id", org.id)
+    .eq("created_by", userId)
+    .eq("id", cible.data)
+    .is("ended_at", null)
+    .maybeSingle();
+
+  if (!enCours) {
+    rafraichir(orgSlug);
+    return ok(null);
+  }
+
+  const fin = new Date();
+  const minutes = arrondirQuartHeure(fin.getTime() - Date.parse(enCours.started_at));
+
+  const { data: arrete, error } = await supabase
+    .from("pulsar_entries")
+    .update({
+      ended_at: fin.toISOString(),
+      duration_minutes: minutes,
+      // La note part dans la même écriture que l'arrêt : celle qu'on vient de
+      // taper ne doit pas dépendre d'un second aller-retour qui peut échouer.
+      ...(note === undefined ? {} : { note: parsed.data ?? null }),
+    })
+    .eq("id", enCours.id)
+    .is("ended_at", null)
+    .select("id");
+
+  if (error) return fail("Le chronomètre ne s'est pas arrêté. Réessaie.");
+
   rafraichir(orgSlug);
+  if (!arrete || arrete.length === 0) return ok(null);
 
-  if (!arrete) return ok(null);
-
-  const nom = await nomDuClient(membre, arrete.clientId);
-  return ok({ minutes: arrete.minutes, client: nom });
+  const nom = await nomDuClient(membre, enCours.client_id);
+  return ok({ minutes, client: nom });
 }
 
 /**
- * Noter, pendant que le chronomètre tourne.
+ * Noter, pendant qu'un chronomètre tourne.
  *
  * Le champ enregistre en quittant le focus, sans rien dire : c'est la seule
  * chose de cet écran qui existe déjà en base et qu'on ne pourrait pas
@@ -293,15 +334,19 @@ export async function arreter(
  * l'ordinateur — la note tapée en route ne doit pas dépendre de l'appareil
  * qui appuie sur Arrêter.
  *
- * Silencieuse quand rien ne tourne : le champ a pu perdre le focus juste après
- * l'arrêt, et ce n'est pas une nouvelle à annoncer.
+ * Silencieuse quand il ne tourne plus : le champ a pu perdre le focus juste
+ * après l'arrêt, et ce n'est pas une nouvelle à annoncer.
  */
 export async function noter(
   orgSlug: string,
+  id: unknown,
   note: unknown,
 ): Promise<ActionResult> {
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
+
+  const cible = identifiant.safeParse(id);
+  if (!cible.success) return ok();
 
   const parsed = noteSchema.safeParse(note);
   if (!parsed.success) return failFromZod(parsed.error);
@@ -311,6 +356,7 @@ export async function noter(
     .update({ note: parsed.data ?? null })
     .eq("organization_id", membre.org.id)
     .eq("created_by", membre.userId)
+    .eq("id", cible.data)
     .is("ended_at", null);
 
   if (error) return fail("Cette note n'a pas été enregistrée.");
@@ -367,54 +413,95 @@ export async function saisir(
 }
 
 /**
- * Corriger une entrée terminée.
+ * Corriger une entrée — terminée, ou encore en marche.
+ *
+ * Tout ce qui décide de l'horaire écrit est dans `resoudreCorrection`, que le
+ * formulaire consulte aussi avant l'envoi : l'action ne fait que lire l'entrée,
+ * vérifier le client, et écrire ce qui a été résolu.
  *
  * La phase n'est jamais recalculée, même quand le client change : elle dit ce
  * qu'était ce client au moment où l'on a travaillé, et c'est tout l'intérêt
  * qu'elle soit figée. Corriger le client d'une entrée, c'est réparer une
  * erreur de doigt, pas réécrire l'histoire du dossier.
+ *
+ * Pour la même raison, un client archivé n'empêche pas de corriger ses propres
+ * heures — celles de juin, relues en septembre depuis Par client. Il n'est
+ * refusé que comme destination : y ranger une entrée qui n'y était pas, ce
+ * serait rouvrir le dossier sans le dire.
  */
-export async function modifier(
+export async function corriger(
   orgSlug: string,
   input: unknown,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ arrete: { minutes: number; client: string } | null }>> {
   const membre = await acces(orgSlug);
   if (!membre) return fail("Cet espace n'est plus accessible.");
 
-  const parsed = modifierSchema.safeParse(input);
+  const parsed = corrigerSchema.safeParse(input);
   if (!parsed.success) return failFromZod(parsed.error);
 
-  const { supabase, org } = membre;
+  const { supabase, org, userId } = membre;
+  const saisie = parsed.data;
 
   const { data: entree } = await supabase
     .from("pulsar_entries")
-    .select("id, ended_at")
+    .select("id, client_id, created_by, started_at, ended_at, duration_minutes, is_manual")
     .eq("organization_id", org.id)
-    .eq("id", parsed.data.id)
+    .eq("id", saisie.id)
     .maybeSingle();
 
   if (!entree) return fail("Cette ligne n'existe plus.");
-  if (entree.ended_at === null) {
-    return fail("Ce chronomètre tourne encore. Arrête-le d'abord.");
+
+  const enCours = entree.ended_at === null;
+  if (enCours && entree.created_by !== userId) {
+    return fail("Ce chronomètre n'est pas le tien.");
   }
 
-  const cible = await clientOuvert(membre, parsed.data.clientId);
-  if (!cible.ok) return fail(cible.error);
+  if (saisie.clientId !== entree.client_id) {
+    const cible = await clientOuvert(membre, saisie.clientId);
+    if (!cible.ok) return fail(cible.error, "clientId");
+  }
 
-  const { error } = await supabase
+  const resolution = resoudreCorrection(
+    entree,
+    { jour: saisie.jour, debut: saisie.debut, fin: saisie.fin, minutes: saisie.minutes },
+    Date.now(),
+  );
+  if (!resolution.ok) return fail(resolution.error, resolution.champ);
+
+  const ecriture = supabase
     .from("pulsar_entries")
     .update({
-      client_id: cible.client.id,
-      task: parsed.data.task,
-      duration_minutes: parsed.data.minutes,
-      note: parsed.data.note ?? null,
+      client_id: saisie.clientId,
+      task: saisie.task,
+      note: saisie.note ?? null,
+      ...resolution.ecriture,
     })
-    .eq("id", parsed.data.id);
+    .eq("id", entree.id);
+
+  /*
+   * Un chronomètre ne se corrige que s'il tourne encore au moment d'écrire :
+   * arrêté depuis l'ordinateur pendant qu'on le corrigeait sur le téléphone,
+   * la correction partirait d'un état qui n'existe plus et écraserait la fin
+   * que l'autre appareil vient de poser.
+   */
+  const { data: ecrite, error } = await (enCours
+    ? ecriture.is("ended_at", null)
+    : ecriture
+  ).select("id");
 
   if (error) return fail("La correction n'a pas été enregistrée. Réessaie.");
+  if (!ecrite || ecrite.length === 0) {
+    return fail("Ce chronomètre vient d'être arrêté ailleurs. Corrige-le depuis ta journée.");
+  }
 
   rafraichir(orgSlug);
-  return ok();
+
+  if (!enCours || resolution.ecriture.duration_minutes === undefined) {
+    return ok({ arrete: null });
+  }
+
+  const nom = await nomDuClient(membre, saisie.clientId);
+  return ok({ arrete: { minutes: resolution.ecriture.duration_minutes, client: nom } });
 }
 
 /** Supprimer. C'est un carnet personnel : aucune limite de temps, aucune trace. */
@@ -812,9 +899,9 @@ async function nomDuClient({ supabase, org }: Acces, clientId: string): Promise<
 }
 
 /**
- * Une heure comptée change la journée, la semaine, la pastille de l'en-tête —
- * et demain les écrans Par client et Comète. `"layout"` balaie l'outil entier,
- * et l'outil entier est petit.
+ * Une heure comptée change la journée, la semaine, la pastille de l'en-tête,
+ * les écrans Par client et Comète. `"layout"` balaie l'outil entier, et
+ * l'outil entier est petit.
  */
 function rafraichir(orgSlug: string) {
   revalidatePath(`/app/${orgSlug}/temps`, "layout");

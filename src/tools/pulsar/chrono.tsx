@@ -1,58 +1,84 @@
 "use client";
 
-import { ChevronRight, Square } from "lucide-react";
+import { ChevronRight, Pencil, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { arreter, demarrer, noter } from "@/app/app/[orgSlug]/(tools)/temps/actions";
+import {
+  arreter,
+  corriger,
+  demarrer,
+  noter,
+} from "@/app/app/[orgSlug]/(tools)/temps/actions";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 import { formatChrono, formatDuree } from "./duree";
-import { Puce } from "./formulaire";
+import { FormulaireEntree, Puce, versCorrection, type Valeurs } from "./formulaire";
 import {
   libelleTache,
   LIMITE_NOTE,
+  PLAFOND_CHRONOS,
   TACHES,
   type ClientPulsar,
   type Entree,
 } from "./types";
 
 /**
- * Le chronomètre : deux taps pour partir, un pour s'arrêter.
+ * Les chronomètres : deux taps pour en lancer un, un pour l'arrêter.
  *
  * Le premier tap choisit le client, le second le type — dans l'ordre qu'on
  * veut : c'est le second, quel qu'il soit, qui lance. Pas de bouton
  * « Démarrer » en plus, parce qu'il serait toujours le troisième tap, et que
  * dix secondes de saisie se perdent là.
  *
- * Les puces restent affichées pendant la course, sous le titre « Passer à
- * autre chose » : changer de client au milieu de la journée est le geste le
- * plus fréquent de l'outil. L'ancien chronomètre s'arrête, arrondi et
- * enregistré, et le toast dit ce qui vient d'être compté — une information,
- * jamais un blocage.
+ * Lancer n'arrête rien : chaque chronomètre a sa carte, et les puces restent
+ * dessous pour en ajouter un. Deux sur le même créneau sont un choix, pas une
+ * erreur — l'écran ne les compare pas, ne les signale pas. À quatre, les puces
+ * laissent place à la phrase du plafond : le cinquième ne serait pas du
+ * travail en plus, ce serait un oubli, et on le dit avant le tap plutôt
+ * qu'après.
  *
- * Ce qui défile n'est qu'un compteur local calé sur `started_at`. Le
- * chronomètre, lui, vit en base : il survit à la fermeture du téléphone et
- * s'arrête depuis n'importe quel appareil.
+ * Ce qui défile n'est qu'un compteur local calé sur `started_at`. Les
+ * chronomètres, eux, vivent en base : ils survivent à la fermeture du
+ * téléphone et s'arrêtent depuis n'importe quel appareil.
  */
+
+export type ChronoAffiche = Entree & {
+  clientNom: string;
+  /** « 14:07 », ou « 12/09 16:40 » pour un chronomètre parti un autre jour. */
+  depuis: string;
+};
 
 export function Chrono({
   orgSlug,
   clients,
+  tous,
   enCours,
-  nomEnCours,
+  aujourdhui,
 }: {
   orgSlug: string;
+  /** Les clients qu'on peut lancer : les archivés n'y sont pas. */
   clients: ClientPulsar[];
-  enCours: Entree | null;
-  nomEnCours: string | null;
+  /** Tous les clients, pour corriger un chronomètre dont le dossier a fermé. */
+  tous: ClientPulsar[];
+  enCours: ChronoAffiche[];
+  aujourdhui: string;
 }) {
   const [client, setClient] = useState<string | null>(null);
   const [tache, setTache] = useState<Entree["task"] | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+
+  const complet = enCours.length >= PLAFOND_CHRONOS;
 
   const lancer = (clientId: string, task: Entree["task"]) => {
     setClient(null);
@@ -66,11 +92,9 @@ export function Chrono({
         return;
       }
 
-      const remplace = resultat.data.remplace;
+      const nombre = resultat.data.enCours;
       toast.success(
-        remplace
-          ? `${remplace.client} : ${formatDuree(remplace.minutes)} comptées. C'est parti sur la suite.`
-          : "C'est parti.",
+        nombre > 1 ? `C'est parti. ${nombre} chronomètres tournent.` : "C'est parti.",
       );
       router.refresh();
     });
@@ -88,79 +112,99 @@ export function Chrono({
 
   return (
     <section className="space-y-5">
-      {enCours ? (
-        /* La clé remonte la carte à chaque nouveau chronomètre : la note du
-           précédent ne doit pas rester dans le champ du suivant. */
-        <CarteEnCours
-          key={enCours.id}
-          orgSlug={orgSlug}
-          entree={enCours}
-          client={nomEnCours}
-        />
+      {enCours.length > 0 ? (
+        <ul className="space-y-3">
+          {enCours.map((entree) => (
+            /* La clé remonte la carte à chaque chronomètre : la note de l'un ne
+               doit pas rester dans le champ d'un autre. */
+            <li key={entree.id}>
+              <CarteEnCours
+                orgSlug={orgSlug}
+                entree={entree}
+                tous={tous}
+                aujourdhui={aujourdhui}
+              />
+            </li>
+          ))}
+        </ul>
       ) : null}
 
-      <div className="space-y-3">
-        <h2 className="text-muted-foreground font-mono text-xs tracking-wide">
-          {enCours ? "Passer à autre chose" : "Sur quoi tu travailles ?"}
-        </h2>
+      {complet ? (
+        <p className="border-line text-muted-foreground rounded-lg border border-dashed px-4 py-3 text-sm">
+          Quatre chronomètres tournent. Arrête-en un d&apos;abord.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <h2 className="text-muted-foreground font-mono text-xs tracking-wide">
+            {enCours.length > 0 ? "En lancer un autre" : "Sur quoi tu travailles ?"}
+          </h2>
 
-        <div className="flex flex-wrap gap-1.5">
-          {clients.map((candidat) => (
-            <Puce
-              key={candidat.id}
-              label={candidat.name}
-              actif={client === candidat.id}
-              disabled={pending}
-              onClick={() => choisirClient(candidat.id)}
-            />
-          ))}
-        </div>
+          <div className="flex flex-wrap gap-1.5">
+            {clients.map((candidat) => (
+              <Puce
+                key={candidat.id}
+                label={candidat.name}
+                actif={client === candidat.id}
+                disabled={pending}
+                onClick={() => choisirClient(candidat.id)}
+              />
+            ))}
+          </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {TACHES.map((candidate) => (
-            <Puce
-              key={candidate.valeur}
-              label={candidate.label}
-              actif={tache === candidate.valeur}
-              disabled={pending}
-              onClick={() => choisirTache(candidate.valeur)}
-            />
-          ))}
+          <div className="flex flex-wrap gap-1.5">
+            {TACHES.map((candidate) => (
+              <Puce
+                key={candidate.valeur}
+                label={candidate.label}
+                actif={tache === candidate.valeur}
+                disabled={pending}
+                onClick={() => choisirTache(candidate.valeur)}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }
 
 /**
- * La carte du chronomètre en marche.
+ * La carte d'un chronomètre en marche.
  *
  * Elle porte sa propre note, et c'est pour ça qu'elle est à part : montée à
- * neuf pour chaque entrée, elle n'a aucun état à recopier quand le
- * chronomètre change — ni effet, ni synchronisation, ni note d'un client qui
- * traînerait sur le suivant.
+ * neuf pour chaque entrée, elle n'a aucun état à recopier quand la liste
+ * change — ni effet, ni synchronisation, ni note d'un client qui traînerait
+ * sur un autre.
  *
  * La note part deux fois plutôt qu'une : en quittant le champ, et dans
  * l'écriture qui arrête. La première parce qu'un chronomètre démarré sur le
  * téléphone s'arrête souvent depuis l'ordinateur ; la seconde parce qu'on
  * appuie sur Arrêter sans toujours sortir du champ d'abord.
  *
- * Le champ est replié tant qu'il n'y a rien à y lire : la carte n'a que trois
- * choses à dire — sur quoi, depuis quand, et le bouton pour arrêter — et un
- * champ vide entre les deux repousse le bouton sous le pouce. Il s'ouvre déjà
+ * Le champ est replié tant qu'il n'y a rien à y lire : la carte n'a que
+ * quatre choses à dire — sur quoi, depuis quand, et les deux boutons — et un
+ * champ vide entre les deux repousse Arrêter sous le pouce. Il s'ouvre déjà
  * déplié quand une note existe, parce qu'une note qu'on a écrite et qu'on ne
  * voit plus est une note perdue.
+ *
+ * « Corriger » est à côté d'Arrêter, pas dans un menu : le chronomètre oublié
+ * sur pause se découvre au moment d'arrêter, et c'est là qu'il faut pouvoir
+ * dire « coupe à 45 min » plutôt que d'arrêter trois heures fausses pour les
+ * reprendre ensuite.
  */
 function CarteEnCours({
   orgSlug,
   entree,
-  client,
+  tous,
+  aujourdhui,
 }: {
   orgSlug: string;
-  entree: Entree;
-  client: string | null;
+  entree: ChronoAffiche;
+  tous: ClientPulsar[];
+  aujourdhui: string;
 }) {
   const [note, setNote] = useState(entree.note ?? "");
+  const [correction, setCorrection] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -174,7 +218,7 @@ function CarteEnCours({
 
   const stopper = () =>
     startTransition(async () => {
-      const resultat = await arreter(orgSlug, note);
+      const resultat = await arreter(orgSlug, entree.id, note);
 
       if (!resultat.ok) {
         toast.error(resultat.error);
@@ -189,16 +233,48 @@ function CarteEnCours({
       router.refresh();
     });
 
+  const enregistrer = (valeurs: Valeurs) =>
+    startTransition(async () => {
+      const resultat = await corriger(orgSlug, {
+        id: entree.id,
+        clientId: valeurs.clientId,
+        task: valeurs.task,
+        note: valeurs.note,
+        ...versCorrection(valeurs, true),
+      });
+
+      if (!resultat.ok) {
+        toast.error(resultat.error);
+        return;
+      }
+
+      setCorrection(false);
+      setNote(valeurs.note);
+
+      const arrete = resultat.data.arrete;
+      toast.success(
+        arrete
+          ? `${arrete.client} : ${formatDuree(arrete.minutes)} comptées.`
+          : "Chronomètre corrigé",
+      );
+      router.refresh();
+    });
+
   return (
     <div className="border-ember/40 bg-surface-1 space-y-4 rounded-lg border p-4">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="min-w-0 truncate">
-          <span className="font-medium">{client}</span>
-          <span className="text-muted-foreground">
-            {" · "}
-            {libelleTache(entree.task)}
-          </span>
-        </p>
+        <div className="min-w-0">
+          <p className="truncate">
+            <span className="font-medium">{entree.clientNom}</span>
+            <span className="text-muted-foreground">
+              {" · "}
+              {libelleTache(entree.task)}
+            </span>
+          </p>
+          <p className="text-muted-foreground font-mono text-xs tabular-nums">
+            depuis {entree.depuis}
+          </p>
+        </div>
         <Compteur depuis={entree.started_at} />
       </div>
 
@@ -208,11 +284,11 @@ function CarteEnCours({
           autoFocus={!avaitUneNote}
           maxLength={LIMITE_NOTE}
           placeholder="Une note, si tu veux"
-          aria-label="Note du chronomètre en cours"
+          aria-label={`Note du chronomètre ${entree.clientNom}`}
           onChange={(evenement) => setNote(evenement.target.value)}
           onBlur={() => {
             if (note === (entree.note ?? "")) return;
-            void noter(orgSlug, note);
+            void noter(orgSlug, entree.id, note);
           }}
         />
       ) : (
@@ -227,10 +303,42 @@ function CarteEnCours({
         </button>
       )}
 
-      <Button onClick={stopper} disabled={pending} className="h-12 w-full text-base">
-        <Square aria-hidden="true" />
-        Arrêter
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setCorrection(true)}
+          disabled={pending}
+          className="h-12"
+        >
+          <Pencil aria-hidden="true" />
+          Corriger
+        </Button>
+        <Button onClick={stopper} disabled={pending} className="h-12 flex-1 text-base">
+          <Square aria-hidden="true" />
+          Arrêter
+        </Button>
+      </div>
+
+      <Dialog open={correction} onOpenChange={setCorrection}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Corriger ce chronomètre</DialogTitle>
+            <DialogDescription>
+              Parti trop tard : avance son début. Oublié en route : arrête-le à
+              la durée qu&apos;il aurait dû compter.
+            </DialogDescription>
+          </DialogHeader>
+
+          <FormulaireEntree
+            clients={tous}
+            entree={{ ...entree, note }}
+            maxJour={aujourdhui}
+            pending={pending}
+            onValider={enregistrer}
+            onAnnuler={() => setCorrection(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

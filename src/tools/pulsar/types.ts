@@ -116,6 +116,17 @@ export const MAXIMUM_MANUEL = 12 * 60;
 export const LIMITE_NOTE = 200;
 
 /**
+ * Les chronomètres qui tournent en même temps, au plus — pour une personne,
+ * dans un espace.
+ *
+ * Deux sur le même créneau sont un choix : un appel pendant qu'un export
+ * tourne. Au-delà de quatre, ce n'est plus du travail en parallèle, c'est un
+ * oubli. La base tient ce plafond (migration 0020) et écrit la phrase du refus ;
+ * l'écran s'en sert pour la dire avant qu'on ait tapé quoi que ce soit.
+ */
+export const PLAFOND_CHRONOS = 4;
+
+/**
  * Un client, tel que le chronomètre le manipule : juste de quoi le nommer, le
  * ranger en tête des puces, et savoir s'il est encore chronométrable.
  */

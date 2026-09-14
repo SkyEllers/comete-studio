@@ -1,6 +1,6 @@
 import { requireMembership } from "@/lib/access";
 import { heureParis, jourParis } from "@/lib/dates";
-import { Chrono } from "@/tools/pulsar/chrono";
+import { Chrono, type ChronoAffiche } from "@/tools/pulsar/chrono";
 import { clientsActifs, ordonnerClients } from "@/tools/pulsar/clients";
 import {
   entreesDeLaSemaine,
@@ -17,7 +17,7 @@ import {
 } from "@/tools/pulsar/queries";
 
 /**
- * L'écran d'arrivée de Pulsar : le chronomètre, puis la journée.
+ * L'écran d'arrivée de Pulsar : les chronomètres, puis la journée.
  *
  * Pensé téléphone d'abord, et dans cet ordre-là : on vient ici pour lancer ou
  * arrêter, pas pour lire. La lecture — deux totaux, une liste — tient sous le
@@ -43,23 +43,43 @@ export default async function PulsarPage({
 
   const aujourdhui = jourParis();
   const noms = new Map(clients.map((client) => [client.id, client.name]));
-  const actifs = ordonnerClients(clientsActifs(clients), recence);
+  const tous = ordonnerClients(clients, recence);
+  const actifs = clientsActifs(tous);
 
   const duJour = entreesDuJour(semaine, aujourdhui);
 
   /*
-   * Le chronomètre en marche est retiré de la liste : il a sa carte au-dessus,
-   * et une ligne sans durée n'aurait rien à montrer dans une colonne de
-   * durées. Il ne compte pas non plus dans les totaux — `totalMinutes` ignore
-   * les entrées sans durée, et c'est le même silence.
+   * Les chronomètres en marche sont retirés de la liste : ils ont leurs cartes
+   * au-dessus, et une ligne sans durée n'aurait rien à montrer dans une
+   * colonne de durées. Ils ne comptent pas non plus dans les totaux —
+   * `totalMinutes` ignore les entrées sans durée, et c'est le même silence.
+   * Deux chronomètres sur le même créneau, une fois arrêtés, y comptent tous
+   * les deux : la journée peut faire plus d'heures que l'horloge.
    */
   const lignes: EntreeAffichee[] = duJour
     .filter((entree) => entree.ended_at !== null)
     .map((entree) => ({
       ...entree,
       clientNom: noms.get(entree.client_id) ?? "Client retiré",
-      heureLabel: entree.is_manual ? "Saisie" : heureParis(entree.started_at),
+      repere: entree.is_manual ? "Saisie" : heureParis(entree.started_at),
     }));
+
+  /*
+   * « depuis 14:07 » — et la date quand il est parti un autre jour : c'est
+   * précisément le chronomètre oublié hier soir qu'il faut reconnaître d'un
+   * coup d'œil.
+   */
+  const chronos: ChronoAffiche[] = enCours.map((entree) => {
+    const jour = jourParis(entree.started_at);
+    const heure = heureParis(entree.started_at);
+
+    return {
+      ...entree,
+      clientNom: noms.get(entree.client_id) ?? "Client retiré",
+      depuis:
+        jour === aujourdhui ? heure : `${jour.slice(8, 10)}/${jour.slice(5, 7)} ${heure}`,
+    };
+  });
 
   const totalJour = totalMinutes(duJour);
   const totalSemaine = totalMinutes(entreesDeLaSemaine(semaine, aujourdhui));
@@ -93,14 +113,15 @@ export default async function PulsarPage({
           <Chrono
             orgSlug={orgSlug}
             clients={actifs}
-            enCours={enCours}
-            nomEnCours={enCours ? (noms.get(enCours.client_id) ?? "Client retiré") : null}
+            tous={tous}
+            enCours={chronos}
+            aujourdhui={aujourdhui}
           />
 
           <Journee
             orgSlug={orgSlug}
             entrees={lignes}
-            clients={actifs}
+            clients={tous}
             aujourdhui={aujourdhui}
           />
         </>
