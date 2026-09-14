@@ -2029,6 +2029,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      radar_secrets_restants: { Args: { org: string }; Returns: number }
       radar_set_sale: {
         Args: {
           amount_cents?: number

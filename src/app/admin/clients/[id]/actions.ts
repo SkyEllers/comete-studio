@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { preparerPulsar } from "@/tools/pulsar/installation";
 import { preparerRadar } from "@/tools/resultats/installation";
+import { supprimerOrganisation } from "@/app/admin/clients/[id]/suppression";
 import {
   membershipRoleSchema,
   renameOrganizationSchema,
@@ -300,47 +301,6 @@ export async function toggleTool(input: {
   return ok();
 }
 
-/**
- * Vider le préfixe Storage d'un client.
- *
- * La base cascade, le Storage non : sans ce ménage, les objets d'un client
- * supprimé resteraient dans le bucket pour toujours — invisibles, puisque leur
- * organisation n'existe plus et que la RLS s'appuie sur elle, mais bien
- * présents et bien facturés.
- *
- * On pagine : un client peut avoir plus de fichiers qu'une page de liste.
- */
-const BUCKET = "fichiers";
-const PAGE = 1000;
-
-async function viderStockage(
-  supabase: ReturnType<typeof createAdminClient>,
-  organizationId: string,
-): Promise<boolean> {
-  for (;;) {
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .list(organizationId, { limit: PAGE });
-
-    if (error) return false;
-
-    // `id` nul = un préfixe, pas un objet. Notre rangement est plat, mais
-    // mieux vaut ne pas tenter d'effacer ce qui n'est pas un fichier.
-    const chemins = (data ?? [])
-      .filter((objet) => objet.id !== null)
-      .map((objet) => `${organizationId}/${objet.name}`);
-
-    if (chemins.length === 0) return true;
-
-    const { error: erreurSuppression } = await supabase.storage
-      .from(BUCKET)
-      .remove(chemins);
-
-    if (erreurSuppression) return false;
-    if ((data ?? []).length < PAGE) return true;
-  }
-}
-
 const deleteSchema = z.object({
   organizationId: z.uuid({ error: "Client introuvable." }),
   confirmation: z.string(),
@@ -374,31 +334,23 @@ export async function deleteOrganization(
     );
   }
 
-  /*
-   * Le Storage d'abord : si le ménage échoue, le client existe encore et on
-   * peut recommencer. Dans l'autre sens, la ligne serait partie et plus rien
-   * ne relierait les objets restants à qui que ce soit.
-   */
-  if (!(await viderStockage(supabase, parsed.data.organizationId))) {
-    return fail(
-      "Impossible de supprimer les fichiers de ce client. Rien n'a été supprimé.",
-    );
-  }
-
-  // Les appartenances et les outils activés partent en cascade (migration 0001).
-  const { error } = await supabase
-    .from("organizations")
-    .delete()
-    .eq("id", parsed.data.organizationId);
-
-  if (error) return fail("Impossible de supprimer ce client pour le moment.");
+  // Storage, restes de Radar, puis la ligne : voir `supprimerOrganisation`.
+  const suppression = await supprimerOrganisation(supabase, parsed.data.organizationId);
+  if (!suppression.ok) return fail(suppression.error);
 
   revalidatePath("/admin/clients");
   revalidatePath("/admin");
   revalidatePath("/app", "layout");
 
-  // Redirection côté serveur, et pas depuis le composant : toute action
-  // re-rend la page courante, qui n'existe plus — on verrait un 404 le temps
-  // qu'une navigation côté client arrive.
-  redirect(`/admin/clients?supprime=${encodeURIComponent(org.slug)}`);
+  /*
+   * Redirection côté serveur, et pas depuis le composant : toute action
+   * re-rend la page courante, qui n'existe plus — on verrait un 404 le temps
+   * qu'une navigation côté client arrive.
+   *
+   * L'avertissement voyage donc dans l'adresse, comme la confirmation. Un code
+   * et pas le message : une adresse qu'on peut fabriquer ne doit pas pouvoir
+   * faire afficher n'importe quelle phrase dans l'administration.
+   */
+  const avertissement = suppression.avertissement ? "&avertissement=calendly" : "";
+  redirect(`/admin/clients?supprime=${encodeURIComponent(org.slug)}${avertissement}`);
 }

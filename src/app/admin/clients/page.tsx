@@ -115,10 +115,11 @@ export default async function AdminClientsPage({
 }: PageProps<"/admin/clients">) {
   const params = await searchParams;
   const supprime = typeof params.supprime === "string" ? params.supprime : null;
+  const avertissement = params.avertissement === "calendly" ? "calendly" : null;
 
   return (
     <>
-      {supprime ? <DeletedToast slug={supprime} /> : null}
+      {supprime ? <DeletedToast slug={supprime} avertissement={avertissement} /> : null}
 
       <PageHeader
         title="Clients"

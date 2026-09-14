@@ -19,20 +19,27 @@
  * plus par le webhook et le journal le dit, un type inconnu entre suivi, la
  * suppression des lignes d'un type refuse celles qu'un relevé a figées, et la
  * nouvelle table se cloisonne comme les autres.
+ *
+ * Section 17 (migration 0023) : supprimer un client connecté ne laisse ni
+ * secret dans le Vault ni jeton d'export vivant. Le module de suppression de
+ * l'administration est importé tel quel, d'où `--conditions=react-server`
+ * dans `npm run qa:radar` : sans elle, `server-only` refuse de se charger.
  */
 import {
   annoncerCible,
   connecter,
   creer,
   creerCompte,
+  env,
   journal,
   par,
   refuse,
   srv,
+  SUPABASE,
   supprimerCompte,
   vide,
 } from "./qa-commun.mjs";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import {
@@ -2347,6 +2354,119 @@ try {
     "un admin, lui, coupe un type",
     parAdmin.status < 300 && parAdmin.data?.[0]?.tracked === false,
     `statut ${parAdmin.status} ${JSON.stringify(parAdmin.data)}`,
+  );
+
+  // ---------------- 17. Supprimer un client connecté ----------------------
+  console.log("\n== 17. Supprimer un client connecté ==");
+
+  /*
+   * La cascade emporte tout ce qui porte l'identifiant du client, sauf ce qui
+   * vit ailleurs : les secrets du Vault, les jetons d'export, l'abonnement chez
+   * Calendly. Le client « Démo » a laissé ses deux secrets derrière lui.
+   *
+   * Le banc supprime ici un client connecté par `supprimerOrganisation`, le
+   * module même qu'appelle l'administration — pas une copie de sa logique. Le
+   * jeton Calendly est factice : Calendly le refuse, ce qui éprouve la règle
+   * du meilleur effort — l'abonnement ne part pas, le client si, et on le dit.
+   */
+  const { createClient: clientSupabase } = await import("@supabase/supabase-js");
+  const { supprimerOrganisation } = await import(
+    "../src/app/admin/clients/[id]/suppression.ts"
+  );
+  const adminBanc = clientSupabase(SUPABASE, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const orgE = await creer("organizations", { name: "ZZ QA RE", slug: `zz-qa-re-${marque}` });
+  orgs.e = orgE;
+
+  await creer("organization_tools", { organization_id: orgE.id, tool_id: outilId, enabled: true });
+  await creer("radar_settings", {
+    organization_id: orgE.id,
+    connected_at: new Date().toISOString(),
+    calendly_org_uri: `https://api.calendly.com/organizations/zz-${marque}`,
+    calendly_webhook_uri: `https://api.calendly.com/webhook_subscriptions/zz-${marque}`,
+  });
+  for (const [kind, value] of [
+    ["token", `zz-jeton-calendly-factice-${marque}`],
+    ["signing_key", CLE_SIGNATURE],
+    ["salt", `${SEL}-e`],
+  ]) {
+    await srv("POST", "rpc/radar_set_secret", { org: orgE.id, kind, value });
+  }
+
+  const JETON_EXPORT = createHash("sha256").update(`zz-export-${marque}`).digest("hex");
+  const JETON_REVOQUE = createHash("sha256").update(`zz-export-revoque-${marque}`).digest("hex");
+  const empreinteExport = (jeton) => createHash("sha256").update(jeton).digest("hex");
+  await creer("radar_export_tokens", {
+    organization_id: orgE.id,
+    token_hash: empreinteExport(JETON_EXPORT),
+    label: "Rapport de recette",
+  });
+  await creer("radar_export_tokens", {
+    organization_id: orgE.id,
+    token_hash: empreinteExport(JETON_REVOQUE),
+    label: "Rapport révoqué",
+    revoked_at: new Date().toISOString(),
+  });
+
+  const exporter = (jeton) =>
+    fetch(`${BASE}/api/export/radar/rendez-vous?depuis=2026-01-01&jusqua=2027-01-01`, {
+      headers: { Authorization: `Bearer ${jeton}` },
+    }).then((reponse) => reponse.status);
+
+  const secretsE = async () => (await srv("POST", "rpc/radar_secrets_restants", { org: orgE.id })).data;
+
+  verifie("avant suppression, le client connecté a ses trois secrets", (await secretsE()) === 3, JSON.stringify(await secretsE()));
+  verifie("… et son jeton d'export lit", (await exporter(JETON_EXPORT)) === 200);
+
+  verifie(
+    "un membre ne compte pas les secrets d'un client",
+    refuse(await a1("POST", "rpc/radar_secrets_restants", { org: orgs.a.id })),
+  );
+
+  const suppressionE = await supprimerOrganisation(adminBanc, orgE.id);
+  verifie(
+    "la suppression aboutit malgré un abonnement Calendly qu'on n'a pas pu retirer",
+    suppressionE.ok === true,
+    JSON.stringify(suppressionE),
+  );
+  verifie(
+    "… et le dit dans son résultat",
+    suppressionE.ok === true && (suppressionE.avertissement ?? "").includes("abonnement Calendly"),
+    JSON.stringify(suppressionE),
+  );
+  verifie(
+    "le client n'existe plus",
+    (await srv("GET", `organizations?select=id&id=eq.${orgE.id}`)).data.length === 0,
+  );
+  verifie(
+    `aucun secret préfixé radar:${orgE.id}: ne subsiste dans le Vault`,
+    (await secretsE()) === 0,
+    JSON.stringify(await secretsE()),
+  );
+  verifie(
+    "… ni sous aucun des trois noms",
+    (
+      await Promise.all(
+        ["token", "signing_key", "salt"].map((kind) =>
+          srv("POST", "rpc/radar_get_secret", { org: orgE.id, kind }),
+        ),
+      )
+    ).every((secret) => secret.data === null),
+  );
+  verifie(
+    "ses jetons d'export sont supprimés",
+    (await srv("GET", `radar_export_tokens?select=id&organization_id=eq.${orgE.id}`)).data.length === 0,
+  );
+  verifie("… et morts : la route répond 401", (await exporter(JETON_EXPORT)) === 401);
+  verifie("… le révoqué aussi", (await exporter(JETON_REVOQUE)) === 401);
+
+  const deuxieme = await supprimerOrganisation(adminBanc, orgE.id);
+  verifie(
+    "rejouée sur un client déjà parti, la suppression ne casse rien",
+    deuxieme.ok === true && deuxieme.avertissement === null,
+    JSON.stringify(deuxieme),
   );
 
 } finally {
