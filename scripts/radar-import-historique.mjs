@@ -3,7 +3,7 @@
  *
  * Radar n'importe aucun historique : il ne connaît que ce que le webhook a reçu
  * depuis la connexion du Calendly d'un client. Ce script comble le trou, une
- * fois, pour un client dont on connaît l'issue de chaque rendez-vous passé.
+ * fois, pour un client dont on connaît l'issue des rendez-vous passés.
  *
  *   node scripts/radar-import-historique.mjs --org <slug> --issues <fichier.json>
  *        --depuis AAAA-MM-JJ --jusqua AAAA-MM-JJ [--par <email admin>] [--ecrire]
@@ -11,35 +11,41 @@
  * Sans `--ecrire`, rien ne part en base : le script lit Calendly et Radar, et
  * dit ce qu'il ferait. Aucun nom ni email n'est affiché, dans aucun mode.
  *
- * Pourquoi un fichier d'issues, et pourquoi il est obligatoire. Radar pose
- * « honoré » tout seul sur un rendez-vous passé non contesté. Importer un
- * rendez-vous dont on ignore l'issue, c'est donc le déclarer venu. Le fichier
- * dit, pour chaque événement Calendly (clé : l'URI du `scheduled_event`), ce
- * qui s'est passé : `vendue` (montant en centimes, date, offre), `venue_sans_vente`,
- * `venue_non_confirmee`, `absente`, `annule`, `inconnue`, `hors_import`. Un
- * rendez-vous passé sans issue connue n'est pas importé, et le compte-rendu en
- * donne les dates ; un rendez-vous à venir entre, comme au webhook. Le fichier
- * peut aussi porter `canal`, la clé du canal Radar du premier contact quand le
- * site du client l'a enregistré : Calendly, lui, ne garde souvent que les `utm`
- * que le site pose sur ses propres liens. Aucune donnée nominative : le fichier
- * reste hors du dépôt.
+ * Le fichier, hors dépôt, porte deux choses.
  *
- * Ce qui est écrit, et comment, suit le webhook au plus près :
- *   - même clé d'invité (HMAC du sel du client), même nom, mêmes `utm` retenus,
- *     même réponse déclarée, même attribution (`attribuer`, `precedent`), même
- *     héritage de canal pour une séance reprogrammée ;
- *   - seuls les types de séance suivis entrent. Un type inconnu entre s'il
- *     s'appelle « RDV diagnostic offert… », et il est ajouté aux types suivis ;
- *     tout autre type inconnu est laissé dehors et compté ;
- *   - une vente respecte les gardes de `radar_set_sale` : ni sur une séance
- *     annulée ou non venue, ni datée avant le rendez-vous, ni dans le futur ;
- *   - chaque ligne reprise porte une activité `booking.imported`, et ses gestes
- *     (vente, pas de vente, non venu) leurs activités habituelles, signées du
- *     compte admin passé en `--par`.
+ * `issues` — pour chaque événement Calendly (clé : l'URI du `scheduled_event`),
+ * ce qui s'est passé : `vendue` (montant en centimes, date, offre),
+ * `venue_sans_vente`, `venue_non_confirmee`, `absente`, `annule` (même si
+ * Calendly le garde actif : annulé ou reprogrammé hors Calendly),
+ * `issue_inconnue` (passé, jamais noté : repris avec une note), `inconnue`
+ * (rien à dire), `hors_import`. Et, quand le site du client les a enregistrés,
+ * `canal` (clé du canal Radar du premier contact) et `utm` (ceux du premier
+ * contact) : Calendly ne garde souvent que les `utm` que le site pose sur ses
+ * propres liens (`utm_source=site`), qui disent d'où la personne a cliqué, pas
+ * d'où elle venait.
  *
- * Une ligne déjà dans Radar (même `invitee_uri`) n'est jamais recréée. Si le
- * fichier lui donne une issue qu'elle n'a pas encore — vente, non venu, pas de
- * vente —, elle la reçoit. Relancer le script ne fait rien de plus.
+ * `manuels` — les rendez-vous que le client a saisis ailleurs que dans
+ * Calendly, avec email et nom (d'où un fichier hors dépôt) : ils entrent avec
+ * l'`invitee_uri` que le fichier leur donne.
+ *
+ * Pourquoi l'issue compte. Radar pose « honoré » tout seul sur un rendez-vous
+ * passé non contesté. Un rendez-vous passé dont le fichier ne dit rien
+ * (`inconnue`, ou absent du fichier) n'entre pas, et le compte-rendu en donne
+ * les dates ; un rendez-vous à venir entre, comme au webhook.
+ *
+ * Ce qui est écrit suit le webhook au plus près : même clé d'invité (HMAC du
+ * sel du client), même nom, même réponse déclarée, même attribution
+ * (`attribuer`, `precedent`) quand le canal n'est pas connu, même héritage de
+ * canal pour une séance reprogrammée. Seuls les types de séance suivis
+ * entrent ; un type inconnu entre s'il s'appelle « RDV diagnostic offert… ».
+ * Une vente respecte les gardes de `radar_set_sale`. Chaque ligne reprise
+ * porte une activité `booking.imported`, et ses gestes (vente, pas de vente,
+ * non venu) leurs activités habituelles, signées du compte admin `--par`.
+ *
+ * Une ligne déjà dans Radar n'est jamais recréée. Si elle a été reprise par
+ * ce script, elle reçoit ce qui lui manque (`utm` d'origine) ; si elle vient du
+ * webhook, seulement une vente, un non venu ou un « pas de vente » que le
+ * fichier lui donne. Relancer le script ne fait rien de plus.
  */
 import { readFileSync } from "node:fs";
 
@@ -69,22 +75,33 @@ if (!SLUG || !FICHIER || !jour.test(DEPUIS ?? "") || !jour.test(JUSQUA ?? "")) {
   process.exit(1);
 }
 
-const ISSUES_CONNUES = new Set([
+const ISSUES = new Set([
   "vendue",
   "venue_sans_vente",
   "venue_non_confirmee",
   "absente",
   "annule",
+  "issue_inconnue",
   "inconnue",
   "hors_import",
 ]);
 const fichier = JSON.parse(readFileSync(FICHIER, "utf8"));
+const REPRISE = fichier.etabli_le ?? "fichier d'issues";
 const issues = fichier.issues ?? {};
-for (const [uri, e] of Object.entries(issues)) {
-  if (!ISSUES_CONNUES.has(e.issue)) throw new Error(`Issue inconnue dans le fichier : ${e.issue}`);
+const manuels = fichier.manuels ?? [];
+const verifier = (e, ou) => {
+  if (!ISSUES.has(e.issue)) throw new Error(`Issue inconnue (${e.issue}) pour ${ou}`);
   if (e.issue === "vendue" && (!Number.isInteger(e.montant_cents) || !jour.test(e.date_vente ?? ""))) {
-    throw new Error(`Vente sans montant ou sans date pour ${uri.slice(-12)}`);
+    throw new Error(`Vente sans montant ou sans date pour ${ou}`);
   }
+};
+for (const [uri, e] of Object.entries(issues)) verifier(e, uri.slice(-12));
+for (const m of manuels) {
+  verifier(m, m.invitee_uri);
+  if (!m.invitee_uri || !m.event_uri || !m.email || !m.scheduled_start || !m.scheduled_end || !m.event_type_name) {
+    throw new Error(`Rendez-vous manuel incomplet : ${m.invitee_uri ?? "?"}`);
+  }
+  if (m.invitee_uri.startsWith("https://api.calendly.com/")) throw new Error(`Un rendez-vous manuel ne prend pas d'URI Calendly : ${m.invitee_uri}`);
 }
 
 // ------------------------------- Supabase ----------------------------------
@@ -178,22 +195,22 @@ JETON = await secret(org.id, "token");
 const SEL = await secret(org.id, "salt");
 if (!JETON || !SEL) throw new Error("Jeton Calendly ou sel introuvable dans le Vault.");
 
-const canaux = (await base("GET", `radar_channels?organization_id=eq.${org.id}&select=id,key,label,is_comete,rules,sort_order,is_active`)).map(
-  (c) => ({ ...c, rules: c.rules ?? {} }),
-);
+const canaux = (
+  await base("GET", `radar_channels?organization_id=eq.${org.id}&select=id,key,label,is_comete,rules,sort_order,is_active`)
+).map((c) => ({ ...c, rules: c.rules ?? {} }));
 const libelleCanal = Object.fromEntries(canaux.map((c) => [c.id, c.label]));
 const filtres = await base("GET", `radar_event_filters?organization_id=eq.${org.id}&select=id,event_type_uri,event_type_name,tracked`);
 const filtreParUri = new Map(filtres.map((f) => [f.event_type_uri, f]));
 
 const existantes = await toutLire(
-  `radar_bookings?organization_id=eq.${org.id}&select=id,invitee_uri,invitee_key,channel_id,attribution,scheduled_start,status,sale_amount_cents,status_note&order=id.asc`,
+  `radar_bookings?organization_id=eq.${org.id}&select=id,invitee_uri,invitee_key,channel_id,attribution,scheduled_start,status,sale_amount_cents,utm&order=id.asc`,
 );
 const parInvite = new Map(existantes.map((b) => [b.invitee_uri, b]));
-const refus = new Set(
-  (await toutLire(`radar_booking_activities?organization_id=eq.${org.id}&type=eq.sale.declined&select=booking_id&order=id.asc`)).map(
-    (a) => a.booking_id,
-  ),
+const activites = await toutLire(
+  `radar_booking_activities?organization_id=eq.${org.id}&type=in.(sale.declined,booking.imported)&select=booking_id,type&order=id.asc`,
 );
+const refus = new Set(activites.filter((a) => a.type === "sale.declined").map((a) => a.booking_id));
+const reprises = new Set(activites.filter((a) => a.type === "booking.imported").map((a) => a.booking_id));
 
 // ------------------------------- Décisions ---------------------------------
 
@@ -206,6 +223,25 @@ const typesAjoutes = new Map();
 
 const jourParis = (instant) => new Date(instant).toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
 const aujourdhui = jourParis(new Date());
+const RIEN = ["inconnue", "hors_import"];
+
+/** Les `utm` posés par le site sur ses propres liens ne disent rien de l'origine. */
+const utmDuSite = (utm) => Object.keys(utm).length === 0 || utm.utm_source === "site";
+const utmAGarder = (utmCalendly, e) =>
+  e?.utm && Object.keys(e.utm).length > 0 && utmDuSite(utmCalendly) ? utmRetenus(e.utm) : utmCalendly;
+
+/** Ce qu'une ligne déjà dans Radar peut encore recevoir du fichier. */
+function completer(deja, e) {
+  if (!e) return null;
+  const gestes = [];
+  if (reprises.has(deja.id) && e.utm && Object.keys(e.utm).length > 0 && utmDuSite(deja.utm ?? {})) gestes.push("utm");
+  if (deja.status !== "annule" && deja.sale_amount_cents == null) {
+    if (e.issue === "vendue") gestes.push("vente");
+    else if (e.issue === "absente" && deja.status !== "no_show") gestes.push("absente");
+    else if (["venue_sans_vente", "venue_non_confirmee"].includes(e.issue) && !refus.has(deja.id)) gestes.push("pas_de_vente");
+  }
+  return gestes.length ? gestes : null;
+}
 
 for (const ev of await evenements(reglages.calendly_user_uri)) {
   const typeUri = ev.event_type ?? null;
@@ -216,51 +252,91 @@ for (const ev of await evenements(reglages.calendly_user_uri)) {
     if (typeUri) typesAjoutes.set(typeUri, ev.name.slice(0, 200));
   }
 
-  const issue = issues[ev.uri]?.issue ?? "inconnue";
+  const e = issues[ev.uri];
+  const issue = e?.issue ?? "inconnue";
   const invites = (await calendly(`${ev.uri}/invitees?count=100`)).collection;
 
   for (const invite of invites) {
     const deja = parInvite.get(invite.uri);
-    const annuleCalendly = invite.status === "canceled";
-
     if (deja) {
-      // Déjà dans Radar : seulement ce qui lui manque.
-      if (deja.status === "annule") { noter("déjà dans Radar, annulé"); continue; }
-      const e = issues[ev.uri];
-      if (!e || ["inconnue", "annule", "hors_import"].includes(e.issue)) { noter("déjà dans Radar, rien à ajouter"); continue; }
-      if (e.issue === "vendue" && deja.sale_amount_cents == null) aCompleter.push({ booking: deja, geste: "vente", e });
-      else if (e.issue === "absente" && deja.status !== "no_show" && deja.sale_amount_cents == null) aCompleter.push({ booking: deja, geste: "absente", e });
-      else if (["venue_sans_vente", "venue_non_confirmee"].includes(e.issue) && deja.sale_amount_cents == null && !refus.has(deja.id))
-        aCompleter.push({ booking: deja, geste: "pas_de_vente", e });
-      else { noter("déjà dans Radar, rien à ajouter"); continue; }
-      noter(`déjà dans Radar, complété : ${aCompleter.at(-1).geste}`);
+      const gestes = completer(deja, e);
+      if (!gestes) { noter("déjà dans Radar, rien à ajouter"); continue; }
+      aCompleter.push({ booking: deja, gestes, e });
+      for (const g of gestes) noter(`déjà dans Radar, complété : ${g}`);
       continue;
     }
 
+    const annuleCalendly = invite.status === "canceled";
     const aVenir = Date.parse(ev.start_time) > Date.now();
-    if (!annuleCalendly && aVenir && issue === "inconnue") {
-      // Réservé avant le branchement de Radar, pour une date qui n'est pas
-      // encore passée : rien à présumer, la ligne entre comme au webhook.
-      aCreer.push({ ev, invite, issue: "a_venir", e: issues[ev.uri] });
-      continue;
+    let decision = issue;
+    if (annuleCalendly) decision = "annule";
+    else if (RIEN.includes(issue)) {
+      if (aVenir && issue === "inconnue") decision = "a_venir";
+      else { noter(`passé sans issue (${issue}), laissé dehors`); sansIssue.push(ev.start_time); continue; }
     }
-    if (!annuleCalendly && ["inconnue", "annule", "hors_import"].includes(issue)) {
-      noter(`actif sans issue exploitable (${issue}), laissé dehors`);
-      sansIssue.push(ev.start_time);
-      continue;
-    }
-    if (annuleCalendly && issue === "vendue") {
-      noter("annulé dans Calendly mais vendu selon le fichier : laissé dehors, à regarder");
-      continue;
-    }
+    if (annuleCalendly && issue === "vendue") { noter("annulé dans Calendly mais vendu selon le fichier : laissé dehors, à regarder"); continue; }
     if (!invite.email) { noter("invité sans email, laissé dehors"); continue; }
-    aCreer.push({ ev, invite, issue: annuleCalendly ? "annule" : issue, e: issues[ev.uri] });
+
+    aCreer.push({
+      invitee_uri: invite.uri,
+      event_uri: ev.uri,
+      email: invite.email,
+      identite: nomInvite(invite),
+      debut: ev.start_time,
+      fin: ev.end_time,
+      reserve_le: invite.created_at,
+      type_nom: ev.name,
+      type_uri: typeUri,
+      utm: utmAGarder(utmRetenus(invite.tracking), e),
+      declared_source: reponseDeclaree(invite.questions_and_answers ?? []),
+      ancien_uri: invite.old_invitee ?? null,
+      annule_calendly: annuleCalendly,
+      reprogramme: invite.rescheduled,
+      annule_le: annuleCalendly ? (invite.cancellation?.created_at ?? invite.updated_at) : null,
+      decision,
+      e,
+      origine: "calendly",
+    });
   }
+}
+
+for (const m of manuels) {
+  const deja = parInvite.get(m.invitee_uri);
+  if (deja) {
+    const gestes = completer(deja, m);
+    if (!gestes) { noter("manuel déjà dans Radar, rien à ajouter"); continue; }
+    aCompleter.push({ booking: deja, gestes, e: m });
+    for (const g of gestes) noter(`manuel déjà dans Radar, complété : ${g}`);
+    continue;
+  }
+  if (m.issue === "hors_import") { noter("manuel hors import"); continue; }
+  const aVenir = Date.parse(m.scheduled_start) > Date.now();
+  if (m.issue === "inconnue" && !aVenir) { noter("manuel passé sans issue, laissé dehors"); sansIssue.push(m.scheduled_start); continue; }
+  aCreer.push({
+    invitee_uri: m.invitee_uri,
+    event_uri: m.event_uri,
+    email: m.email,
+    identite: nomInvite({ first_name: m.prenom, last_name: m.nom }),
+    debut: m.scheduled_start,
+    fin: m.scheduled_end,
+    reserve_le: m.scheduled_start,
+    type_nom: m.event_type_name,
+    type_uri: null,
+    utm: m.utm ? utmRetenus(m.utm) : {},
+    declared_source: null,
+    ancien_uri: null,
+    annule_calendly: false,
+    reprogramme: false,
+    annule_le: null,
+    decision: m.issue === "inconnue" ? "a_venir" : m.issue,
+    e: m,
+    origine: "hors Calendly",
+  });
 }
 
 // Dans l'ordre des réservations : une séance reprogrammée est réservée après
 // celle qu'elle remplace, même quand elle a lieu avant.
-aCreer.sort((a, b) => Date.parse(a.invite.created_at) - Date.parse(b.invite.created_at));
+aCreer.sort((a, b) => Date.parse(a.reserve_le) - Date.parse(b.reserve_le));
 
 const historique = new Map();
 for (const b of existantes) {
@@ -268,80 +344,71 @@ for (const b of existantes) {
   historique.get(b.invitee_key).push(b);
 }
 
+const NOTES = {
+  venue_non_confirmee: `Présence non confirmée : « pas signé » au point du ${REPRISE}`,
+  issue_inconnue: "Issue inconnue : jamais notée par le client",
+};
+
 const lignes = [];
 for (const item of aCreer) {
-  const { ev, invite, issue, e } = item;
-  const cle = cleInvite(SEL, invite.email);
-  const utm = utmRetenus(invite.tracking);
-  const ancien = invite.old_invitee ? parInvite.get(invite.old_invitee) : null;
-  // Une séance reprogrammée n'est pas une nouvelle acquisition : elle garde le
-  // canal de celle qu'elle remplace, comme dans le webhook.
-  const heritage = invite.old_invitee && ancien ? ancien : null;
+  const { e, decision } = item;
+  const cle = cleInvite(SEL, item.email);
+  const ancien = item.ancien_uri ? parInvite.get(item.ancien_uri) : null;
+  const heritage = ancien ?? null;
 
-  /*
-   * Le canal. Calendly ne garde, pour ces réservations, que les `utm` posés par
-   * le site sur ses propres liens (`utm_source=site`) : ils disent d'où la
-   * personne a cliqué, pas d'où elle venait. Quand le fichier connaît le canal
-   * du premier contact, c'est lui qui compte, en `manuel` avec sa note ; sinon
-   * l'attribution habituelle, sans les `utm` du site.
-   */
   const canalConnu = e?.canal ? canaux.find((c) => c.key === e.canal && c.is_active) : null;
-  const utmCampagne = utm.utm_source === "site" ? {} : utm;
   const verdict = heritage
     ? { channel_id: heritage.channel_id, attribution: heritage.attribution, source: heritage.id ?? null }
     : canalConnu
       ? { channel_id: canalConnu.id, attribution: "manuel", source: null }
       : attribuer({
-          utm: utmCampagne,
-          scheduledStart: ev.start_time,
+          utm: utmDuSite(item.utm) ? {} : item.utm,
+          scheduledStart: item.debut,
           channels: canaux,
-          previous: precedent(historique.get(cle) ?? [], ev.start_time),
+          previous: precedent(historique.get(cle) ?? [], item.debut),
           windowDays: reglages.window_days,
         });
 
-  const { prenom, nom } = nomInvite(invite);
-  const statut = issue === "annule" ? "annule" : issue === "absente" ? "no_show" : "confirme";
+  const statut = decision === "annule" ? "annule" : decision === "absente" ? "no_show" : "confirme";
 
   let vente = null;
-  if (issue === "vendue") {
-    const d = e.date_vente < jourParis(ev.start_time) ? jourParis(ev.start_time) : e.date_vente;
-    if (d > aujourdhui) { noter("vente datée dans le futur : ligne reprise sans la vente"); }
-    else if (moisClotures.has(d.slice(0, 7))) { noter("vente dans un mois clôturé : ligne reprise sans la vente"); }
+  if (decision === "vendue") {
+    const d = e.date_vente < jourParis(item.debut) ? jourParis(item.debut) : e.date_vente;
+    if (d > aujourdhui) noter("vente datée dans le futur : ligne reprise sans la vente");
+    else if (moisClotures.has(d.slice(0, 7))) noter("vente dans un mois clôturé : ligne reprise sans la vente");
     else {
       if (d !== e.date_vente) noter("date de vente antérieure au rendez-vous, ramenée au jour du rendez-vous");
       vente = { montant: e.montant_cents, date: d, offre: e.offre ? String(e.offre).slice(0, 200) : null };
     }
   }
 
+  let note = e?.note ?? NOTES[decision] ?? null;
+  if (statut === "annule") {
+    note = item.annule_calendly ? motifAnnulation(item.reprogramme) : "Annulé ou reprogrammé hors Calendly, selon le client";
+  }
+
   const ligne = {
     organization_id: org.id,
-    invitee_uri: invite.uri,
-    event_uri: ev.uri,
+    invitee_uri: item.invitee_uri,
+    event_uri: item.event_uri,
     invitee_key: cle,
-    invitee_first_name: prenom,
-    invitee_last_name: nom,
-    scheduled_start: ev.start_time,
-    scheduled_end: ev.end_time,
-    event_type_name: ev.name,
-    event_type_uri: ev.event_type ?? null,
-    utm,
-    declared_source: reponseDeclaree(invite.questions_and_answers ?? []),
+    invitee_first_name: item.identite.prenom,
+    invitee_last_name: item.identite.nom,
+    scheduled_start: item.debut,
+    scheduled_end: item.fin,
+    event_type_name: item.type_nom,
+    event_type_uri: item.type_uri,
+    utm: item.utm,
+    declared_source: item.declared_source,
     channel_id: verdict.channel_id,
     attribution: verdict.attribution,
     attribution_note:
-      verdict.attribution === "manuel" && !heritage
-        ? `Canal du premier contact enregistré par le site (reprise du ${fichier.etabli_le ?? "fichier d'issues"})`
-        : null,
+      verdict.attribution === "manuel" && !heritage ? `Canal du premier contact enregistré par le site (reprise du ${REPRISE})` : null,
     attribution_source_id: verdict.source,
     status: statut,
-    status_origin: statut === "confirme" ? "calendly" : statut === "annule" ? "calendly" : "admin",
-    status_note:
-      statut === "annule"
-        ? motifAnnulation(invite.rescheduled)
-        : issue === "venue_non_confirmee"
-          ? "Présence non confirmée : « pas signé » au point du 14/09/2026"
-          : null,
-    canceled_at: statut === "annule" ? (invite.cancellation?.created_at ?? invite.updated_at) : null,
+    status_origin: statut === "no_show" || (statut === "annule" && !item.annule_calendly) ? "admin" : "calendly",
+    status_note: note,
+    canceled_at: statut === "annule" ? item.annule_le : null,
     amount_cents: 0,
     currency: reglages.currency,
     payment_ok: false,
@@ -354,18 +421,27 @@ for (const item of aCreer) {
   };
 
   // Pour les suivantes du lot : cette ligne existe désormais.
-  const reference = { id: null, invitee_uri: invite.uri, channel_id: verdict.channel_id, attribution: verdict.attribution, scheduled_start: ev.start_time, status: statut };
-  parInvite.set(invite.uri, reference);
+  const reference = {
+    id: null,
+    invitee_uri: item.invitee_uri,
+    channel_id: verdict.channel_id,
+    attribution: verdict.attribution,
+    scheduled_start: item.debut,
+    status: statut,
+  };
+  parInvite.set(item.invitee_uri, reference);
   if (!historique.has(cle)) historique.set(cle, []);
   historique.get(cle).push(reference);
 
-  lignes.push({ ligne, issue, vente, reference, ancienUri: heritage ? invite.old_invitee : null });
-  noter(`à reprendre : ${issue}`);
+  lignes.push({ ligne, decision, vente, reference, ancienUri: heritage ? item.ancien_uri : null, origine: item.origine });
+  noter(`à reprendre (${item.origine}) : ${decision}`);
 }
 
 // ------------------------------ Compte-rendu -------------------------------
 
-const somme = lignes.reduce((s, l) => s + (l.vente?.montant ?? 0), 0) + aCompleter.filter((c) => c.geste === "vente").reduce((s, c) => s + c.e.montant_cents, 0);
+const ventesCompletees = aCompleter.filter((c) => c.gestes.includes("vente"));
+const somme =
+  lignes.reduce((s, l) => s + (l.vente?.montant ?? 0), 0) + ventesCompletees.reduce((s, c) => s + c.e.montant_cents, 0);
 const parCanal = {};
 for (const { ligne } of lignes) {
   const cle = `${libelleCanal[ligne.channel_id] ?? "sans canal"} (${ligne.attribution})`;
@@ -375,9 +451,11 @@ for (const { ligne } of lignes) {
 console.log(`\n${org.name} — du ${DEPUIS} au ${JUSQUA} — ${ECRIRE ? "ÉCRITURE" : "essai à blanc, rien n'est écrit"}\n`);
 for (const [cle, n] of Object.entries(compte).sort()) console.log(`  ${String(n).padStart(4)}  ${cle}`);
 console.log(`\n  Lignes à créer : ${lignes.length}, à compléter : ${aCompleter.length}`);
-console.log(`  Ventes posées : ${lignes.filter((l) => l.vente).length + aCompleter.filter((c) => c.geste === "vente").length}, ${(somme / 100).toLocaleString("fr-FR")} €`);
-console.log("  Canaux des lignes créées :");
-for (const [cle, n] of Object.entries(parCanal).sort((a, b) => b[1] - a[1])) console.log(`    ${String(n).padStart(4)}  ${cle}`);
+console.log(`  Ventes posées : ${lignes.filter((l) => l.vente).length + ventesCompletees.length}, ${(somme / 100).toLocaleString("fr-FR")} €`);
+if (lignes.length) {
+  console.log("  Canaux des lignes créées :");
+  for (const [cle, n] of Object.entries(parCanal).sort((a, b) => b[1] - a[1])) console.log(`    ${String(n).padStart(4)}  ${cle}`);
+}
 if (typesAjoutes.size) console.log(`  Types de séance ajoutés aux suivis : ${[...typesAjoutes.values()].join(" ; ")}`);
 if (sansIssue.length) console.log(`  Passés sans issue connue, laissés dehors (dates) : ${sansIssue.map(jourParis).join(", ")}`);
 
@@ -390,6 +468,7 @@ if (!ECRIRE) {
 
 const activite = (booking_id, type, payload, user_id = admin.id) =>
   base("POST", "radar_booking_activities", { booking_id, organization_id: org.id, user_id, type, payload }, "return=minimal");
+const maintenant = () => new Date().toISOString();
 
 for (const [uri, nomType] of typesAjoutes) {
   await base(
@@ -409,49 +488,70 @@ for (const l of lignes) {
   }
   if (l.ligne.attribution === "recurrence" && !l.ligne.attribution_source_id) {
     // La source était une ligne du même lot : on la retrouve maintenant qu'elle a un id.
-    const precedente = precedent(historique.get(l.ligne.invitee_key).filter((b) => b.id), l.ligne.scheduled_start);
-    l.ligne.attribution_source_id = precedente?.id ?? null;
+    const source = precedent(historique.get(l.ligne.invitee_key).filter((b) => b.id), l.ligne.scheduled_start);
+    l.ligne.attribution_source_id = source?.id ?? null;
   }
   const [cree] = await base("POST", "radar_bookings", l.ligne);
   l.reference.id = cree.id;
   crees++;
 
-  await activite(cree.id, "booking.imported", {
-    attribution: l.ligne.attribution,
-    utm: l.ligne.utm,
-    reprise: fichier.etabli_le ?? null,
-    ...(l.ligne.rescheduled_from ? { rescheduled_from: l.ligne.rescheduled_from } : {}),
-  }, null);
+  await activite(
+    cree.id,
+    "booking.imported",
+    {
+      origine: l.origine,
+      attribution: l.ligne.attribution,
+      utm: l.ligne.utm,
+      reprise: REPRISE,
+      ...(l.ligne.rescheduled_from ? { rescheduled_from: l.ligne.rescheduled_from } : {}),
+    },
+    null,
+  );
   if (l.ligne.status === "no_show") await activite(cree.id, "status.changed", { from: "confirme", to: "no_show", reprise: true });
   if (l.vente) {
-    await activite(cree.id, "sale.recorded", { montant_cents: l.vente.montant, date: l.vente.date, note_presente: Boolean(l.vente.offre), montant_precedent: null, date_precedente: null });
-  } else if (["venue_sans_vente", "venue_non_confirmee"].includes(l.issue)) {
+    await activite(cree.id, "sale.recorded", {
+      montant_cents: l.vente.montant,
+      date: l.vente.date,
+      note_presente: Boolean(l.vente.offre),
+      montant_precedent: null,
+      date_precedente: null,
+    });
+  } else if (["venue_sans_vente", "venue_non_confirmee"].includes(l.decision)) {
     await activite(cree.id, "sale.declined", {});
   }
 }
 
 let completes = 0;
-for (const { booking, geste, e } of aCompleter) {
-  if (geste === "vente") {
-    const d = e.date_vente < jourParis(booking.scheduled_start) ? jourParis(booking.scheduled_start) : e.date_vente;
-    if (d > aujourdhui || moisClotures.has(d.slice(0, 7))) continue;
-    await base("PATCH", `radar_bookings?id=eq.${booking.id}`, {
-      sale_amount_cents: e.montant_cents,
-      sale_date: d,
-      sale_note: e.offre ? String(e.offre).slice(0, 200) : null,
-      sale_recorded_by: admin.id,
-      sale_recorded_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, "return=minimal");
-    await activite(booking.id, "sale.recorded", { montant_cents: e.montant_cents, date: d, note_presente: Boolean(e.offre), montant_precedent: null, date_precedente: null });
-  } else if (geste === "absente") {
-    await base("PATCH", `radar_bookings?id=eq.${booking.id}`, { status: "no_show", status_origin: "admin", updated_at: new Date().toISOString() }, "return=minimal");
-    await activite(booking.id, "status.changed", { from: booking.status, to: "no_show", reprise: true });
-  } else {
-    if (e.issue === "venue_non_confirmee") {
-      await base("PATCH", `radar_bookings?id=eq.${booking.id}`, { status_note: "Présence non confirmée : « pas signé » au point du 14/09/2026", updated_at: new Date().toISOString() }, "return=minimal");
+for (const { booking, gestes, e } of aCompleter) {
+  for (const geste of gestes) {
+    if (geste === "utm") {
+      await base("PATCH", `radar_bookings?id=eq.${booking.id}`, { utm: utmRetenus(e.utm), updated_at: maintenant() }, "return=minimal");
+    } else if (geste === "vente") {
+      const d = e.date_vente < jourParis(booking.scheduled_start) ? jourParis(booking.scheduled_start) : e.date_vente;
+      if (d > aujourdhui || moisClotures.has(d.slice(0, 7))) continue;
+      await base(
+        "PATCH",
+        `radar_bookings?id=eq.${booking.id}`,
+        {
+          sale_amount_cents: e.montant_cents,
+          sale_date: d,
+          sale_note: e.offre ? String(e.offre).slice(0, 200) : null,
+          sale_recorded_by: admin.id,
+          sale_recorded_at: maintenant(),
+          updated_at: maintenant(),
+        },
+        "return=minimal",
+      );
+      await activite(booking.id, "sale.recorded", { montant_cents: e.montant_cents, date: d, note_presente: Boolean(e.offre), montant_precedent: null, date_precedente: null });
+    } else if (geste === "absente") {
+      await base("PATCH", `radar_bookings?id=eq.${booking.id}`, { status: "no_show", status_origin: "admin", updated_at: maintenant() }, "return=minimal");
+      await activite(booking.id, "status.changed", { from: booking.status, to: "no_show", reprise: true });
+    } else if (geste === "pas_de_vente") {
+      if (e.issue === "venue_non_confirmee") {
+        await base("PATCH", `radar_bookings?id=eq.${booking.id}`, { status_note: NOTES.venue_non_confirmee, updated_at: maintenant() }, "return=minimal");
+      }
+      await activite(booking.id, "sale.declined", {});
     }
-    await activite(booking.id, "sale.declined", {});
   }
   completes++;
 }
