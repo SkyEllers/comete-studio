@@ -1,6 +1,6 @@
 /**
- * Banc de QA — Pulsar : isolation, chronomètre unique, quarts d'heure, et
- * l'histoire qu'on ne réécrit pas.
+ * Banc de QA — Pulsar : isolation, chronomètres en parallèle, quarts d'heure,
+ * et l'histoire qu'on ne réécrit pas.
  *
  * Pulsar est un carnet personnel : qui y accède lit, écrit, corrige et efface
  * sans limite de temps. Presque tout repose donc sur une seule fonction,
@@ -11,8 +11,13 @@
  *    n'efface rien chez A — ni les clients, ni les entrées, ni les seuils.
  * 2. Outil coupé pour A : son propre carnet disparaît à ses yeux, y compris
  *    par l'API. Rallumé, il revient entier.
- * 3. Un seul chronomètre en marche par personne : l'index le refuse.
- * 4. Les durées sont des quarts d'heure, au minimum quinze minutes.
+ * 3. Plusieurs chronomètres en marche, quatre au plus par personne dans un
+ *    espace : le cinquième est refusé, même lancé au même instant qu'un autre,
+ *    et même en remettant en marche une entrée terminée. Corriger le début
+ *    d'un chronomètre, ou l'arrêter à la durée choisie, ne se heurte pas au
+ *    plafond.
+ * 4. Les durées sont des quarts d'heure, au minimum quinze minutes ; une
+ *    entrée d'un autre jour se corrige en début, fin et durée.
  * 5. On ne supprime pas un client dont on a compté les heures — et supprimer
  *    l'organisation entière, elle, reste possible. C'est le cas que `restrict`
  *    aurait cassé, et la raison du `no action` de la migration.
@@ -48,6 +53,18 @@ const mailB = `zz-qa-pulsar-b-${marque}@comete-qa.test`;
 /** Une heure passée, pour les entrées déjà terminées : elles ne courent pas. */
 const hier = (heures) =>
   new Date(Date.now() - heures * 3600 * 1000).toISOString();
+
+/**
+ * Les entrées que A a réussi à écrire. Les sections suivantes comptent ce qui
+ * reste chez A : on compare à ce registre plutôt qu'à un nombre écrit en dur,
+ * qui deviendrait faux au premier chronomètre ajouté au banc.
+ */
+const heuresDeA = new Set();
+const noter = (reponse) => {
+  const id = reponse.status < 300 ? reponse.data?.[0]?.id : null;
+  if (id) heuresDeA.add(id);
+  return id;
+};
 
 try {
   // ------------------------------- Décor -----------------------------------
@@ -216,54 +233,193 @@ try {
     demarrage.status < 300 && demarrage.data?.[0]?.ended_at === null,
     `statut ${demarrage.status}, ${JSON.stringify(demarrage.data)}`,
   );
-  const enCoursId = demarrage.data?.[0]?.id;
+  const enCoursId = noter(demarrage);
 
-  // ----------------------- 2. Un seul chronomètre ---------------------------
+  // --------------------- 2. Plusieurs chronomètres --------------------------
 
-  console.log("\n== 2. Un seul chronomètre en marche ==");
+  console.log("\n== 2. Plusieurs chronomètres, quatre au plus ==");
 
-  const second = await jetonA("POST", "pulsar_entries?select=id", {
-    organization_id: orgs.a.id,
-    client_id: interneA.id,
+  /** Un chronomètre de plus pour A, lancé maintenant. */
+  const lancerA = (task = "admin", client = interneA.id, phase = "interne") =>
+    jetonA("POST", "pulsar_entries?select=id,ended_at", {
+      organization_id: orgs.a.id,
+      client_id: client,
+      task,
+      phase,
+      started_at: new Date().toISOString(),
+      created_by: comptes.a,
+    });
+
+  /** Ce qui tourne chez A, vu par la clé de service : la vérité, pas l'écran. */
+  const enMarcheChezA = async () =>
+    (
+      await srv(
+        "GET",
+        `pulsar_entries?select=id&organization_id=eq.${orgs.a.id}&created_by=eq.${comptes.a}&ended_at=is.null`,
+      )
+    ).data;
+
+  const arreterA = (id, minutes = 15) =>
+    jetonA("PATCH", `pulsar_entries?id=eq.${id}&select=id,duration_minutes`, {
+      ended_at: new Date().toISOString(),
+      duration_minutes: minutes,
+    });
+
+  /*
+   * Le même client, la même tâche, le même instant : deux chronomètres sur le
+   * même créneau sont un choix. La base ne compare pas les créneaux, et ce
+   * banc vérifie qu'elle ne s'y met pas.
+   */
+  const second = await lancerA("emails", peggyId, "setup");
+  verifie(
+    "un second chronomètre en marche est accepté, même client et même tâche",
+    second.status < 300 && second.data?.[0]?.ended_at === null,
+    `statut ${second.status}, ${JSON.stringify(second.data)?.slice(0, 160)}`,
+  );
+  noter(second);
+
+  const troisieme = await lancerA("admin");
+  const quatrieme = await lancerA("prospection");
+  verifie(
+    "un troisième et un quatrième aussi",
+    troisieme.status < 300 && quatrieme.status < 300,
+    `statuts ${troisieme.status}, ${quatrieme.status}`,
+  );
+  const troisiemeId = noter(troisieme);
+  noter(quatrieme);
+
+  const cinquieme = await lancerA("site", peggyId, "setup");
+  verifie(
+    "le cinquième est refusé",
+    cinquieme.status >= 400,
+    `statut ${cinquieme.status}, ${JSON.stringify(cinquieme.data)?.slice(0, 160)}`,
+  );
+  noter(cinquieme);
+  verifie(
+    "et le refus dit quoi faire, en français",
+    typeof cinquieme.data?.message === "string" &&
+      cinquieme.data.message.includes("Arrête-en un d'abord"),
+    JSON.stringify(cinquieme.data?.message),
+  );
+
+  const quatreEnMarche = await enMarcheChezA();
+  verifie(
+    "après le refus, quatre tournent, pas un de plus",
+    quatreEnMarche.length === 4,
+    `${quatreEnMarche.length} en marche`,
+  );
+
+  const chezB = await jetonB("POST", "pulsar_entries?select=id", {
+    organization_id: orgs.b.id,
+    client_id: interneB.id,
     task: "admin",
     phase: "interne",
     started_at: new Date().toISOString(),
-    created_by: comptes.a,
+    created_by: comptes.b,
   });
   verifie(
-    "un second chronomètre en marche est refusé",
-    second.status >= 400,
-    `statut ${second.status}, ${JSON.stringify(second.data)?.slice(0, 160)}`,
+    "les quatre de A ne pèsent rien sur B",
+    chezB.status < 300,
+    `statut ${chezB.status}, ${JSON.stringify(chezB.data)?.slice(0, 160)}`,
   );
+  if (chezB.data?.[0]?.id) {
+    await jetonB("PATCH", `pulsar_entries?id=eq.${chezB.data[0].id}`, {
+      ended_at: new Date().toISOString(),
+      duration_minutes: 15,
+    });
+  }
 
-  const arret = await jetonA(
+  /*
+   * Corriger un chronomètre quand quatre tournent : reculer son début ne
+   * touche pas `ended_at`, le trigger ne se déclenche pas, et c'est voulu —
+   * « en vrai j'ai commencé à 14 h » ne doit jamais buter sur le plafond.
+   */
+  const recale = await jetonA(
     "PATCH",
-    `pulsar_entries?id=eq.${enCoursId}&select=id,duration_minutes`,
-    { ended_at: new Date().toISOString(), duration_minutes: 15 },
+    `pulsar_entries?id=eq.${troisiemeId}&select=id,started_at,ended_at`,
+    { started_at: hier(3), note: "Parti plus tôt qu'annoncé" },
   );
   verifie(
-    "A arrête le sien, arrondi au quart d'heure",
-    arret.status < 300 && arret.data?.[0]?.duration_minutes === 15,
+    "à quatre, le début d'un chronomètre se corrige et il continue de tourner",
+    recale.status < 300 &&
+      recale.data?.[0]?.ended_at === null &&
+      Date.parse(recale.data?.[0]?.started_at) < Date.now() - 2.5 * 3600 * 1000,
+    `statut ${recale.status}, ${JSON.stringify(recale.data)?.slice(0, 200)}`,
+  );
+
+  /*
+   * Oublié sur pause : trois heures au compteur, quarante-cinq minutes de
+   * travail. Il s'arrête à la durée choisie — sa fin, c'est son début plus
+   * ce qu'on a choisi — et la ligne reste la même : rien à supprimer, rien à
+   * ressaisir.
+   */
+  const debutOubli = Date.parse(recale.data?.[0]?.started_at ?? hier(3));
+  const coupe = await jetonA(
+    "PATCH",
+    `pulsar_entries?id=eq.${troisiemeId}&select=id,started_at,ended_at,duration_minutes`,
+    {
+      ended_at: new Date(debutOubli + 45 * 60 * 1000).toISOString(),
+      duration_minutes: 45,
+    },
+  );
+  verifie(
+    "un chronomètre oublié s'arrête à la durée choisie, sans être supprimé",
+    coupe.status < 300 &&
+      coupe.data?.[0]?.id === troisiemeId &&
+      coupe.data?.[0]?.duration_minutes === 45 &&
+      Date.parse(coupe.data?.[0]?.ended_at) - Date.parse(coupe.data?.[0]?.started_at) ===
+        45 * 60 * 1000,
+    `statut ${coupe.status}, ${JSON.stringify(coupe.data)?.slice(0, 200)}`,
+  );
+
+  const relance = await lancerA("seo", peggyId, "setup");
+  const quatreDeNouveau = noter(relance);
+  const remiseEnMarche = await jetonA(
+    "PATCH",
+    `pulsar_entries?id=eq.${troisiemeId}&select=id`,
+    { ended_at: null, duration_minutes: null },
+  );
+  verifie(
+    "à quatre, une entrée terminée ne se remet pas en marche",
+    relance.status < 300 && remiseEnMarche.status >= 400,
+    `relance ${relance.status}, remise en marche ${remiseEnMarche.status}`,
+  );
+
+  /*
+   * Le téléphone et l'ordinateur au même instant, à trois chronomètres : le
+   * verrou de la migration fait attendre le second, qui compte alors quatre et
+   * s'arrête là. Sans lui, les deux compteraient trois et passeraient.
+   */
+  await arreterA(quatreDeNouveau);
+  const simultanes = await Promise.all([
+    lancerA("ads", peggyId, "setup"),
+    lancerA("tracking", peggyId, "setup"),
+  ]);
+  simultanes.forEach(noter);
+  const passes = simultanes.filter((reponse) => reponse.status < 300).length;
+  const apresSimultanes = await enMarcheChezA();
+  verifie(
+    "deux démarrages simultanés au quatrième n'en font pas cinq",
+    passes === 1 && apresSimultanes.length === 4,
+    `${passes} accepté(s), ${apresSimultanes.length} en marche — statuts ${simultanes.map((r) => r.status).join(", ")}`,
+  );
+
+  const arret = await arreterA(enCoursId);
+  verifie(
+    "A arrête l'un d'eux, arrondi au quart d'heure, et les autres tournent",
+    arret.status < 300 &&
+      arret.data?.[0]?.duration_minutes === 15 &&
+      (await enMarcheChezA()).length === 3,
     `statut ${arret.status}, ${JSON.stringify(arret.data)}`,
   );
 
-  const relance = await jetonA("POST", "pulsar_entries?select=id", {
-    organization_id: orgs.a.id,
-    client_id: interneA.id,
-    task: "prospection",
-    phase: "interne",
-    started_at: new Date().toISOString(),
-    created_by: comptes.a,
-  });
+  for (const { id } of await enMarcheChezA()) {
+    await arreterA(id, 30);
+  }
   verifie(
-    "le précédent arrêté, un nouveau chronomètre part",
-    relance.status < 300,
-    `statut ${relance.status}, ${JSON.stringify(relance.data)}`,
+    "tous arrêtés, plus rien ne tourne chez A",
+    (await enMarcheChezA()).length === 0,
   );
-  await jetonA("PATCH", `pulsar_entries?id=eq.${relance.data?.[0]?.id}`, {
-    ended_at: new Date().toISOString(),
-    duration_minutes: 30,
-  });
 
   // -------------------------- 3. Le quart d'heure ---------------------------
 
@@ -302,6 +458,7 @@ try {
     quinze.status < 300 && quinze.data?.[0]?.duration_minutes === 15,
     `statut ${quinze.status}, ${JSON.stringify(quinze.data)}`,
   );
+  noter(quinze);
 
   const quaranteCinq = await saisie(45);
   verifie(
@@ -309,7 +466,7 @@ try {
     quaranteCinq.status < 300,
     `statut ${quaranteCinq.status}`,
   );
-  const entreeManuelleId = quaranteCinq.data?.[0]?.id;
+  const entreeManuelleId = noter(quaranteCinq);
 
   const finieSansDuree = await jetonA("POST", "pulsar_entries?select=id", {
     organization_id: orgs.a.id,
@@ -348,17 +505,41 @@ try {
     `statut ${finAvantDebut.status}`,
   );
 
+  /*
+   * Ce que `corriger` écrit pour une entrée d'un autre jour : son début, sa fin
+   * et sa durée ensemble — et jamais sa phase.
+   */
+  const debutCorrige = hier(50);
+  const finCorrigee = hier(49);
   const correction = await jetonA(
     "PATCH",
-    `pulsar_entries?id=eq.${entreeManuelleId}&select=id,duration_minutes,phase`,
-    { duration_minutes: 60 },
+    `pulsar_entries?id=eq.${entreeManuelleId}&select=id,started_at,ended_at,duration_minutes,phase,is_manual`,
+    {
+      started_at: debutCorrige,
+      ended_at: finCorrigee,
+      duration_minutes: 60,
+      is_manual: false,
+    },
   );
   verifie(
-    "une entrée se corrige sans limite de temps, et garde sa phase d'origine",
+    "une entrée d'un autre jour se corrige en début, fin et durée, et garde sa phase",
     correction.status < 300 &&
+      Date.parse(correction.data?.[0]?.started_at) === Date.parse(debutCorrige) &&
+      Date.parse(correction.data?.[0]?.ended_at) === Date.parse(finCorrigee) &&
       correction.data?.[0]?.duration_minutes === 60 &&
       correction.data?.[0]?.phase === "setup",
     `statut ${correction.status}, ${JSON.stringify(correction.data)}`,
+  );
+
+  const correctionAvantDebut = await jetonA(
+    "PATCH",
+    `pulsar_entries?id=eq.${entreeManuelleId}&select=id`,
+    { ended_at: hier(51) },
+  );
+  verifie(
+    "une correction qui ferait finir l'entrée avant son début est refusée",
+    correctionAvantDebut.status >= 400,
+    `statut ${correctionAvantDebut.status}`,
   );
 
   const correctionBancale = await jetonA(
@@ -646,8 +827,8 @@ try {
     `pulsar_entries?select=id&organization_id=eq.${orgs.a.id}`,
   );
   verifie(
-    "après les tentatives de B, A a toujours ses quatre heures comptées",
-    resteA.data?.length === 4,
+    `après les tentatives de B, A a toujours ses ${heuresDeA.size} heures comptées`,
+    resteA.data?.length === heuresDeA.size,
     `${resteA.data?.length} entrée(s)`,
   );
 
@@ -731,7 +912,7 @@ try {
   const retourHeures = await jetonA("GET", "pulsar_entries?select=id");
   verifie(
     "outil rallumé, le carnet de A revient entier",
-    retourClients.data?.length === 2 && retourHeures.data?.length === 4,
+    retourClients.data?.length === 2 && retourHeures.data?.length === heuresDeA.size,
     `${retourClients.data?.length} client(s), ${retourHeures.data?.length} entrée(s)`,
   );
 } finally {
