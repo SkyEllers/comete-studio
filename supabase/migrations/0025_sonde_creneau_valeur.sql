@@ -1,0 +1,21 @@
+-- ===========================================================================
+-- 0025 — Sonde : le créneau choisi, première moitié
+--
+-- Sonde comptait deux événements, la page vue et le clic « réserver ». Entre ce
+-- clic et la réservation que Radar reçoit de Calendly, rien : chez Jonathan,
+-- seule GA4 suivait les étapes de la fenêtre Calendly, et GA4 ne voit que les
+-- visiteurs qui acceptent les cookies. Le 14/09/2026, trois personnes sur la
+-- landing dans GA4, une quinzaine dans Sonde.
+--
+-- Un troisième événement, donc : `creneau`, envoyé quand le visiteur choisit
+-- un créneau dans une fenêtre ou un agenda Calendly posé sur la page. Pas
+-- « calendrier affiché » : dans une fenêtre, il doublerait le clic ; dans un
+-- agenda intégré, il partirait au chargement de la page. Décidé par Louis le
+-- 15/09/2026.
+--
+-- Ce fichier ne fait qu'ajouter la valeur. Une valeur ajoutée à un type
+-- énuméré ne peut pas servir dans la transaction qui l'ajoute : l'agrégat qui
+-- la compte vit dans 0026.
+-- ===========================================================================
+
+alter type public.sonde_event_kind add value if not exists 'creneau';

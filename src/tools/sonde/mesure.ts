@@ -27,9 +27,19 @@ export type LigneJour = {
   pageviews: number;
   visitors: number;
   cta_clicks: number;
+  /** Les créneaux choisis dans Calendly. À zéro sur les jours d'avant 0026 (valeur par défaut de la colonne). */
+  slot_picks: number;
 };
 
-export type Compte = { visiteurs: number; pagesVues: number; clics: number };
+export type Compte = { visiteurs: number; pagesVues: number; clics: number; creneaux: number };
+
+/**
+ * Le premier jour où `sonde.js` envoie les créneaux choisis (jour de sa mise en
+ * ligne). Avant, un zéro ne veut pas dire que personne n'a choisi de créneau :
+ * il veut dire que personne ne comptait. L'écran s'en sert pour ne pas montrer
+ * ce zéro-là.
+ */
+export const CRENEAUX_DEPUIS = "2026-09-15";
 
 export type Mesure = Compte & {
   /** Un point par jour de la période, y compris les jours sans rien. */
@@ -189,7 +199,7 @@ export function depuisQuandRelire(
 /** Un événement brut, réduit à ce que le comptage demande. */
 export type EvenementBrut = {
   occurred_at: string;
-  kind: "pageview" | "cta";
+  kind: "pageview" | "cta" | "creneau";
   channel_id: string | null;
   channel_bucket: Seau;
   visitor_key: string;
@@ -218,13 +228,17 @@ export function agregerBruts(evenements: EvenementBrut[]): LigneJour[] {
         pageviews: 0,
         visitors: 0,
         cta_clicks: 0,
+        slot_picks: 0,
         cles: new Set(),
       };
       groupes.set(cle, ligne);
     }
 
+    // Chaque sorte nommée : un `else` ferait d'un créneau un clic, et le taux de
+    // clic grimperait sans que personne ait cliqué davantage.
     if (evenement.kind === "pageview") ligne.pageviews += 1;
-    else ligne.cta_clicks += 1;
+    else if (evenement.kind === "cta") ligne.cta_clicks += 1;
+    else if (evenement.kind === "creneau") ligne.slot_picks += 1;
     ligne.cles.add(evenement.visitor_key);
   }
 
@@ -236,12 +250,13 @@ export function agregerBruts(evenements: EvenementBrut[]): LigneJour[] {
 
 // ------------------------------- Le total -----------------------------------
 
-const vide = (): Compte => ({ visiteurs: 0, pagesVues: 0, clics: 0 });
+const vide = (): Compte => ({ visiteurs: 0, pagesVues: 0, clics: 0, creneaux: 0 });
 
 const ajouter = (compte: Compte, ligne: LigneJour): Compte => ({
   visiteurs: compte.visiteurs + ligne.visitors,
   pagesVues: compte.pagesVues + ligne.pageviews,
   clics: compte.clics + ligne.cta_clicks,
+  creneaux: compte.creneaux + ligne.slot_picks,
 });
 
 /**

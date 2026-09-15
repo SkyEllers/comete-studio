@@ -30,10 +30,14 @@ export const IDENTIFIANTS_DE_CLIC = ["gclid", "fbclid", "ttclid"] as const;
  * dire. Le contenu de `u`, lui, reste filtré plutôt que rejeté : les régies
  * ajoutent des paramètres sans prévenir, et perdre une visite parce que
  * quelqu'un a collé un `?ref=newsletter` serait absurde.
+ *
+ * Trois événements depuis le 15/09/2026 : la page vue, le clic « réserver », et
+ * le créneau choisi dans une fenêtre ou un agenda Calendly posé sur la page
+ * (migrations 0025 et 0026).
  */
 export const corpsSchema = z
   .object({
-    e: z.enum(["pageview", "cta"]),
+    e: z.enum(["pageview", "cta", "creneau"]),
     p: z.string().max(2048).optional(),
     r: z.string().max(255).nullish(),
     u: z.record(z.string(), z.unknown()).optional(),

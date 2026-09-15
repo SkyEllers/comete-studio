@@ -130,7 +130,7 @@ export async function getMesure(
 
   const { data: quotidien } = await supabase
     .from("sonde_daily")
-    .select("day, channel_id, channel_bucket, pageviews, visitors, cta_clicks")
+    .select("day, channel_id, channel_bucket, pageviews, visitors, cta_clicks, slot_picks")
     .eq("organization_id", organizationId)
     .gte("day", periode.debut)
     .lte("day", periode.fin);
@@ -214,8 +214,9 @@ export async function getDetails(
       if (!label) continue;
 
       const part = parts.get(label) ?? { label, visiteurs: 0, clics: 0 };
+      // Un créneau choisi n'est ni une vue ni un clic : il ne compte pas ici.
       if (ligne.kind === "pageview") part.visiteurs += 1;
-      else part.clics += 1;
+      else if (ligne.kind === "cta") part.clics += 1;
       parts.set(label, part);
     }
 

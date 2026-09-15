@@ -323,6 +323,8 @@ try {
     evenement(siteA, orgs.a, { occurred_at: ilYA(1), visitor_key: "cle-a-1" }),
     evenement(siteA, orgs.a, { occurred_at: ilYA(1), visitor_key: "cle-a-2" }),
     evenement(siteA, orgs.a, { occurred_at: ilYA(1), visitor_key: "cle-a-2", kind: "cta" }),
+    // Le créneau choisi, troisième événement depuis 0025 et 0026 (15/09/2026).
+    evenement(siteA, orgs.a, { occurred_at: ilYA(1), visitor_key: "cle-a-2", kind: "creneau" }),
   ]);
   await creer("sonde_events", [
     evenement(siteB, orgs.b, { occurred_at: ilYA(1), visitor_key: "cle-b-1" }),
@@ -331,7 +333,7 @@ try {
   const lectureA = await jetonA("GET", `sonde_events?select=id&site_id=eq.${siteA.id}`);
   verifie(
     "A lit ses propres événements",
-    lectureA.data?.length === 4,
+    lectureA.data?.length === 5,
     `${lectureA.data?.length} événement(s)`,
   );
 
@@ -376,12 +378,15 @@ try {
   const agregatA = (
     await srv(
       "GET",
-      `sonde_daily?select=pageviews,visitors,cta_clicks&site_id=eq.${siteA.id}&day=eq.${hier}`,
+      `sonde_daily?select=pageviews,visitors,cta_clicks,slot_picks&site_id=eq.${siteA.id}&day=eq.${hier}`,
     )
   ).data[0];
   verifie(
-    "trois pages vues, deux visiteurs, un clic",
-    agregatA?.pageviews === 3 && agregatA?.visitors === 2 && agregatA?.cta_clicks === 1,
+    "trois pages vues, deux visiteurs, un clic, un créneau",
+    agregatA?.pageviews === 3 &&
+      agregatA?.visitors === 2 &&
+      agregatA?.cta_clicks === 1 &&
+      agregatA?.slot_picks === 1,
     JSON.stringify(agregatA),
   );
 
@@ -659,6 +664,14 @@ try {
     "le même navigateur, le même jour, garde la même clé",
     cle1 === cle2,
     `${cle1?.slice(0, 12)} / ${cle2?.slice(0, 12)}`,
+  );
+
+  await envoyer(siteA.token, { e: "creneau" });
+  const creneau = await derniere();
+  verifie(
+    "un créneau choisi est accepté, et entre comme tel",
+    creneau?.kind === "creneau" && creneau?.visitor_key === cle1,
+    JSON.stringify(creneau?.kind),
   );
 
   await envoyer(siteA.token, { e: "pageview" }, { ip: IP_SECOND });

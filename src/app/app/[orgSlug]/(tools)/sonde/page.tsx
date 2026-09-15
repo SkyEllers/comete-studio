@@ -14,7 +14,15 @@ import { cn } from "@/lib/utils";
 import { Tuile } from "@/tools/resultats/tuiles";
 import { Balise } from "@/tools/sonde/balise";
 import { Graphique, Repartition } from "@/tools/sonde/graphique";
-import { compte, periodeDemandee, periodesAOffrir, taux } from "@/tools/sonde/mesure";
+import {
+  compte,
+  CRENEAUX_DEPUIS,
+  jourEnLettres,
+  periodeDemandee,
+  periodesAOffrir,
+  taux,
+  type Periode,
+} from "@/tools/sonde/mesure";
 import {
   getCanaux,
   getDetails,
@@ -142,8 +150,9 @@ async function Mesure({
         <Entonnoir
           visiteurs={mesure.visiteurs}
           clics={mesure.clics}
+          creneaux={mesure.creneaux}
           reservations={reservations}
-          periode={periode.libelle}
+          periode={periode}
         />
       ) : null}
 
@@ -239,34 +248,61 @@ function Puces({
 /**
  * L'entonnoir, quand Radar est là pour en donner la fin.
  *
- * Trois nombres et deux taux, écrits comme on les dirait : trois cents
- * visiteurs, quarante et un ont cliqué, neuf ont réservé.
+ * Quatre nombres, écrits comme on les dirait : trois cents visiteurs, quarante
+ * et un ont cliqué, quinze ont choisi un créneau, neuf ont réservé.
+ *
+ * Chaque taux dit à quoi il se rapporte, plutôt que « de l'étape d'avant » :
+ * les créneaux ne se comptent que dans une fenêtre ou un agenda posé sur la
+ * page, si bien qu'une réservation prise dans un nouvel onglet n'a pas de
+ * créneau devant elle. Les réservations restent donc rapportées aux clics, et
+ * le taux des créneaux ne s'affiche que s'il reste sous les clics — un agenda
+ * intégré fait choisir un créneau sans clic, et « 140 % des clics » ne se lit
+ * pas.
  */
 function Entonnoir({
   visiteurs,
   clics,
+  creneaux,
   reservations,
   periode,
 }: {
   visiteurs: number;
   clics: number;
+  creneaux: number;
   reservations: number;
-  periode: string;
+  periode: Periode;
 }) {
+  /* Une période entièrement antérieure au comptage des créneaux n'en montre pas :
+     son zéro dirait « personne », alors qu'il veut dire « on ne comptait pas ». */
+  const avecCreneaux = periode.fin >= CRENEAUX_DEPUIS;
+  const comptesDepuis = avecCreneaux && periode.debut < CRENEAUX_DEPUIS;
+
+  const part = (numerateur: number, denominateur: number, de: string) =>
+    denominateur > 0 ? `${taux(numerateur, denominateur)} ${de}` : null;
+
   const etapes = [
     { label: "Visiteurs", valeur: visiteurs, taux: null as string | null },
-    { label: "Clics « réserver »", valeur: clics, taux: taux(clics, visiteurs) },
-    { label: "Réservations", valeur: reservations, taux: taux(reservations, clics) },
+    { label: "Clics « réserver »", valeur: clics, taux: part(clics, visiteurs, "des visiteurs") },
+    ...(avecCreneaux
+      ? [
+          {
+            label: "Créneaux choisis",
+            valeur: creneaux,
+            taux: creneaux <= clics ? part(creneaux, clics, "des clics") : null,
+          },
+        ]
+      : []),
+    { label: "Réservations", valeur: reservations, taux: part(reservations, clics, "des clics") },
   ];
 
   return (
     <section className="border-line bg-surface-1 space-y-4 rounded-lg border p-5">
       <div className="flex items-center gap-2">
         <Activity aria-hidden="true" className="text-muted-foreground size-4" />
-        <h2 className="text-sm">De la visite à la séance, en {periode}</h2>
+        <h2 className="text-sm">De la visite à la séance, en {periode.libelle}</h2>
       </div>
 
-      <ol className="grid grid-cols-3 gap-3">
+      <ol className={cn("grid grid-cols-2 gap-3", avecCreneaux ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
         {etapes.map((etape) => (
           <li key={etape.label} className="space-y-1">
             <p className="font-display text-2xl font-semibold tabular-nums">
@@ -274,15 +310,18 @@ function Entonnoir({
             </p>
             <p className="text-muted-foreground text-xs">{etape.label}</p>
             {etape.taux ? (
-              <p className="text-ember font-mono text-xs">{etape.taux} de l&apos;étape d&apos;avant</p>
+              <p className="text-ember font-mono text-xs">{etape.taux}</p>
             ) : null}
           </li>
         ))}
       </ol>
 
       <p className="text-muted-foreground text-xs">
-        Les réservations viennent de Radar, qui les reçoit de Calendly. Sonde
-        s&apos;arrête au clic : ce qui se passe ensuite ne se mesure pas sur ta page.
+        Les réservations viennent de Radar, qui les reçoit de Calendly.{" "}
+        {avecCreneaux
+          ? "Sonde suit la fenêtre de réservation ouverte sur ta page jusqu'au choix du créneau ; quand Calendly s'ouvre dans un nouvel onglet, ce choix ne se voit pas."
+          : "Sonde s'arrête au clic : ce qui se passe ensuite ne se mesure pas sur ta page."}
+        {comptesDepuis ? ` Les créneaux sont comptés depuis le ${jourEnLettres(CRENEAUX_DEPUIS)}.` : ""}
       </p>
     </section>
   );

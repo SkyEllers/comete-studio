@@ -3,8 +3,8 @@
  *
  *     <script src="https://app.cometestudio.fr/sonde.js" data-site="JETON" defer></script>
  *
- * Deux événements, pas un de plus : une page vue à l'arrivée, un clic quand le
- * visiteur part vers Calendly.
+ * Trois événements, pas un de plus : une page vue à l'arrivée, un clic quand le
+ * visiteur part vers Calendly, un créneau quand il en choisit un.
  *
  * Aucun cookie, aucun stockage, aucun identifiant : il ne garde rien entre
  * deux pages et ne peut pas savoir qui vous êtes. Les visiteurs uniques se
@@ -126,6 +126,7 @@
 
   var vue = false;
   var clic = false;
+  var creneau = false;
 
   function pageVue() {
     if (vue) return;
@@ -139,6 +140,13 @@
     if (clic) return;
     clic = true;
     envoyer("cta");
+  }
+
+  // Même règle : un créneau par page affichée, même si l'on en essaie trois.
+  function choisir() {
+    if (creneau) return;
+    creneau = true;
+    envoyer("creneau");
   }
 
   function versCalendly(adresse) {
@@ -160,6 +168,7 @@
     if (!evenement || !evenement.persisted) return;
     vue = false;
     clic = false;
+    creneau = false;
     pageVue();
   });
 
@@ -179,6 +188,18 @@
     },
     true,
   );
+
+  /* Le créneau, Calendly l'annonce par message depuis sa fenêtre ou son agenda
+     posé sur la page. On lit le nom du message, jamais son contenu. Un lien
+     ouvert dans un nouvel onglet n'en renvoie aucun : ces créneaux-là manquent. */
+  window.addEventListener("message", function (evenement) {
+    try {
+      if (!versCalendly(evenement.origin)) return;
+      if (evenement.data && evenement.data.event === "calendly.date_and_time_selected") choisir();
+    } catch {
+      /* un message illisible n'est pas un créneau */
+    }
+  });
 
   /*
    * Les fenêtres Calendly s'ouvrent en JavaScript, sans lien à cliquer. On

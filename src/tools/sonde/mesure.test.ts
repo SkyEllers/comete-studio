@@ -44,6 +44,7 @@ const ligne = (
   pageviews: 1,
   visitors: 1,
   cta_clicks: 0,
+  slot_picks: 0,
   ...extra,
 });
 
@@ -189,6 +190,22 @@ describe("agregerBruts — compter comme la base compte", () => {
     assert.equal(ligneCalculee.cta_clicks, 1);
   });
 
+  /* Le troisième événement, ajouté le 15/09/2026. Avant lui, tout ce qui n'était
+     pas une page vue devenait un clic : sans ce test, chaque créneau choisi
+     ferait monter le taux de clic d'une landing. */
+  it("16b. un créneau choisi n'est ni une page vue ni un clic", () => {
+    const [ligneCalculee] = agregerBruts([
+      brut({ visitor_key: "a" }),
+      brut({ visitor_key: "a", kind: "cta" }),
+      brut({ visitor_key: "a", kind: "creneau" }),
+    ]);
+
+    assert.equal(ligneCalculee.pageviews, 1);
+    assert.equal(ligneCalculee.cta_clicks, 1);
+    assert.equal(ligneCalculee.slot_picks, 1);
+    assert.equal(ligneCalculee.visitors, 1);
+  });
+
   it("17. chaque canal a sa ligne", () => {
     const lignes = agregerBruts([
       brut({ channel_bucket: "canal", channel_id: "google" }),
@@ -224,6 +241,27 @@ describe("mesurer", () => {
     assert.equal(mesure.visiteurs, 18);
     assert.equal(mesure.pagesVues, 23);
     assert.equal(mesure.clics, 3);
+  });
+
+  it("19b. les créneaux s'additionnent à part, et la couture compte pareil", () => {
+    // Hier agrégé par la nuit, aujourd'hui recalculé sur les bruts : le même
+    // créneau doit peser pareil des deux côtés.
+    const agrege = ligne("2026-08-01", { cta_clicks: 2, slot_picks: 1 });
+    const [recalcule] = agregerBruts([
+      {
+        occurred_at: "2026-08-02T10:00:00Z",
+        kind: "creneau",
+        channel_id: null,
+        channel_bucket: "direct",
+        visitor_key: "a",
+      },
+    ]);
+    const mesure = mesurer([agrege, recalcule], periode);
+
+    assert.equal(mesure.clics, 2);
+    assert.equal(mesure.creneaux, 2);
+    assert.equal(mesure.jours[1].creneaux, 1);
+    assert.equal(mesure.parCanal[0].creneaux, 2);
   });
 
   it("20. les jours creux sont présents, à zéro", () => {

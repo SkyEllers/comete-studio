@@ -37,6 +37,8 @@ type Faussette = {
   clic: (element: Element) => void;
   popup: (url: string) => void;
   retourArriere: () => void;
+  /** Un message reçu par la page, comme Calendly en envoie depuis son iframe. */
+  message: (origin: unknown, data: unknown) => void;
   calendly: Record<string, unknown>;
 };
 
@@ -81,6 +83,7 @@ function charger({
   const envois: Envoi[] = [];
   let auClic: ((evenement: { target: Element }) => void) | null = null;
   let auPageshow: ((evenement: { persisted: boolean }) => void) | null = null;
+  let auMessage: ((evenement: { origin: unknown; data: unknown }) => void) | null = null;
 
   const balise = {
     src,
@@ -129,6 +132,7 @@ function charger({
     },
     addEventListener: (type: string, ecouteur: unknown) => {
       if (type === "pageshow") auPageshow = ecouteur as typeof auPageshow;
+      if (type === "message") auMessage = ecouteur as typeof auMessage;
     },
     // La page de test ne monte rien après coup ; l'observateur n'a rien à voir.
     MutationObserver: undefined,
@@ -153,6 +157,7 @@ function charger({
     clic: (element) => auClic?.({ target: element }),
     popup: (url) => (calendly.initPopupWidget as (o: { url: string }) => void)({ url }),
     retourArriere: () => auPageshow?.({ persisted: true }),
+    message: (origin, data) => auMessage?.({ origin, data }),
   };
 }
 
@@ -342,6 +347,84 @@ describe("sonde.js — le clic vers Calendly", () => {
   });
 });
 
+/*
+ * Le troisième événement, ajouté le 15/09/2026 pour le goulot de Jonathan :
+ * entre le clic « réserver » et la réservation, GA4 ne voyait que les visiteurs
+ * qui acceptent les cookies. Calendly annonce le créneau choisi par un message
+ * `postMessage` depuis son iframe ; c'est tout ce que le script écoute.
+ */
+describe("sonde.js — le créneau choisi dans Calendly", () => {
+  const CHOISI = { event: "calendly.date_and_time_selected", payload: {} };
+
+  it("33. un créneau choisi part en `creneau`", () => {
+    const page = charger();
+    page.message("https://calendly.com", CHOISI);
+    assert.equal(page.envois.length, 2);
+    assert.equal(page.envois[1].corps.e, "creneau");
+    assert.deepEqual(Object.keys(page.envois[1].corps).sort(), ["e", "p", "r", "u"]);
+  });
+
+  it("34. trois créneaux essayés n'en font qu'un", () => {
+    const page = charger();
+    page.message("https://calendly.com", CHOISI);
+    page.message("https://calendly.com", CHOISI);
+    page.message("https://calendly.com", CHOISI);
+    assert.equal(page.envois.filter((envoi) => envoi.corps.e === "creneau").length, 1);
+  });
+
+  it("35. un message qui ne vient pas de Calendly ne compte pas", () => {
+    const page = charger();
+    page.message("https://praticienne.fr", CHOISI);
+    page.message("https://calendly.com.attaquant.test", CHOISI);
+    page.message("null", CHOISI);
+    assert.equal(page.envois.length, 1);
+  });
+
+  it("36. les autres messages de Calendly ne comptent pas", () => {
+    // « Calendrier affiché » part aussi au chargement d'un agenda intégré, et
+    // depuis l'iframe cachée qui prépare la fenêtre : ce n'est pas un geste.
+    const page = charger();
+    page.message("https://calendly.com", { event: "calendly.event_type_viewed" });
+    page.message("https://calendly.com", { event: "calendly.profile_page_viewed" });
+    page.message("https://calendly.com", { event: "calendly.event_scheduled" });
+    assert.equal(page.envois.length, 1);
+  });
+
+  it("37. un message illisible ne lève rien et ne compte pas", () => {
+    const page = charger();
+    assert.doesNotThrow(() => {
+      page.message(undefined, CHOISI);
+      page.message("https://calendly.com", null);
+      page.message("https://calendly.com", "calendly.date_and_time_selected");
+    });
+    assert.equal(page.envois.length, 1);
+  });
+
+  it("38. le créneau ne se confond ni avec la vue ni avec le clic", () => {
+    const page = charger();
+    page.popup(CALENDLY);
+    page.message("https://calendly.com", CHOISI);
+    assert.deepEqual(
+      page.envois.map((envoi) => envoi.corps.e),
+      ["pageview", "cta", "creneau"],
+    );
+  });
+
+  it("39. après un retour par « précédent », un nouveau créneau compte", () => {
+    const page = charger();
+    page.message("https://calendly.com", CHOISI);
+    page.retourArriere();
+    page.message("https://calendly.com", CHOISI);
+    assert.equal(page.envois.filter((envoi) => envoi.corps.e === "creneau").length, 2);
+  });
+
+  it("40. sans jeton, le script n'écoute rien", () => {
+    const page = charger({ jeton: null });
+    page.message("https://calendly.com", CHOISI);
+    assert.equal(page.envois.length, 0);
+  });
+});
+
 describe("sonde.js — l'envoi et ses replis", () => {
   it("19. `sendBeacon` d'abord", () => {
     assert.equal(charger().envois[0].par, "beacon");
@@ -447,7 +530,7 @@ describe("la balise qu'on distribue", () => {
 });
 
 describe("sonde.js — ce qu'il pèse", () => {
-  it("28. moins de 3 Ko livrés", () => {
+  it("28. moins de 3,5 Ko livrés", () => {
     /*
      * Le budget du brief porte sur ce qui part sur le fil, pas sur le fichier :
      * Vercel compresse les fichiers de `public/`. On mesure en gzip, le moins
@@ -457,13 +540,17 @@ describe("sonde.js — ce qu'il pèse", () => {
      * Ce test est une limite de dépense autant qu'une vérification. Le
      * dépasser, c'est le moment de se demander si le commentaire qu'on vient
      * d'ajouter mérite d'être lu par chaque visiteur de chaque landing.
+     *
+     * 3 Ko jusqu'au 15/09/2026, 3,5 Ko depuis : le script était à 3 063 octets
+     * quand le créneau choisi est arrivé, et Louis a préféré relever la limite
+     * plutôt que de raccourcir les commentaires qui expliquent ses choix.
      */
     const brut = SOURCE.length;
     const gzip = gzipSync(SOURCE).length;
     const brotli = brotliCompressSync(SOURCE).length;
 
     assert.ok(
-      gzip <= 3072,
+      gzip <= 3584,
       `${brut} octets bruts, ${gzip} en gzip, ${brotli} en brotli`,
     );
   });

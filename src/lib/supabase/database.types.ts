@@ -1667,6 +1667,7 @@ export type Database = {
           organization_id: string
           pageviews: number
           site_id: string
+          slot_picks: number
           visitors: number
         }
         Insert: {
@@ -1677,6 +1678,7 @@ export type Database = {
           organization_id: string
           pageviews?: number
           site_id: string
+          slot_picks?: number
           visitors?: number
         }
         Update: {
@@ -1687,6 +1689,7 @@ export type Database = {
           organization_id?: string
           pageviews?: number
           site_id?: string
+          slot_picks?: number
           visitors?: number
         }
         Relationships: [
@@ -2101,7 +2104,7 @@ export type Database = {
       radar_status: "confirme" | "honore" | "annule" | "no_show"
       radar_status_origin: "calendly" | "auto" | "client" | "admin"
       sas_realm: "pro" | "perso"
-      sonde_event_kind: "pageview" | "cta"
+      sonde_event_kind: "pageview" | "cta" | "creneau"
       tool_kind: "internal" | "external"
     }
     CompositeTypes: {
@@ -2255,7 +2258,7 @@ export const Constants = {
       radar_status: ["confirme", "honore", "annule", "no_show"],
       radar_status_origin: ["calendly", "auto", "client", "admin"],
       sas_realm: ["pro", "perso"],
-      sonde_event_kind: ["pageview", "cta"],
+      sonde_event_kind: ["pageview", "cta", "creneau"],
       tool_kind: ["internal", "external"],
     },
   },

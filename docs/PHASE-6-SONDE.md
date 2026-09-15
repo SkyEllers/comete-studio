@@ -17,6 +17,7 @@ Le scroll, la rétention vidéo, les cartes de chaleur, les entonnoirs multi-pag
 1. **Nom** : Sonde, slug `sonde`, description « Qui visite tes pages, d'où, et qui clique pour réserver. », icône `Activity`, `sort_order` 50. Tables `sonde_`, migration `0014_sonde`, tag final `v2.5-sonde`.
 2. **Zéro cookie, zéro empreinte durable.** Le visiteur unique est compté par une clé calculée côté serveur : `HMAC(sel du jour, site + IP + user-agent)`. L'IP et le user-agent ne sont jamais écrits ; le sel change chaque nuit (heure de Paris) et l'ancien est détruit : deux visites à deux jours d'écart sont mathématiquement impossibles à relier. C'est la méthode des outils d'audience exemptés de consentement ; la politique de confidentialité du client doit mentionner la mesure d'audience anonymisée (à faire relire, ni Louis ni Claude ne sont juristes).
 3. **Événements v1** : `pageview` (au chargement) et `cta` (clic vers calendly.com, fenêtre Calendly comprise, ou tout élément portant `data-sonde="cta"`). Rien d'autre.
+   **Révisé le 15/09/2026 (décision de Louis), trois événements** : s'ajoute `creneau`, le créneau choisi dans une fenêtre ou un agenda Calendly posé sur la page (message `calendly.date_and_time_selected`), un par page affichée. Pourquoi : chez Jonathan, entre le clic et la réservation, seule GA4 suivait les étapes, et GA4 ne voit que les visiteurs qui acceptent les cookies. Pas « calendrier affiché » : dans une fenêtre il double le clic, dans un agenda intégré il part au chargement. Les liens ouverts dans un nouvel onglet ne renvoient aucun message : leurs créneaux ne sont pas comptés. Un créneau n'est jamais relié à une réservation de Radar personne par personne, seulement des totaux côte à côte. Migrations `0025_sonde_creneau_valeur` et `0026_sonde_creneau_agregat` (colonne `slot_picks`).
 4. **Ce qui est collecté, en tout et pour tout** : jeton du site, chemin de la page (sans query string), hôte du référent (jamais l'URL complète), les seuls paramètres `utm_*` / `gclid` / `fbclid` / `ttclid` de l'URL, l'événement. Tout champ supplémentaire est ignoré.
 5. **Canaux partagés avec Radar** : la résolution réutilise les règles des canaux de l'organisation (même logique « au moins un accord, aucun désaccord »), étendue au référent quand il n'y a pas d'UTM : hôte de moteur de recherche → le canal dont les règles portent `organic` ; hôte de réseau social → le canal dont les sources correspondent ; aucun référent → Direct ; le reste → « Référent » avec l'hôte affiché. Fonction pure, testée, à côté de `attribution.ts`.
 6. **Un site = une landing déclarée** : nom, jeton public aléatoire, liste des domaines autorisés. Une organisation peut avoir plusieurs sites. Le script s'installe avec `<script src="https://www.cometestudio.fr/sonde.js" data-site="JETON" defer></script>`.
@@ -90,7 +91,7 @@ Route `src/app/api/sonde/[token]/route.ts`, `POST` uniquement.
 
 1. Jeton inconnu ou site inactif → 204 quand même (on ne confirme jamais l'existence d'un site à un inconnu), rien d'écrit.
 2. En-tête `Origin` (ou à défaut `Referer`) présent → son hôte doit figurer dans `domains` du site, sous-domaines admis ; sinon 204 sans écriture. Absent (sendBeacon peut l'omettre) → accepté.
-3. Corps `text/plain` ≤ 1 024 octets, JSON `{ e: 'pageview' | 'cta', p: '/chemin', r: 'hote-referent' | null, u: { utm_* , gclid, fbclid, ttclid } }`, validé par zod strict ; tout autre champ → événement ignoré, 204.
+3. Corps `text/plain` ≤ 1 024 octets, JSON `{ e: 'pageview' | 'cta' | 'creneau' (depuis le 15/09/2026), p: '/chemin', r: 'hote-referent' | null, u: { utm_* , gclid, fbclid, ttclid } }`, validé par zod strict ; tout autre champ → événement ignoré, 204.
 4. Robots : user-agent absent, ou contenant `bot`, `crawler`, `spider`, `preview`, `headless`, `lighthouse`, `pingdom`, `monitor` → 204 sans écriture. Filtre imparfait et assumé : les agrégats mesurent des ordres de grandeur, pas une comptabilité.
 5. Limitation de débit en mémoire par IP (fenêtre glissante, 60 événements/minute) → au-delà, 204 sans écriture. Par instance Vercel, donc approximative : c'est un amortisseur, pas un rempart, et c'est documenté dans le code.
 6. `visitor_key` = HMAC-SHA256(sel du jour, `site_id + IP + user-agent`) ; le sel du jour est lu en base et gardé en mémoire d'instance avec sa date ; s'il manque (cron pas encore passé), il est créé à la volée de façon idempotente.
@@ -101,11 +102,12 @@ Tests : unitaires sur la résolution de canal étendue au référent (moteurs, r
 
 ## Chantier 3 — Le script `sonde.js`
 
-`public/sonde.js`, ≤ 3 Ko livré, aucun cookie, aucun stockage, aucune dépendance.
+`public/sonde.js`, ≤ 3 Ko livré (**3,5 Ko depuis le 15/09/2026**, pour le créneau choisi, décision de Louis), aucun cookie, aucun stockage, aucune dépendance.
 
 - Lit `data-site` sur sa propre balise ; sans jeton, ne fait rien.
 - `pageview` au chargement (une fois, y compris au retour du cache arrière/avant via `pageshow` si `persisted`).
 - `cta` : clic sur tout lien vers `calendly.com`, ouverture d'une fenêtre Calendly (mêmes enveloppes que `radar.js` : `initPopupWidget` et voisines, plus le `MutationObserver` pour les blocs montés après coup), et tout élément `[data-sonde="cta"]`. Un seul `cta` par chargement de page même si l'on clique deux fois.
+- `creneau` (depuis le 15/09/2026) : message `calendly.date_and_time_selected` reçu d'une origine `calendly.com`, un par chargement de page, remis à zéro au retour du cache comme les deux autres. Le script lit le nom du message, jamais son contenu.
 - Envoi par `navigator.sendBeacon` en `text/plain`, repli `fetch keepalive`. Échec silencieux : le script ne doit jamais faire apparaître une erreur sur le site du client.
 - Ne collecte du `location` que le `pathname` et les paramètres du point 4 des décisions ; le référent est réduit à son hôte avant l'envoi.
 - Coexistence vérifiée avec `radar.js` sur la même page, dans les deux ordres de chargement.
