@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,22 +12,34 @@ import { cn } from "@/lib/utils";
  *
  * Un onglet n'apparaît que si son outil est activé : sans lui, il n'aurait
  * rien à montrer, et une fiche pleine d'onglets vides se lit mal.
+ *
+ * Horizon lit son activation ici plutôt que de la recevoir : trois pages
+ * appellent ces onglets, et aucune n'a d'autre raison de connaître cet outil.
  */
-export function ClientTabs({
+export async function ClientTabs({
   organizationId,
   actif,
   radarActif,
   sondeActif,
 }: {
   organizationId: string;
-  actif: "fiche" | "radar" | "sonde";
+  actif: "fiche" | "radar" | "sonde" | "finances";
   radarActif: boolean;
   sondeActif?: boolean;
 }) {
+  const supabase = await createClient();
+  const { data: horizon } = await supabase
+    .from("organization_tools")
+    .select("enabled, tools!inner(slug)")
+    .eq("organization_id", organizationId)
+    .eq("tools.slug", "finances")
+    .maybeSingle();
+
   const onglets = [
     { cle: "fiche" as const, libelle: "Fiche", affiche: true },
     { cle: "radar" as const, libelle: "Radar", affiche: radarActif },
     { cle: "sonde" as const, libelle: "Sonde", affiche: Boolean(sondeActif) },
+    { cle: "finances" as const, libelle: "Horizon", affiche: Boolean(horizon?.enabled) },
   ].filter((onglet) => onglet.affiche);
 
   // Seule la fiche : il n'y a pas d'onglets, il y a une page.

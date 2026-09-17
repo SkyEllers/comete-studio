@@ -20,6 +20,7 @@
     "qa:sas-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas-ia.mjs",
     "qa:sonde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sonde.mjs",
     "qa:pulsar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-pulsar.mjs",
+    "qa:horizon": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-horizon.mjs",
     "rapport:entonnoir": "node scripts/rapports/entonnoir-ga4.mjs"
   },
   "dependencies": {

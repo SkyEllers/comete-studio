@@ -540,6 +540,44 @@ export type Database = {
           },
         ]
       }
+      horizon_releves: {
+        Row: {
+          contenu: Json
+          created_at: string
+          id: string
+          mois: string
+          organization_id: string
+          publie: boolean
+          updated_at: string
+        }
+        Insert: {
+          contenu?: Json
+          created_at?: string
+          id?: string
+          mois: string
+          organization_id: string
+          publie?: boolean
+          updated_at?: string
+        }
+        Update: {
+          contenu?: Json
+          created_at?: string
+          id?: string
+          mois?: string
+          organization_id?: string
+          publie?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "horizon_releves_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labels: {
         Row: {
           board_id: string
@@ -1986,6 +2024,7 @@ export type Database = {
       can_access_board: { Args: { b: string }; Returns: boolean }
       can_access_files: { Args: { org: string }; Returns: boolean }
       can_access_files_path: { Args: { object_name: string }; Returns: boolean }
+      can_access_finances: { Args: { org: string }; Returns: boolean }
       can_access_radar: { Args: { org: string }; Returns: boolean }
       can_access_sas: { Args: { org: string }; Returns: boolean }
       can_access_sonde: { Args: { org: string }; Returns: boolean }

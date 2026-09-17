@@ -4,6 +4,7 @@ import {
   Inbox,
   Radar,
   SquareKanban,
+  Sunrise,
   Timer,
   type LucideIcon,
 } from "lucide-react";
@@ -72,6 +73,13 @@ export const TOOL_REGISTRY: Record<string, ToolMeta> = {
     description: "Où passe ton temps, et ce qu'il rapporte.",
     icon: Timer,
     href: (orgSlug) => `/app/${orgSlug}/temps`,
+  },
+  finances: {
+    slug: "finances",
+    name: "Horizon",
+    description: "Ton argent, mois par mois : ce qui entre, ce qui sort, ce qui est mis de côté.",
+    icon: Sunrise,
+    href: (orgSlug) => `/app/${orgSlug}/finances`,
   },
 };
 
