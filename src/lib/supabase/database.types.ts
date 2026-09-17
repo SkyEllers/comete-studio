@@ -828,6 +828,125 @@ export type Database = {
         }
         Relationships: []
       }
+      prospection_prospects: {
+        Row: {
+          avis_google: number | null
+          canal: string | null
+          cible: string
+          contact: string | null
+          contacte_le: string | null
+          historique: Json
+          importe_le: string
+          liens: Json
+          maj_vault: string | null
+          message: string | null
+          message_titre: string | null
+          metier: string | null
+          nom: string
+          note: number | null
+          note_detail: string | null
+          question: string | null
+          relance_le: string | null
+          slug: string
+          source: string | null
+          statut: string
+          tri_rapide: string | null
+          video: string | null
+          ville: string | null
+        }
+        Insert: {
+          avis_google?: number | null
+          canal?: string | null
+          cible?: string
+          contact?: string | null
+          contacte_le?: string | null
+          historique?: Json
+          importe_le?: string
+          liens?: Json
+          maj_vault?: string | null
+          message?: string | null
+          message_titre?: string | null
+          metier?: string | null
+          nom: string
+          note?: number | null
+          note_detail?: string | null
+          question?: string | null
+          relance_le?: string | null
+          slug: string
+          source?: string | null
+          statut?: string
+          tri_rapide?: string | null
+          video?: string | null
+          ville?: string | null
+        }
+        Update: {
+          avis_google?: number | null
+          canal?: string | null
+          cible?: string
+          contact?: string | null
+          contacte_le?: string | null
+          historique?: Json
+          importe_le?: string
+          liens?: Json
+          maj_vault?: string | null
+          message?: string | null
+          message_titre?: string | null
+          metier?: string | null
+          nom?: string
+          note?: number | null
+          note_detail?: string | null
+          question?: string | null
+          relance_le?: string | null
+          slug?: string
+          source?: string | null
+          statut?: string
+          tri_rapide?: string | null
+          video?: string | null
+          ville?: string | null
+        }
+        Relationships: []
+      }
+      prospection_suivi: {
+        Row: {
+          classe: boolean
+          relance_envoyee_le: string | null
+          relance_type: string | null
+          reponse: string | null
+          reponse_le: string | null
+          slug: string
+          updated_at: string
+          video_filmee_le: string | null
+        }
+        Insert: {
+          classe?: boolean
+          relance_envoyee_le?: string | null
+          relance_type?: string | null
+          reponse?: string | null
+          reponse_le?: string | null
+          slug: string
+          updated_at?: string
+          video_filmee_le?: string | null
+        }
+        Update: {
+          classe?: boolean
+          relance_envoyee_le?: string | null
+          relance_type?: string | null
+          reponse?: string | null
+          reponse_le?: string | null
+          slug?: string
+          updated_at?: string
+          video_filmee_le?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospection_suivi_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: true
+            referencedRelation: "prospection_prospects"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       pulsar_clients: {
         Row: {
           created_at: string

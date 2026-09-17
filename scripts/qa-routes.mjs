@@ -196,6 +196,7 @@ try {
   verifie(`A · ${sb}/kanban → 404`, (await visite(ca, `${sb}/kanban`)).status === 404);
   verifie("A · /admin → 404", (await visite(ca, "/admin")).status === 404);
   verifie("A · /admin/clients → 404", (await visite(ca, "/admin/clients")).status === 404);
+  verifie("A · /admin/prospection → 404", (await visite(ca, "/admin/prospection")).status === 404);
 
   console.log("\n== 1 bis. Les écrans de Sas ==");
   for (const chemin of ["/sas", "/sas/boites", "/sas/perso", "/sas/boites/a-ranger"]) {
