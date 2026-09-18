@@ -7,7 +7,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
-import { NOMBRE_MAX, NOMBRE_MIN } from "@/tools/prospection/demandes";
+import { NOMBRE_MAX, NOMBRE_MIN, aEnvoyer, type MessagePret } from "@/tools/prospection/demandes";
 
 /**
  * Ce que Louis coche sur la page Prospection.
@@ -144,6 +144,102 @@ export async function annulerDemande(
 
   if (error) return fail("L'annulation n'a pas pu être enregistrée. Réessaie dans un instant.");
   if (!data?.length) return fail("Trop tard : ton PC a déjà commencé cette recherche.");
+
+  revalidatePath("/admin/prospection");
+  return ok();
+}
+
+/**
+ * « Envoyer » : le clic de Louis qui autorise le PC à envoyer les messages prêts.
+ *
+ * C'est la seule porte vers l'envoi (migration 0029, point 4) : le PC ne part
+ * que sur une demande dont `envoi_valide_le` est posé. Le nombre attendu voyage
+ * avec le clic : si un message a été retiré dans un autre onglet entre-temps,
+ * la validation est refusée plutôt que d'envoyer autre chose que ce que Louis
+ * a vu.
+ */
+const schemaValidation = z.object({
+  id: z.string().uuid(),
+  attendus: z.coerce.number().int().min(1),
+});
+
+export async function validerEnvoi(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = schemaValidation.safeParse({ id: formData.get("id"), attendus: formData.get("attendus") });
+  if (!parsed.success) return fail("Demande introuvable.");
+
+  const supabase = createAdminClient();
+  const { data: demande, error: lecture } = await supabase
+    .from("prospection_demandes")
+    .select("statut, messages, envoi_exclus, envoi_valide_le")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (lecture || !demande) return fail("Demande introuvable.");
+  if (demande.envoi_valide_le) return fail("Cet envoi est déjà validé.");
+  if (demande.statut !== "faite") return fail("La recherche n'est pas finie.");
+
+  const partants = aEnvoyer({
+    messages: (demande.messages as MessagePret[]) ?? [],
+    envoi_exclus: demande.envoi_exclus ?? [],
+  });
+  if (partants.length !== parsed.data.attendus) {
+    return fail("La liste a changé depuis que tu l'as ouverte : recharge la page et relis-la.");
+  }
+
+  const { error } = await supabase
+    .from("prospection_demandes")
+    .update({ envoi_valide_le: new Date().toISOString() })
+    .eq("id", parsed.data.id)
+    .is("envoi_valide_le", null);
+  if (error) return fail("La validation n'a pas pu être enregistrée. Réessaie dans un instant.");
+
+  revalidatePath("/admin/prospection");
+  return ok();
+}
+
+/** Retirer un message de l'envoi, ou le remettre, tant que l'envoi n'est pas validé. */
+const schemaRetrait = z.object({
+  id: z.string().uuid(),
+  slug: z.string().min(1).max(120),
+  retirer: z.enum(["oui", "non"]),
+});
+
+export async function retirerMessage(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = schemaRetrait.safeParse({
+    id: formData.get("id"),
+    slug: formData.get("slug"),
+    retirer: formData.get("retirer"),
+  });
+  if (!parsed.success) return fail("Message introuvable.");
+
+  const supabase = createAdminClient();
+  const { data: demande } = await supabase
+    .from("prospection_demandes")
+    .select("envoi_exclus, envoi_valide_le")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (!demande) return fail("Demande introuvable.");
+  if (demande.envoi_valide_le) return fail("L'envoi est déjà validé : ce message part avec les autres.");
+
+  const exclus = new Set(demande.envoi_exclus ?? []);
+  if (parsed.data.retirer === "oui") exclus.add(parsed.data.slug);
+  else exclus.delete(parsed.data.slug);
+
+  const { error } = await supabase
+    .from("prospection_demandes")
+    .update({ envoi_exclus: [...exclus] })
+    .eq("id", parsed.data.id)
+    .is("envoi_valide_le", null);
+  if (error) return fail("Le changement n'a pas pu être enregistré. Réessaie dans un instant.");
 
   revalidatePath("/admin/prospection");
   return ok();

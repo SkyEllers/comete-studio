@@ -9,7 +9,8 @@
  * 4. Un prospect retiré du vault emporte son suivi (cascade).
  * 5. Les demandes du bouton « Trouver des prospects » (migration 0029) : un
  *    client ne les lit ni n'en dépose ; la base refuse un nombre hors de 1 à
- *    40 et une seconde demande vivante. Les demandes de test sont posées
+ *    40, une seconde demande vivante et des messages qui ne sont pas une
+ *    liste. Les demandes de test sont posées
  *    « en cours », jamais « en attente » : le PC de Louis ne prend que les
  *    demandes en attente, et un banc ne doit jamais lancer une vraie recherche.
  *
@@ -182,6 +183,18 @@ try {
     compte_rendu: "zz-qa",
   });
   verifie("un statut inconnu est refusé", statutInconnu.status >= 400, `statut ${statutInconnu.status}`);
+
+  const messagesPasUneListe = await srv("POST", "prospection_demandes", {
+    nombre: 2,
+    statut: "annulee",
+    messages: { slug: "x" },
+    compte_rendu: "zz-qa",
+  });
+  verifie(
+    "des messages qui ne sont pas une liste sont refusés",
+    messagesPasUneListe.status >= 400,
+    `statut ${messagesPasUneListe.status}`,
+  );
 
   // ----------------------------- 4. Cascade ---------------------------------
 

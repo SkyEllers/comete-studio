@@ -2,11 +2,12 @@
 -- 0029 — Prospection : le bouton « Trouver des prospects »
 --
 -- Louis tape un nombre dans la page Prospection ; son PC trouve autant de
--- praticiens à 4 ou 5 étoiles, vérifie chaque message contre ses sources et
--- l'envoie. Cette table est la boîte aux lettres entre les deux : le hub y
--- dépose la demande, le PC la prend, dit où il en est, et rend compte.
+-- praticiens à 4 ou 5 étoiles, rédige chaque message et le vérifie contre ses
+-- sources. Les messages prêts reviennent ici ; Louis les lit et clique
+-- « Envoyer » : c'est ce clic, et lui seul, qui autorise le PC à les envoyer.
+-- Cette table est la boîte aux lettres entre les deux.
 --
--- Trois choix expliquent ce fichier :
+-- Quatre choix expliquent ce fichier :
 --
 -- 1. Le hub ne cherche rien lui-même. La recherche lit la bibliothèque
 --    publicitaire Meta et les fiches Google depuis la connexion de la maison,
@@ -25,6 +26,13 @@
 --    la phrase citée n'est plus sur la page » : c'est ce que Louis doit lire,
 --    et sa forme changera. Ce qui se compte (trouvés, envoyés, bloqués) est
 --    en colonnes, pour l'afficher sans analyser de texte.
+--
+-- 4. Rien ne part sans Louis. Le PC écrit les messages prêts dans `messages`
+--    (texte complet et sources, une affirmation par ligne, règle 16) ; il
+--    n'envoie une file que si `envoi_valide_le` est posé, et jamais les
+--    messages que Louis a retirés (`envoi_exclus`). Décidé par Louis le
+--    18/09/2026 : le contrôle de sécurité de Claude Code refuse un envoi
+--    que personne n'a vu.
 -- ===========================================================================
 
 create table public.prospection_demandes (
@@ -41,11 +49,15 @@ create table public.prospection_demandes (
   en_file       smallint check (en_file >= 0),
   envoyes       smallint check (envoyes >= 0),
   compte_rendu  text check (char_length(compte_rendu) <= 8000),
+  messages      jsonb not null default '[]'::jsonb
+                check (jsonb_typeof(messages) = 'array'),
+  envoi_valide_le timestamptz,
+  envoi_exclus  text[] not null default '{}',
   updated_at    timestamptz not null default now()
 );
 
 comment on table public.prospection_demandes is
-  'Demandes du bouton « Trouver des prospects ». Écrites par l''app (administration), prises et tenues à jour par le PC de Louis avec la clé de service.';
+  'Demandes du bouton « Trouver des prospects ». Écrites par l''app (administration), prises et tenues à jour par le PC de Louis avec la clé de service. Le PC n''envoie une file que si envoi_valide_le est posé par Louis.';
 
 /* « Une seule demande vivante » : en attente ou en cours, jamais deux. */
 create unique index prospection_demandes_une_vivante_idx
@@ -69,8 +81,10 @@ alter table public.prospection_demandes enable row level security;
 
 /*
  * Louis lit, dépose une demande, et peut annuler celle qui attend encore.
- * Le PC écrit l'avancement avec la clé de service, hors RLS. Aucune politique
- * de suppression : l'historique des demandes est la trace de ce qui est parti.
+ * Valider l'envoi et retirer un message passent par des Server Actions
+ * d'administration (clé de service, après requireAdmin). Le PC écrit
+ * l'avancement avec la clé de service, hors RLS. Aucune politique de
+ * suppression : l'historique des demandes est la trace de ce qui est parti.
  */
 create policy "prospection_demandes_admin_lecture" on public.prospection_demandes
   for select to authenticated

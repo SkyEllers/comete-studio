@@ -836,9 +836,12 @@ export type Database = {
           demandee_le: string
           en_file: number | null
           envoyes: number | null
+          envoi_exclus: string[]
+          envoi_valide_le: string | null
           etape: string | null
           finie_le: string | null
           id: string
+          messages: Json
           nombre: number
           statut: string
           trouves: number | null
@@ -851,9 +854,12 @@ export type Database = {
           demandee_le?: string
           en_file?: number | null
           envoyes?: number | null
+          envoi_exclus?: string[]
+          envoi_valide_le?: string | null
           etape?: string | null
           finie_le?: string | null
           id?: string
+          messages?: Json
           nombre: number
           statut?: string
           trouves?: number | null
@@ -866,9 +872,12 @@ export type Database = {
           demandee_le?: string
           en_file?: number | null
           envoyes?: number | null
+          envoi_exclus?: string[]
+          envoi_valide_le?: string | null
           etape?: string | null
           finie_le?: string | null
           id?: string
+          messages?: Json
           nombre?: number
           statut?: string
           trouves?: number | null

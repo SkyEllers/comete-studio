@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { groupeDe, repartirVideos } from "@/tools/prospection/tri";
-import { estVivante, type Demande } from "@/tools/prospection/demandes";
+import { estVivante, type Demande, type MessagePret } from "@/tools/prospection/demandes";
 import type { LigneHistorique, Lien, Prospect, Suivi } from "@/tools/prospection/types";
 
 import { Liste } from "./liste";
@@ -30,7 +30,7 @@ const CHAMPS =
   "slug, nom, metier, ville, statut, source, canal, contact, contacte_le, relance_le, question, note, avis_google, message_titre, message, note_detail, video, tri_rapide, historique, liens, maj_vault";
 
 const DEMANDES =
-  "id, nombre, statut, demandee_le, commencee_le, finie_le, etape, trouves, bloques, en_file, envoyes, compte_rendu";
+  "id, nombre, statut, demandee_le, commencee_le, finie_le, etape, trouves, bloques, en_file, envoyes, compte_rendu, messages, envoi_valide_le, envoi_exclus";
 
 const aujourdhuiParis = () =>
   new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
@@ -53,7 +53,11 @@ export default async function ProspectionPage({
       .order("demandee_le", { ascending: false })
       .limit(3),
   ]);
-  const demandes = (lignesDemandes ?? []) as Demande[];
+  const demandes = (lignesDemandes ?? []).map((d) => ({
+    ...d,
+    messages: (d.messages as MessagePret[]) ?? [],
+    envoi_exclus: d.envoi_exclus ?? [],
+  })) as Demande[];
 
   const parSlug = new Map((suivis ?? []).map((s) => [s.slug, s as Suivi & { slug: string }]));
   const prospects: Prospect[] = (fiches ?? []).map((f) => ({

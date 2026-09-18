@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { estVivante, libelleDemande, type Demande } from "./demandes.ts";
+import { aEnvoyer, attendValidation, estVivante, libelleDemande, type Demande, type MessagePret } from "./demandes.ts";
 
 const demande = (d: Partial<Demande>): Demande => ({
   id: "d1",
@@ -16,7 +16,21 @@ const demande = (d: Partial<Demande>): Demande => ({
   en_file: null,
   envoyes: null,
   compte_rendu: null,
+  messages: [],
+  envoi_valide_le: null,
+  envoi_exclus: [],
   ...d,
+});
+
+const message = (slug: string): MessagePret => ({
+  slug,
+  nom: slug,
+  ville: "Tours (37)",
+  note: 5,
+  contact: `${slug}@exemple.test`,
+  objet: "votre annonce",
+  corps: "Bonjour,",
+  sources: [],
 });
 
 test("une demande en attente depuis peu dit que le PC va la prendre", () => {
@@ -36,11 +50,39 @@ test("une demande en cours montre l'étape écrite par le PC", () => {
   assert.match(texte, /^En cours depuis .*: relevé Meta 12 sur 45$/);
 });
 
-test("une demande faite dit combien de trouvés sur combien demandés, sans baisser le seuil", () => {
-  const texte = libelleDemande(
-    demande({ statut: "faite", trouves: 7, bloques: 1, en_file: 6, envoyes: 0 }),
+test("une demande faite attend le clic « Envoyer » tant que Louis n'a pas validé", () => {
+  const d = demande({
+    statut: "faite",
+    trouves: 7,
+    bloques: 1,
+    en_file: 6,
+    messages: ["a", "b", "c"].map(message),
+    envoi_exclus: ["b"],
+  });
+  assert.equal(attendValidation(d), true);
+  assert.deepEqual(aEnvoyer(d).map((m) => m.slug), ["a", "c"]);
+  assert.equal(
+    libelleDemande(d),
+    "7 trouvés sur 10, 1 bloqué par la vérification, 2 prêts à partir : relis et clique « Envoyer ».",
   );
-  assert.equal(texte, "7 trouvés sur 10, 1 bloqué par la vérification, 6 en file d'envoi.");
+});
+
+test("une fois validée, elle dit ce qui est parti et ce qui attend son tour", () => {
+  const d = demande({
+    statut: "faite",
+    trouves: 7,
+    en_file: 4,
+    envoyes: 2,
+    messages: ["a", "b"].map(message),
+    envoi_valide_le: "2026-09-21T09:00:00Z",
+  });
+  assert.equal(attendValidation(d), false);
+  assert.equal(libelleDemande(d), "7 trouvés sur 10, 2 envoyés, 4 en file d'envoi.");
+});
+
+test("tout retirer, c'est ne plus rien avoir à valider", () => {
+  const d = demande({ statut: "faite", trouves: 1, messages: [message("a")], envoi_exclus: ["a"] });
+  assert.equal(attendValidation(d), false);
 });
 
 test("zéro trouvé s'écrit, il ne disparaît pas", () => {
