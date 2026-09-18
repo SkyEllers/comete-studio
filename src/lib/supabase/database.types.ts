@@ -835,9 +835,9 @@ export type Database = {
           compte_rendu: string | null
           demandee_le: string
           en_file: number | null
-          envoyes: number | null
           envoi_exclus: string[]
           envoi_valide_le: string | null
+          envoyes: number | null
           etape: string | null
           finie_le: string | null
           id: string
@@ -853,9 +853,9 @@ export type Database = {
           compte_rendu?: string | null
           demandee_le?: string
           en_file?: number | null
-          envoyes?: number | null
           envoi_exclus?: string[]
           envoi_valide_le?: string | null
+          envoyes?: number | null
           etape?: string | null
           finie_le?: string | null
           id?: string
@@ -871,9 +871,9 @@ export type Database = {
           compte_rendu?: string | null
           demandee_le?: string
           en_file?: number | null
-          envoyes?: number | null
           envoi_exclus?: string[]
           envoi_valide_le?: string | null
+          envoyes?: number | null
           etape?: string | null
           finie_le?: string | null
           id?: string
