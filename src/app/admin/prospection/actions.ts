@@ -7,6 +7,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
+import { NOMBRE_MAX, NOMBRE_MIN } from "@/tools/prospection/demandes";
 
 /**
  * Ce que Louis coche sur la page Prospection.
@@ -76,6 +77,73 @@ export async function marquer(
     .upsert(valeurs, { onConflict: "slug" });
 
   if (error) return fail("La coche n'a pas pu être enregistrée. Réessaie dans un instant.");
+
+  revalidatePath("/admin/prospection");
+  return ok();
+}
+
+/**
+ * Le bouton « Trouver des prospects » : déposer une demande pour le PC.
+ *
+ * Rien ne se cherche ici (migration 0029) : la demande attend que la tâche
+ * planifiée du PC de Louis la prenne, dans les 5 minutes s'il est allumé.
+ * Une seule demande vivante à la fois : l'index unique de la base refuse la
+ * seconde, et le message le dit plutôt que de laisser croire à une panne.
+ */
+
+const schemaDemande = z.object({
+  nombre: z.coerce
+    .number({ message: "Indique un nombre." })
+    .int("Un nombre entier, sans virgule.")
+    .min(NOMBRE_MIN, `Au moins ${NOMBRE_MIN}.`)
+    .max(NOMBRE_MAX, `Au plus ${NOMBRE_MAX} par demande.`),
+});
+
+export async function demanderRecherche(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = schemaDemande.safeParse({ nombre: formData.get("nombre") });
+  if (!parsed.success) return failFromZod(parsed.error);
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("prospection_demandes")
+    .insert({ nombre: parsed.data.nombre });
+
+  if (error?.code === "23505") {
+    return fail("Une recherche est déjà en attente ou en cours. Attends qu'elle finisse, ou annule-la.");
+  }
+  if (error) return fail("La demande n'a pas pu être enregistrée. Réessaie dans un instant.");
+
+  revalidatePath("/admin/prospection");
+  return ok();
+}
+
+const schemaAnnulation = z.object({ id: z.string().uuid() });
+
+/** Annuler une demande que le PC n'a pas encore prise. Une recherche en cours ne s'annule pas d'ici. */
+export async function annulerDemande(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = schemaAnnulation.safeParse({ id: formData.get("id") });
+  if (!parsed.success) return fail("Demande introuvable.");
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("prospection_demandes")
+    .update({ statut: "annulee", finie_le: new Date().toISOString() })
+    .eq("id", parsed.data.id)
+    .eq("statut", "en_attente")
+    .select("id");
+
+  if (error) return fail("L'annulation n'a pas pu être enregistrée. Réessaie dans un instant.");
+  if (!data?.length) return fail("Trop tard : ton PC a déjà commencé cette recherche.");
 
   revalidatePath("/admin/prospection");
   return ok();

@@ -828,6 +828,54 @@ export type Database = {
         }
         Relationships: []
       }
+      prospection_demandes: {
+        Row: {
+          bloques: number | null
+          commencee_le: string | null
+          compte_rendu: string | null
+          demandee_le: string
+          en_file: number | null
+          envoyes: number | null
+          etape: string | null
+          finie_le: string | null
+          id: string
+          nombre: number
+          statut: string
+          trouves: number | null
+          updated_at: string
+        }
+        Insert: {
+          bloques?: number | null
+          commencee_le?: string | null
+          compte_rendu?: string | null
+          demandee_le?: string
+          en_file?: number | null
+          envoyes?: number | null
+          etape?: string | null
+          finie_le?: string | null
+          id?: string
+          nombre: number
+          statut?: string
+          trouves?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bloques?: number | null
+          commencee_le?: string | null
+          compte_rendu?: string | null
+          demandee_le?: string
+          en_file?: number | null
+          envoyes?: number | null
+          etape?: string | null
+          finie_le?: string | null
+          id?: string
+          nombre?: number
+          statut?: string
+          trouves?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prospection_prospects: {
         Row: {
           avis_google: number | null

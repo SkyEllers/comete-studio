@@ -6,9 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { groupeDe, repartirVideos } from "@/tools/prospection/tri";
+import { estVivante, type Demande } from "@/tools/prospection/demandes";
 import type { LigneHistorique, Lien, Prospect, Suivi } from "@/tools/prospection/types";
 
 import { Liste } from "./liste";
+import { BoutonRecherche, Demandes } from "./recherche";
 
 /**
  * Prospection — les praticiens contactés, et ce qu'il reste à faire avec eux.
@@ -17,14 +19,18 @@ import { Liste } from "./liste";
  * déjà écrit, et ce qu'il doit dire dans la vidéo — sans rouvrir le vault.
  *
  * Les fiches viennent de `20-prospects/`, poussées par le script
- * `prospects-vers-hub.mjs`. Rien ne se saisit ici : la seule chose qui naît
- * dans cette page, ce sont les coches de Louis (`prospection_suivi`).
+ * `prospects-vers-hub.mjs`. Rien ne se saisit ici : ce qui naît dans cette
+ * page, ce sont les coches de Louis (`prospection_suivi`) et ses demandes de
+ * recherche (`prospection_demandes`), que son PC prend et exécute.
  */
 
 export const metadata = { title: "Prospection — Comète Studio" };
 
 const CHAMPS =
   "slug, nom, metier, ville, statut, source, canal, contact, contacte_le, relance_le, question, note, avis_google, message_titre, message, note_detail, video, tri_rapide, historique, liens, maj_vault";
+
+const DEMANDES =
+  "id, nombre, statut, demandee_le, commencee_le, finie_le, etape, trouves, bloques, en_file, envoyes, compte_rendu";
 
 const aujourdhuiParis = () =>
   new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
@@ -38,10 +44,16 @@ export default async function ProspectionPage({
     params.vue === "contacts" ? "contacts" : params.vue === "relances" ? "relances" : "aujourdhui";
 
   const supabase = await createClient();
-  const [{ data: fiches }, { data: suivis }] = await Promise.all([
+  const [{ data: fiches }, { data: suivis }, { data: lignesDemandes }] = await Promise.all([
     supabase.from("prospection_prospects").select(CHAMPS).order("relance_le", { nullsFirst: false }),
     supabase.from("prospection_suivi").select("*"),
+    supabase
+      .from("prospection_demandes")
+      .select(DEMANDES)
+      .order("demandee_le", { ascending: false })
+      .limit(3),
   ]);
+  const demandes = (lignesDemandes ?? []) as Demande[];
 
   const parSlug = new Map((suivis ?? []).map((s) => [s.slug, s as Suivi & { slug: string }]));
   const prospects: Prospect[] = (fiches ?? []).map((f) => ({
@@ -74,7 +86,10 @@ export default async function ProspectionPage({
       <PageHeader
         title="Prospection"
         description="Qui tu relances, ce que tu leur as déjà écrit, et ce que tu dis dans la vidéo. Les fiches viennent du vault."
+        action={<BoutonRecherche vivante={demandes.some(estVivante)} />}
       />
+
+      <Demandes demandes={demandes} />
 
       <dl className="border-line bg-surface-1 mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-md border sm:grid-cols-4">
         {[
@@ -112,7 +127,7 @@ export default async function ProspectionPage({
       {prospects.length === 0 ? (
         <EmptyState
           title="Aucun prospect ici pour l'instant"
-          description="Lance `node .claude/scripts/prospects-vers-hub.mjs` dans le vault pour envoyer les fiches."
+          description="Appuie sur « Trouver des prospects », ou lance `node .claude/scripts/prospects-vers-hub.mjs` dans le vault pour envoyer les fiches."
         />
       ) : (
         <Liste prospects={prospects} aujourdhui={aujourdhui} vue={vue} />

@@ -7,6 +7,11 @@
  *    relance qui est une vidéo ou un mail, un suivi qui porte sur un prospect
  *    qui existe.
  * 4. Un prospect retiré du vault emporte son suivi (cascade).
+ * 5. Les demandes du bouton « Trouver des prospects » (migration 0029) : un
+ *    client ne les lit ni n'en dépose ; la base refuse un nombre hors de 1 à
+ *    40 et une seconde demande vivante. Les demandes de test sont posées
+ *    « en cours », jamais « en attente » : le PC de Louis ne prend que les
+ *    demandes en attente, et un banc ne doit jamais lancer une vraie recherche.
  *
  * Comme les autres bancs : décor préfixé `zz-qa-`, supprimé en fin de course,
  * et l'absence de restes est elle-même une vérification.
@@ -132,6 +137,52 @@ try {
     `statut ${historiquePasUneListe.status}`,
   );
 
+  // ----------------------------- 5. Demandes --------------------------------
+
+  console.log("== 5. Demandes ==");
+
+  const demandesLues = await jeton("GET", "prospection_demandes?select=id");
+  verifie("un client ne voit aucune demande", vide(demandesLues), JSON.stringify(demandesLues.data));
+
+  const demandeClient = await jeton("POST", "prospection_demandes?select=id", { nombre: 5 });
+  verifie("un client ne dépose pas de demande", refuse(demandeClient), `statut ${demandeClient.status}`);
+
+  const vivanteAvant = await srv(
+    "GET",
+    "prospection_demandes?select=id&statut=in.(en_attente,en_cours)",
+  );
+  if (vivanteAvant.data?.length) {
+    console.log("   (une vraie demande vit : le test de la demande unique est sauté)");
+  } else {
+    const premiere = await srv("POST", "prospection_demandes", {
+      nombre: 2,
+      statut: "en_cours",
+      compte_rendu: "zz-qa",
+    });
+    verifie("une demande en cours se pose", premiere.status < 300, `statut ${premiere.status}`);
+
+    const seconde = await srv("POST", "prospection_demandes", {
+      nombre: 2,
+      statut: "en_cours",
+      compte_rendu: "zz-qa",
+    });
+    verifie("une seconde demande vivante est refusée", seconde.status >= 400, `statut ${seconde.status}`);
+  }
+
+  const tropGrande = await srv("POST", "prospection_demandes", {
+    nombre: 41,
+    statut: "annulee",
+    compte_rendu: "zz-qa",
+  });
+  verifie("41 prospects d'un coup est refusé", tropGrande.status >= 400, `statut ${tropGrande.status}`);
+
+  const statutInconnu = await srv("POST", "prospection_demandes", {
+    nombre: 2,
+    statut: "envoyee-par-pigeon",
+    compte_rendu: "zz-qa",
+  });
+  verifie("un statut inconnu est refusé", statutInconnu.status >= 400, `statut ${statutInconnu.status}`);
+
   // ----------------------------- 4. Cascade ---------------------------------
 
   console.log("== 4. Cascade ==");
@@ -147,11 +198,15 @@ try {
   verifie("le banc s'est déroulé jusqu'au bout", false, erreur.message);
 } finally {
   await srv("DELETE", `prospection_prospects?slug=like.zz-qa-prospect-*`);
+  await srv("DELETE", "prospection_demandes?compte_rendu=eq.zz-qa");
   if (org?.id) await srv("DELETE", `organizations?id=eq.${org.id}`);
   if (compte) await supprimerCompte(compte);
 
   const restes = (await srv("GET", "prospection_prospects?select=slug&slug=like.zz-qa-*")).data;
   verifie("aucun prospect de test ne reste", restes.length === 0, `${restes.length} restant(s)`);
+
+  const demandesRestantes = (await srv("GET", "prospection_demandes?select=id&compte_rendu=eq.zz-qa")).data;
+  verifie("aucune demande de test ne reste", demandesRestantes.length === 0, `${demandesRestantes.length} restante(s)`);
 
   const orgsRestantes = (await srv("GET", "organizations?select=slug&slug=like.zz-qa-prospection-*")).data;
   verifie("aucune organisation de test ne reste", orgsRestantes.length === 0, `${orgsRestantes.length} restante(s)`);
