@@ -49,7 +49,7 @@ import { annulerDemande, demanderRecherche, retirerMessage, validerEnvoi } from 
  * Le bouton « Trouver des prospects » et ce que le PC en a fait.
  *
  * La page se rafraîchit seule toutes les minutes tant qu'une demande vit :
- * une recherche dure plus d'une heure, et Louis doit pouvoir laisser l'onglet
+ * la revérification prend une minute par prospect, et Louis doit pouvoir laisser l'onglet
  * ouvert sur son téléphone sans recharger.
  */
 
@@ -82,10 +82,11 @@ export function BoutonRecherche({ vivante }: { vivante: boolean }) {
         <DialogHeader>
           <DialogTitle>Trouver des prospects</DialogTitle>
           <DialogDescription>
-            Ton PC cherche des praticiens à 4 ou 5 étoiles, rédige chaque message et le vérifie
-            contre ses sources. Les messages prêts reviennent ici : rien ne part tant que tu
-            n&apos;as pas cliqué « Envoyer ». S&apos;il en trouve moins que demandé, il s&apos;arrête
-            et te le dit.
+            Ton PC prend dans sa réserve des praticiens à 3, 4 ou 5 étoiles, les meilleurs
+            d&apos;abord, et revérifie chaque message contre ses sources. Les messages prêts
+            reviennent ici : rien ne part tant que tu n&apos;as pas cliqué « Envoyer ». S&apos;il en
+            manque, les autres arrivent tout seuls dans une nouvelle demande, après la prochaine
+            recherche.
           </DialogDescription>
         </DialogHeader>
 
@@ -107,7 +108,7 @@ export function BoutonRecherche({ vivante }: { vivante: boolean }) {
               aria-describedby="nombre-aide nombre-error"
             />
             <p id="nombre-aide" className="text-muted-foreground text-xs">
-              De {NOMBRE_MIN} à {NOMBRE_MAX}. Compte environ 1 h 30 pour 10. Ton PC doit être allumé.
+              De {NOMBRE_MIN} à {NOMBRE_MAX}. Compte une minute par prospect. Ton PC doit être allumé.
             </p>
             <FieldError state={state} field="nombre" id="nombre-error" />
           </div>
