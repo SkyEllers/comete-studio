@@ -13,6 +13,7 @@ import {
   ecart,
   infobulle,
   parClient,
+  prochaineQuiEcrit,
   quand,
   resume,
 } from "@/tools/automatisations/affichage";
@@ -130,8 +131,8 @@ export default async function AutomatisationsPage() {
   const maintenant = new Date();
   const releve = automatisations[0]?.releve_le ?? null;
   const ennuis = aRegarder(automatisations);
-  const suite = aVenir(automatisations);
-  const [prochaine, ...ensuite] = suite;
+  const prochaine = prochaineQuiEcrit(automatisations);
+  const ensuite = aVenir(automatisations).filter((l) => l.slug !== prochaine?.slug);
 
   return (
     <>

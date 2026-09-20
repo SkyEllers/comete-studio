@@ -9,6 +9,7 @@ import {
   jamaisVues,
   jour,
   parClient,
+  prochaineQuiEcrit,
   quand,
   resume,
 } from "./affichage.ts";
@@ -142,4 +143,14 @@ test("la prochaine échéance passe devant, en pause ou sans date on ne la propo
     suite.map((l) => l.slug),
     ["peggy/article-publish", "jonathan/ads-report", "peggy/nl-rapport"],
   );
+});
+
+test("le grand bloc ne montre que ce qui doit écrire, pas les silencieuses", () => {
+  const lignes = [
+    // Celle-ci tourne chaque nuit et ne dit rien 26 jours sur 30.
+    auto({ slug: "peggy/nl-construire", mail_attendu: "au-besoin", prochaine_le: "2026-09-21T00:17:00Z" }),
+    auto({ slug: "peggy/article-publish", prochaine_le: "2026-09-21T16:00:00Z" }),
+  ];
+  assert.equal(prochaineQuiEcrit(lignes)?.slug, "peggy/article-publish");
+  assert.equal(prochaineQuiEcrit([lignes[0]]), null);
 });

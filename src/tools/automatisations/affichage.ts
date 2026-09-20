@@ -73,6 +73,16 @@ export const aVenir = (lignes: Automatisation[]) =>
     .filter((l) => l.actif && l.prochaine_le)
     .sort((a, b) => Date.parse(a.prochaine_le!) - Date.parse(b.prochaine_le!));
 
+/**
+ * La prochaine qui doit **écrire**. Celles qui ne parlent qu'au besoin — la
+ * newsletter qui se construit chaque nuit, les filets de publication — ne
+ * méritent pas le grand bloc : elles occuperaient la place 26 jours sur 30
+ * sans rien apporter. Elles restent dans « Ensuite » et dans les cartes, et
+ * une panne chez elles remonte toujours dans le bandeau rouge.
+ */
+export const prochaineQuiEcrit = (lignes: Automatisation[]) =>
+  aVenir(lignes).find((l) => l.mail_attendu === "toujours") ?? null;
+
 /** Les automatisations d'un client, dans l'ordre du fichier du vault. */
 export function parClient(lignes: Automatisation[]): { client: string; lignes: Automatisation[] }[] {
   const groupes = new Map<string, Automatisation[]>();
