@@ -39,6 +39,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      automatisations: {
+        Row: {
+          actif: boolean
+          attendue_le: string | null
+          cadence: string
+          client: string
+          depot: string
+          etat: string
+          mail_attendu: string
+          nom: string
+          ordre: number
+          prochaine_le: string | null
+          recu_le: string | null
+          recu_objet: string | null
+          releve_le: string
+          run_le: string | null
+          run_statut: string | null
+          run_url: string | null
+          slug: string
+          workflow: string
+        }
+        Insert: {
+          actif?: boolean
+          attendue_le?: string | null
+          cadence: string
+          client: string
+          depot: string
+          etat?: string
+          mail_attendu?: string
+          nom: string
+          ordre?: number
+          prochaine_le?: string | null
+          recu_le?: string | null
+          recu_objet?: string | null
+          releve_le?: string
+          run_le?: string | null
+          run_statut?: string | null
+          run_url?: string | null
+          slug: string
+          workflow: string
+        }
+        Update: {
+          actif?: boolean
+          attendue_le?: string | null
+          cadence?: string
+          client?: string
+          depot?: string
+          etat?: string
+          mail_attendu?: string
+          nom?: string
+          ordre?: number
+          prochaine_le?: string | null
+          recu_le?: string | null
+          recu_objet?: string | null
+          releve_le?: string
+          run_le?: string | null
+          run_statut?: string | null
+          run_url?: string | null
+          slug?: string
+          workflow?: string
+        }
+        Relationships: []
+      }
+      automatisations_passages: {
+        Row: {
+          attendue_le: string
+          etat: string
+          recu_le: string | null
+          recu_objet: string | null
+          run_statut: string | null
+          run_url: string | null
+          slug: string
+        }
+        Insert: {
+          attendue_le: string
+          etat: string
+          recu_le?: string | null
+          recu_objet?: string | null
+          run_statut?: string | null
+          run_url?: string | null
+          slug: string
+        }
+        Update: {
+          attendue_le?: string
+          etat?: string
+          recu_le?: string | null
+          recu_objet?: string | null
+          run_statut?: string | null
+          run_url?: string | null
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automatisations_passages_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: false
+            referencedRelation: "automatisations"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       boards: {
         Row: {
           color: string

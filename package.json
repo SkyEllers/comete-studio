@@ -22,6 +22,7 @@
     "qa:pulsar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-pulsar.mjs",
     "qa:horizon": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-horizon.mjs",
     "qa:prospection": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-prospection.mjs",
+    "qa:automatisations": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-automatisations.mjs",
     "rapport:entonnoir": "node scripts/rapports/entonnoir-ga4.mjs"
   },
   "dependencies": {
