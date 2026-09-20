@@ -81,16 +81,32 @@ export function parClient(lignes: Automatisation[]): { client: string; lignes: A
 export const aRegarder = (lignes: Automatisation[]) =>
   lignes.filter((l) => l.actif && ETATS[l.etat].gravite === 2);
 
-/** Ce qui mérite un œil sans être une panne : un mail tardif, un relevé jamais fait. */
+/** Ce qui mérite un œil sans être une panne : un mail arrivé après la limite. */
 export const aSurveiller = (lignes: Automatisation[]) =>
-  lignes.filter((l) => l.actif && ETATS[l.etat].gravite === 1);
+  lignes.filter((l) => l.actif && l.etat === "tardif");
 
-/** « 8 sur 9 » — les actives dont le dernier passage n'appelle rien. */
-export function compteur(lignes: Automatisation[]): { sereines: number; actives: number } {
+/**
+ * Celles qui n'ont pas encore eu leur premier passage. Ce n'est pas un ennui —
+ * `nl-planifier` a été ajouté le 11/09/2026 et tournera le 01/10 — mais ça ne
+ * se compte pas non plus avec celles qui vont bien : on n'en sait rien encore.
+ */
+export const jamaisVues = (lignes: Automatisation[]) =>
+  lignes.filter((l) => l.actif && l.etat === "inconnu");
+
+/** « 8 sur 9 », plus ce qui n'est pas encore jugeable. */
+export function compteur(lignes: Automatisation[]): {
+  sereines: number;
+  jugees: number;
+  jamais: number;
+  pause: number;
+} {
   const actives = lignes.filter((l) => l.actif);
+  const jugees = actives.filter((l) => l.etat !== "inconnu");
   return {
-    sereines: actives.filter((l) => ETATS[l.etat].gravite === 0).length,
-    actives: actives.length,
+    sereines: jugees.filter((l) => ETATS[l.etat].gravite === 0).length,
+    jugees: jugees.length,
+    jamais: actives.length - jugees.length,
+    pause: lignes.length - actives.length,
   };
 }
 
@@ -120,6 +136,8 @@ export function resume(ligne: Automatisation, maintenant: Date): string {
       return `Job vert, mail absent pour ${quand(ligne.attendue_le)} · ${suite}`;
     case "manque":
       return `Rien reçu pour ${quand(ligne.attendue_le)} · ${suite}`;
+    case "inconnu":
+      return `Jamais vue passer · ${suite}`;
     default:
       return suite;
   }

@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { aRegarder, compteur, ecart, jour, parClient, quand, resume } from "./affichage.ts";
+import {
+  aRegarder,
+  compteur,
+  ecart,
+  jamaisVues,
+  jour,
+  parClient,
+  quand,
+  resume,
+} from "./affichage.ts";
 import type { Automatisation, Etat } from "./types.ts";
 
 const auto = (a: Partial<Automatisation> & { slug: string }): Automatisation => ({
@@ -67,18 +76,34 @@ test("les clients gardent l'ordre du fichier du vault", () => {
   );
 });
 
-test("une automatisation en pause ne compte ni comme sereine ni comme à regarder", () => {
+test("le compteur sépare ce qui va bien, ce qui n'a jamais tourné et ce qui dort", () => {
   const lignes = [
     auto({ slug: "a", etat: "ok" }),
     auto({ slug: "b", etat: "silence" }),
     auto({ slug: "c", etat: "manque" }),
     auto({ slug: "d", etat: "pause", actif: false }),
+    auto({ slug: "e", etat: "inconnu" }),
   ];
-  assert.deepEqual(compteur(lignes), { sereines: 2, actives: 3 });
+  // « e » n'a jamais tourné : elle ne compte pas comme un échec, et pas non
+  // plus comme une réussite — on n'en sait rien.
+  assert.deepEqual(compteur(lignes), { sereines: 2, jugees: 3, jamais: 1, pause: 1 });
   assert.deepEqual(
     aRegarder(lignes).map((l) => l.slug),
     ["c"],
   );
+  assert.deepEqual(
+    jamaisVues(lignes).map((l) => l.slug),
+    ["e"],
+  );
+});
+
+test("une automatisation jamais vue passer le dit, et donne sa première échéance", () => {
+  const neuve = auto({
+    slug: "jonathan/seo-report",
+    etat: "inconnu",
+    prochaine_le: "2026-10-01T06:00:00Z",
+  });
+  assert.equal(resume(neuve, DIMANCHE), "Jamais vue passer · prochaine jeudi 01/10 (dans 11 jours)");
 });
 
 test("le résumé dit d'abord ce qui manque, puis quand revient la prochaine", () => {

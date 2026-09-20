@@ -12,6 +12,7 @@ import {
   compteur,
   ecart,
   infobulle,
+  jamaisVues,
   parClient,
   quand,
   resume,
@@ -107,7 +108,9 @@ export default async function AutomatisationsPage() {
 
   const supabase = await createClient();
   const [{ data: lignes }, { data: passages }] = await Promise.all([
-    supabase.from("automatisations").select(CHAMPS).order("client").order("ordre"),
+    // `ordre` suit le fichier du vault d'un bout à l'autre : trier dessus seul
+    // garde les clients dans l'ordre où Louis les a écrits, Peggy avant Jonathan.
+    supabase.from("automatisations").select(CHAMPS).order("ordre"),
     supabase.from("automatisations_passages").select("*").order("attendue_le"),
   ]);
 
@@ -127,6 +130,7 @@ export default async function AutomatisationsPage() {
   const releve = automatisations[0]?.releve_le ?? null;
   const ennuis = aRegarder(automatisations);
   const veilles = aSurveiller(automatisations);
+  const neuves = jamaisVues(automatisations);
 
   return (
     <>
@@ -173,20 +177,36 @@ export default async function AutomatisationsPage() {
 
           {veilles.length > 0 ? (
             <p className="text-muted-foreground text-sm">
-              {veilles.length === 1 ? "Une automatisation mérite un œil" : `${veilles.length} automatisations méritent un œil`}{" "}
+              {veilles.length === 1
+                ? "Un mail est arrivé après sa limite"
+                : `${veilles.length} mails sont arrivés après leur limite`}{" "}
               : {veilles.map((l) => l.nom).join(", ")}.
             </p>
           ) : null}
 
+          {neuves.length > 0 ? (
+            <p className="text-muted-foreground text-sm">
+              {neuves.length === 1
+                ? "Une automatisation attend son premier passage"
+                : `${neuves.length} automatisations attendent leur premier passage`}{" "}
+              :{" "}
+              {neuves
+                .map((l) => `${l.nom} (${nomClient(l.client)}, ${ecart(l.prochaine_le, maintenant)})`)
+                .join(", ")}
+              .
+            </p>
+          ) : null}
+
           {parClient(automatisations).map(({ client, lignes: siennes }) => {
-            const { sereines, actives } = compteur(siennes);
+            const { sereines, jugees, jamais, pause } = compteur(siennes);
             return (
               <section key={client} className="border-line bg-surface-1 rounded-lg border p-5">
                 <div className="mb-3 flex items-baseline justify-between gap-3">
                   <h2 className="font-display text-lg">{nomClient(client)}</h2>
                   <p className="text-muted-foreground font-mono text-xs">
-                    {sereines} sur {actives}
-                    {siennes.length > actives ? ` · ${siennes.length - actives} en pause` : ""}
+                    {jugees > 0 ? `${sereines} sur ${jugees}` : "rien encore jugé"}
+                    {jamais > 0 ? ` · ${jamais} en attente du 1er passage` : ""}
+                    {pause > 0 ? ` · ${pause} en pause` : ""}
                   </p>
                 </div>
                 <div>

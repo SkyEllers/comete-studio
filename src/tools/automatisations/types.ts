@@ -86,5 +86,10 @@ export const ETATS: Record<Etat, { mot: string; quoi: string; gravite: 0 | 1 | 2
     gravite: 2,
   },
   pause: { mot: "en pause", quoi: "Arrêtée volontairement. Rien n'est attendu.", gravite: 0 },
-  inconnu: { mot: "jamais relevée", quoi: "Le relevé n'a encore rien constaté.", gravite: 1 },
+  inconnu: {
+    mot: "jamais vue passer",
+    quoi:
+      "Aucun mail ni job depuis 90 jours. Normal pour une automatisation installée récemment, qui attend sa première échéance.",
+    gravite: 1,
+  },
 };
