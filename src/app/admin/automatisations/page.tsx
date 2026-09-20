@@ -1,4 +1,4 @@
-import { MailCheck, TriangleAlert } from "lucide-react";
+import { ChevronRight, MailCheck, TriangleAlert } from "lucide-react";
 
 import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
@@ -8,11 +8,10 @@ import { cn } from "@/lib/utils";
 import {
   COULEUR,
   aRegarder,
-  aSurveiller,
+  aVenir,
   compteur,
   ecart,
   infobulle,
-  jamaisVues,
   parClient,
   quand,
   resume,
@@ -22,13 +21,15 @@ import { ETATS, type Automatisation, type Passage } from "@/tools/automatisation
 /**
  * Automatisations — le courrier que Comète doit recevoir.
  *
- * Ce que Louis vient y chercher : « le rapport ads de mardi est-il arrivé ? »,
- * « qu'est-ce qui doit tomber cette semaine ? », « est-ce qu'il en manque une ? ».
- * Rien ne se saisit ici et rien ne s'y déclenche : la page montre ce que le
- * relevé du vault a constaté dans la boîte Gmail et sur GitHub.
+ * La page s'ouvre sur une seule chose : **ce qui tombe ensuite**. C'est la
+ * question que Louis se pose en arrivant. Le détail de chaque client est plié
+ * en dessous, et ne s'ouvre que s'il veut vérifier une ligne — ou tout seul
+ * quand quelque chose cloche chez ce client.
  *
- * Le calendrier vit dans `00-studio/automatisations.md` ; pour ajouter une
- * automatisation, on écrit une ligne là-bas, pas ici.
+ * Rien ne se saisit ici et rien ne s'y déclenche : la page montre ce que le
+ * relevé du vault a constaté dans la boîte Gmail et sur GitHub. Le calendrier
+ * vit dans `00-studio/automatisations.md` ; pour ajouter une automatisation,
+ * on écrit une ligne là-bas, pas ici.
  */
 
 export const metadata = { title: "Automatisations — Comète Studio" };
@@ -55,7 +56,7 @@ function Ligne({ ligne, maintenant }: { ligne: Automatisation; maintenant: Date 
   const alerte = etat.gravite === 2;
 
   return (
-    <div className="border-line flex gap-3 border-t py-3 first:border-t-0">
+    <div className="border-line flex gap-3 border-t py-3">
       <span
         className={cn("mt-1.5 size-2 shrink-0 rounded-full", COULEUR[ligne.etat])}
         title={etat.quoi}
@@ -129,14 +130,14 @@ export default async function AutomatisationsPage() {
   const maintenant = new Date();
   const releve = automatisations[0]?.releve_le ?? null;
   const ennuis = aRegarder(automatisations);
-  const veilles = aSurveiller(automatisations);
-  const neuves = jamaisVues(automatisations);
+  const suite = aVenir(automatisations);
+  const [prochaine, ...ensuite] = suite;
 
   return (
     <>
       <PageHeader
         title="Automatisations"
-        description="Le courrier que Comète doit recevoir : ce qui est arrivé, ce qui manque, et ce qui tombe bientôt."
+        description="Le courrier que Comète doit recevoir."
         action={
           releve ? (
             <p className="text-muted-foreground text-right text-xs">
@@ -167,56 +168,93 @@ export default async function AutomatisationsPage() {
               <ul className="mt-2 space-y-1">
                 {ennuis.map((l) => (
                   <li key={l.slug} className="text-sm">
-                    <span className="text-muted-foreground font-mono text-xs">{l.slug}</span>{" "}
-                    — {ETATS[l.etat].quoi}
+                    <span className="text-foreground">{l.nom}</span>{" "}
+                    <span className="text-muted-foreground">({nomClient(l.client)})</span> —{" "}
+                    <span className="text-muted-foreground">{ETATS[l.etat].quoi}</span>
                   </li>
                 ))}
               </ul>
             </div>
           ) : null}
 
-          {veilles.length > 0 ? (
-            <p className="text-muted-foreground text-sm">
-              {veilles.length === 1
-                ? "Un mail est arrivé après sa limite"
-                : `${veilles.length} mails sont arrivés après leur limite`}{" "}
-              : {veilles.map((l) => l.nom).join(", ")}.
-            </p>
-          ) : null}
-
-          {neuves.length > 0 ? (
-            <p className="text-muted-foreground text-sm">
-              {neuves.length === 1
-                ? "Une automatisation attend son premier passage"
-                : `${neuves.length} automatisations attendent leur premier passage`}{" "}
-              :{" "}
-              {neuves
-                .map((l) => `${l.nom} (${nomClient(l.client)}, ${ecart(l.prochaine_le, maintenant)})`)
-                .join(", ")}
-              .
-            </p>
-          ) : null}
-
-          {parClient(automatisations).map(({ client, lignes: siennes }) => {
-            const { sereines, jugees, jamais, pause } = compteur(siennes);
-            return (
-              <section key={client} className="border-line bg-surface-1 rounded-lg border p-5">
-                <div className="mb-3 flex items-baseline justify-between gap-3">
-                  <h2 className="font-display text-lg">{nomClient(client)}</h2>
-                  <p className="text-muted-foreground font-mono text-xs">
-                    {jugees > 0 ? `${sereines} sur ${jugees}` : "rien encore jugé"}
-                    {jamais > 0 ? ` · ${jamais} en attente du 1er passage` : ""}
-                    {pause > 0 ? ` · ${pause} en pause` : ""}
+          {/* La prochaine, en grand. C'est ce que Louis vient chercher. */}
+          {prochaine ? (
+            <section className="border-line bg-surface-1 rounded-lg border p-6">
+              <p className="text-muted-foreground font-mono text-xs tracking-wide uppercase">
+                La prochaine
+              </p>
+              <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-display text-xl leading-tight sm:text-2xl">{prochaine.nom}</p>
+                  <p className="text-muted-foreground mt-1.5 text-sm">
+                    {nomClient(prochaine.client)} · {quand(prochaine.prochaine_le)}
                   </p>
                 </div>
-                <div>
-                  {siennes.map((ligne) => (
-                    <Ligne key={ligne.slug} ligne={ligne} maintenant={maintenant} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+                <p className="text-ember font-mono text-2xl sm:text-3xl">
+                  {ecart(prochaine.prochaine_le, maintenant)}
+                </p>
+              </div>
+            </section>
+          ) : null}
+
+          {ensuite.length > 0 ? (
+            <section>
+              <p className="text-muted-foreground mb-2 font-mono text-xs tracking-wide uppercase">
+                Ensuite
+              </p>
+              <ul className="space-y-1.5">
+                {ensuite.slice(0, 4).map((l) => (
+                  <li key={l.slug} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                    <span className="text-muted-foreground w-36 shrink-0 font-mono text-xs">
+                      {quand(l.prochaine_le)}
+                    </span>
+                    <span className="min-w-0">{l.nom}</span>
+                    <span className="text-muted-foreground text-xs">{nomClient(l.client)}</span>
+                    <span className="text-muted-foreground ml-auto text-xs">
+                      {ecart(l.prochaine_le, maintenant)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {/* Le détail, plié. Un `<details>` natif : le navigateur sait déjà le
+              faire, et la page s'ouvre vite sur un téléphone. La carte d'un
+              client qui a un ennui s'ouvre d'elle-même. */}
+          <div className="space-y-3">
+            {parClient(automatisations).map(({ client, lignes: siennes }) => {
+              const { sereines, jugees, jamais, pause } = compteur(siennes);
+              const ennuyee = siennes.some((l) => l.actif && ETATS[l.etat].gravite === 2);
+
+              return (
+                <details
+                  key={client}
+                  open={ennuyee}
+                  className="border-line bg-surface-1 group rounded-lg border px-5 py-4"
+                >
+                  <summary className="flex cursor-pointer list-none items-baseline gap-3">
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="text-muted-foreground mt-1 size-4 shrink-0 transition-transform group-open:rotate-90"
+                    />
+                    <h2 className="font-display text-lg">{nomClient(client)}</h2>
+                    <p className="text-muted-foreground ml-auto text-right font-mono text-xs">
+                      {jugees > 0 ? `${sereines} sur ${jugees}` : "rien encore jugé"}
+                      {jamais > 0 ? ` · ${jamais} en attente du 1er passage` : ""}
+                      {pause > 0 ? ` · ${pause} en pause` : ""}
+                    </p>
+                  </summary>
+
+                  <div className="mt-3">
+                    {siennes.map((ligne) => (
+                      <Ligne key={ligne.slug} ligne={ligne} maintenant={maintenant} />
+                    ))}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
 
           <p className="text-muted-foreground text-xs">
             Le calendrier est dans <span className="font-mono">00-studio/automatisations.md</span> du

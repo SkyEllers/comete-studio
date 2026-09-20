@@ -63,6 +63,16 @@ function joursDecart(cible: Date, maintenant: Date): number {
   return Math.round((b - a) / 86_400_000);
 }
 
+/**
+ * Ce qui tombe ensuite, la plus proche d'abord. C'est la question que Louis se
+ * pose en ouvrant la page — « qu'est-ce qui doit arriver, et quand » — donc
+ * c'est ce qui s'affiche en premier, avant l'état de chacune.
+ */
+export const aVenir = (lignes: Automatisation[]) =>
+  lignes
+    .filter((l) => l.actif && l.prochaine_le)
+    .sort((a, b) => Date.parse(a.prochaine_le!) - Date.parse(b.prochaine_le!));
+
 /** Les automatisations d'un client, dans l'ordre du fichier du vault. */
 export function parClient(lignes: Automatisation[]): { client: string; lignes: Automatisation[] }[] {
   const groupes = new Map<string, Automatisation[]>();

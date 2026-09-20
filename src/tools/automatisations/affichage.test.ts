@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   aRegarder,
+  aVenir,
   compteur,
   ecart,
   jamaisVues,
@@ -127,4 +128,18 @@ test("le résumé dit d'abord ce qui manque, puis quand revient la prochaine", (
   assert.match(resume(recu, DIMANCHE), /^Dernier reçu Ven\. 18\/09 13:12 · prochaine vendredi 25\/09/);
 
   assert.equal(resume(auto({ slug: "x", actif: false }), DIMANCHE), "En pause — rien n'est attendu");
+});
+
+test("la prochaine échéance passe devant, en pause ou sans date on ne la propose pas", () => {
+  const suite = aVenir([
+    auto({ slug: "peggy/nl-rapport", prochaine_le: "2026-10-05T06:00:00Z" }),
+    auto({ slug: "peggy/article-publish", prochaine_le: "2026-09-21T16:00:00Z" }),
+    auto({ slug: "jonathan/ads-report", prochaine_le: "2026-09-22T05:00:00Z" }),
+    auto({ slug: "jonathan/article-generate", actif: false, prochaine_le: "2026-09-21T05:47:00Z" }),
+    auto({ slug: "sans-date", prochaine_le: null }),
+  ]);
+  assert.deepEqual(
+    suite.map((l) => l.slug),
+    ["peggy/article-publish", "jonathan/ads-report", "peggy/nl-rapport"],
+  );
 });
