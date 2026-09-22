@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
+  bilanPossible,
   dateHeure,
   heure,
   jour,
@@ -434,9 +435,16 @@ function FicheRendezVous({
    * pas un centime — si bien qu'une séance d'un mois clôturé peut encore dire
    * pourquoi, et quand en reparler.
    */
+  /*
+   * `status` et non `effective_status` : une séance ne devient « honorée »
+   * qu'une fois son créneau terminé, et la question de la vente attendait donc
+   * 45 minutes. Dix suffisent (voir `bilanPossible`), et les deux statuts
+   * écartent de la même façon l'annulée et la non-venue.
+   */
   const questionVente =
     rdv.commission_basis === "ventes" &&
-    rdv.effective_status === "honore" &&
+    rdv.status === "confirme" &&
+    bilanPossible(rdv.scheduled_start) &&
     !rdv.has_sale &&
     !tropTot;
   const declinee = activites.some((activite) => activite.type === "sale.declined");

@@ -268,6 +268,27 @@ export function venteEncoreImpossible(scheduledStart: string): boolean {
   return jourCalendaire(scheduledStart) > aujourdhuiAParis();
 }
 
+/** Le temps d'attente avant de pouvoir dire ce qu'une séance a donné. */
+export const MINUTES_AVANT_BILAN = 10;
+
+/**
+ * Peut-on déjà dire ce que cette séance a donné ?
+ *
+ * Dix minutes après son début, pas à sa fin. La question se posait jusqu'ici
+ * quand `scheduled_end` était passé : sur un diagnostic de 45 minutes, personne
+ * au rendez-vous obligeait à attendre 45 minutes pour pouvoir le dire. Peggy
+ * ferme au bout de dix, et c'est à ce moment-là qu'elle a la réponse (décidé
+ * avec Louis le 22/09/2026).
+ *
+ * La base, elle, n'a jamais rien exigé de plus : `radar_client_set_status` n'a
+ * aucun verrou de temps et `radar_note_non_vente` demande seulement que la
+ * séance ait commencé. Le verrou des 45 minutes était entièrement dans ce que
+ * l'écran proposait.
+ */
+export function bilanPossible(scheduledStart: string, maintenant = Date.now()): boolean {
+  return Date.parse(scheduledStart) + MINUTES_AVANT_BILAN * 60_000 <= maintenant;
+}
+
 /**
  * Un montant tapé à la main, en euros, vers des centimes.
  *

@@ -10,6 +10,7 @@ import {
   type BilanAppel,
   type ReponseAppel,
 } from "./appel-veille";
+import { bilanPossible } from "./format";
 import { moisCourant, moisPrecedent } from "./mois";
 import {
   aRecontacter,
@@ -313,6 +314,11 @@ export function parCanal(lignes: RendezVous[], canaux: Canal[]): PartCanal[] {
  * C'est le bloc « À vérifier » : elles comptent comme honorées tant que
  * personne ne dit le contraire, et c'est justement pour ça qu'il faut les
  * montrer plutôt que de les laisser glisser dans la commission en silence.
+ *
+ * Dix minutes après le début, et non à la fin du créneau : quand personne ne
+ * se présente, la réponse est connue tout de suite, et attendre la fin d'un
+ * diagnostic de 45 minutes ne faisait que retarder le clic (voir
+ * `bilanPossible`).
  */
 export function aVerifier(lignes: RendezVous[]): RendezVous[] {
   const ilYAUneSemaine = Date.now() - 7 * 86_400_000;
@@ -321,8 +327,8 @@ export function aVerifier(lignes: RendezVous[]): RendezVous[] {
     .filter(
       (ligne) =>
         ligne.status === "confirme" &&
-        Date.parse(ligne.scheduled_end) < Date.now() &&
-        Date.parse(ligne.scheduled_end) > ilYAUneSemaine,
+        bilanPossible(ligne.scheduled_start) &&
+        Date.parse(ligne.scheduled_start) > ilYAUneSemaine,
     )
     .sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start));
 }
@@ -332,27 +338,33 @@ export function aVerifier(lignes: RendezVous[]): RendezVous[] {
  *
  * Uniquement en mode `ventes`, où c'est la question qui décide de la
  * commission : une séance honorée sans réponse est un trou dans le relevé du
- * mois. Quatorze jours plutôt que sept — une vente se conclut souvent dans les
- * jours qui suivent le rendez-vous, et demander trop tôt ferait répondre
- * « non » à quelqu'un qui n'a pas encore fini d'en parler.
+ * mois.
+ *
+ * Trente jours, et non quatorze. Chez Peggy, beaucoup de personnes ne disent
+ * ni oui ni non en sortant du rendez-vous, et la décision tombe des semaines
+ * plus tard (Louis, 22/09/2026). À quatorze jours, ces ventes-là se
+ * concluaient après que la question avait disparu de l'écran : il fallait
+ * retrouver la séance à la main, donc personne ne le faisait.
  *
  * « Sans décision » compte autant que « sans vente » : un « pas de vente » est
- * une réponse, et une réponse ne se redemande pas.
+ * une réponse, et une réponse ne se redemande pas. Celle qui dit « je n'ai pas
+ * encore de réponse » en est une aussi, et c'est le motif `pas_encore` qui la
+ * porte, avec le mois où reposer la question.
  */
 export function aVendre(
   lignes: RendezVous[],
   refusees: Set<string>,
 ): RendezVous[] {
-  const ilYADeuxSemaines = Date.now() - 14 * 86_400_000;
+  const ilYATrenteJours = Date.now() - 30 * 86_400_000;
 
   return lignes
     .filter(
       (ligne) =>
-        ligne.effective_status === "honore" &&
+        ligne.status === "confirme" &&
         !ligne.has_sale &&
         !refusees.has(ligne.id) &&
-        Date.parse(ligne.scheduled_end) < Date.now() &&
-        Date.parse(ligne.scheduled_end) > ilYADeuxSemaines,
+        bilanPossible(ligne.scheduled_start) &&
+        Date.parse(ligne.scheduled_start) > ilYATrenteJours,
     )
     .sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start));
 }

@@ -68,11 +68,17 @@ export function useNonVente(orgSlug: string) {
   return { enCoursNonVente: enCours, noterRaison, recontactee };
 }
 
-/** « Pas de vente · L'argent · à recontacter en novembre 2026 ». */
+/**
+ * « Pas de vente · L'argent · à recontacter en novembre 2026 ».
+ *
+ * Sauf pour `pas_encore`, qui dirait « Pas de vente · Elle n'a pas encore
+ * répondu » : deux affirmations qui se contredisent à l'œil. La séance est
+ * bien sans vente pour le relevé, mais ce qu'on lit ici, c'est une attente.
+ */
 export function texteRaison(raison: Raison, fait = false): string {
   return [
-    "Pas de vente",
-    LIBELLES_MOTIF[raison.motif],
+    raison.motif === "pas_encore" ? "En attente de sa réponse" : "Pas de vente",
+    raison.motif === "pas_encore" ? null : LIBELLES_MOTIF[raison.motif],
     raison.recontacter ? `à recontacter en ${libelleMois(raison.recontacter)}` : null,
     fait ? "recontactée" : null,
   ]

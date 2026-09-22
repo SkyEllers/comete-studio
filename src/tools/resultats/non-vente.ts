@@ -13,11 +13,30 @@
 
 import { moisSuivant } from "./mois.ts";
 
-export type Motif = "argent" | "moment" | "conjoint" | "pas_convaincue" | "autre";
+export type Motif = "pas_encore" | "argent" | "moment" | "conjoint" | "pas_convaincue" | "autre";
 
-export const MOTIFS: readonly Motif[] = ["argent", "moment", "conjoint", "pas_convaincue", "autre"];
+/*
+ * `pas_encore` d'abord, parce que c'est le cas le plus fréquent et qu'il
+ * n'existait pas : beaucoup de personnes ne disent ni oui ni non en sortant du
+ * rendez-vous, et la réponse tombe des semaines plus tard. Sans ce choix, le
+ * client devait cocher un motif faux ou ne rien cocher. Il ne cochait rien :
+ * chez Peggy, 60 « pas de vente » pour 2 raisons notées (22/09/2026).
+ *
+ * Ce n'est pas un refus, mais ça reste « pas de vente » pour le relevé du
+ * mois : aucune vente n'est encaissée tant que la personne n'a pas répondu.
+ * Ce qui change, c'est qu'elle revient dans « À recontacter » au mois dit.
+ */
+export const MOTIFS: readonly Motif[] = [
+  "pas_encore",
+  "argent",
+  "moment",
+  "conjoint",
+  "pas_convaincue",
+  "autre",
+];
 
 export const LIBELLES_MOTIF: Record<Motif, string> = {
+  pas_encore: "Elle n'a pas encore répondu",
   argent: "L'argent",
   moment: "Pas le bon moment",
   conjoint: "Le conjoint",

@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import {
   aRecontacter,
   derniereRaison,
+  LIBELLES_MOTIF,
+  MOTIFS,
   etatsParRendezVous,
   moisProposes,
   nombrePlusTard,
@@ -96,5 +98,41 @@ describe("moisProposes", () => {
     assert.equal(mois[0], "2026-09-01");
     assert.equal(mois[4], "2027-01-01");
     assert.equal(mois[12], "2027-09-01");
+  });
+});
+
+describe("le motif « pas encore répondu »", () => {
+  it("1. il existe, et il arrive en premier : c'est le cas le plus fréquent", () => {
+    assert.equal(MOTIFS[0], "pas_encore");
+    assert.equal(LIBELLES_MOTIF.pas_encore, "Elle n'a pas encore répondu");
+  });
+
+  it("2. les cinq motifs d'avant sont tous là", () => {
+    for (const motif of ["argent", "moment", "conjoint", "pas_convaincue", "autre"]) {
+      assert.ok(MOTIFS.includes(motif as (typeof MOTIFS)[number]), motif);
+    }
+    assert.equal(MOTIFS.length, 6);
+  });
+
+  it("3. il se relit depuis les activités comme les autres", () => {
+    assert.deepEqual(
+      derniereRaison([
+        {
+          type: "sale.reason",
+          payload: { motif: "pas_encore", recontacter: "2026-11-01" },
+          created_at: "2026-09-22T10:00:00Z",
+        },
+      ]),
+      { motif: "pas_encore", recontacter: "2026-11-01", noteeLe: "2026-09-22T10:00:00Z" },
+    );
+  });
+
+  it("4. un motif inventé reste refusé", () => {
+    assert.equal(
+      derniereRaison([
+        { type: "sale.reason", payload: { motif: "peut_etre" }, created_at: "2026-09-22T10:00:00Z" },
+      ]),
+      null,
+    );
   });
 });

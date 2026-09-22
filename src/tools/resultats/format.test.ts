@@ -13,6 +13,8 @@ import {
   montant,
   nomComplet,
   origineLisible,
+  bilanPossible,
+  MINUTES_AVANT_BILAN,
   venteEncoreImpossible,
 } from "./format.ts";
 
@@ -298,5 +300,32 @@ describe("d'où vient un rendez-vous", () => {
       origineLisible({ attribution: "utm", utm: { utm_campaign: "test-audit" } }, null, SOURCES),
       "Sans canal, campagne test-audit",
     );
+  });
+});
+
+describe("bilanPossible — dix minutes après le début, pas à la fin du créneau", () => {
+  const debut = "2026-09-22T10:00:00+02:00";
+  const t = (h: string) => Date.parse(`2026-09-22T${h}:00+02:00`);
+
+  it("1. dix minutes, c'est bien le délai retenu", () => {
+    assert.equal(MINUTES_AVANT_BILAN, 10);
+  });
+
+  it("2. non pendant les neuf premières minutes", () => {
+    assert.equal(bilanPossible(debut, t("10:00")), false);
+    assert.equal(bilanPossible(debut, t("10:09")), false);
+  });
+
+  it("3. oui à la dixième minute pile", () => {
+    assert.equal(bilanPossible(debut, t("10:10")), true);
+  });
+
+  it("4. oui bien avant la fin d'un diagnostic de 45 minutes", () => {
+    assert.equal(bilanPossible(debut, t("10:15")), true);
+    assert.equal(bilanPossible(debut, t("10:45")), true);
+  });
+
+  it("5. non sur une séance à venir", () => {
+    assert.equal(bilanPossible("2026-09-23T10:00:00+02:00", t("10:30")), false);
   });
 });
