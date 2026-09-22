@@ -278,12 +278,38 @@ export function nomInvite(invite: {
 }
 
 /**
- * Pourquoi cette séance est tombée.
+ * Qui a annulé, du point de vue de Calendly.
+ *
+ * `host`, c'est le client depuis son propre agenda ; `invitee`, la personne
+ * qui avait réservé. Tout le reste est `null` : un champ absent d'un vieux
+ * message ne doit pas se faire passer pour une réponse.
+ */
+export function quiAAnnule(
+  cancellation: { canceler_type?: string | null } | null | undefined,
+): "host" | "invitee" | null {
+  const type = cancellation?.canceler_type;
+  return type === "host" || type === "invitee" ? type : null;
+}
+
+/**
+ * Pourquoi cette séance est tombée, et par la main de qui.
  *
  * Une catégorie, jamais le motif écrit par la personne : `cancellation.reason`
  * est du texte libre, et `canceled_by` est un nom. Ni l'un ni l'autre n'entre
  * dans la base.
+ *
+ * Le « par qui » vient en revanche de `canceler_type`, qui n'est ni du texte
+ * libre ni une donnée personnelle. Sans lui, un client qui coupe lui-même la
+ * moitié de ses rendez-vous les lit comme des désistements : c'est ce qui est
+ * arrivé chez Peggy, où 116 annulations sur 130 venaient de son compte sans
+ * que rien ne le dise (relevé dans Calendly le 22/09/2026).
  */
-export function motifAnnulation(reprogramme: boolean | null | undefined): string {
-  return reprogramme ? "Reprogrammée depuis Calendly" : "Annulée dans Calendly";
+export function motifAnnulation(
+  reprogramme: boolean | null | undefined,
+  par: "host" | "invitee" | null = null,
+): string {
+  if (reprogramme) return "Reprogrammée depuis Calendly";
+  if (par === "host") return "Annulée par toi dans Calendly";
+  if (par === "invitee") return "Annulée par la personne";
+  return "Annulée dans Calendly";
 }

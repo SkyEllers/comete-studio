@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { nomInvite } from "./calendly.ts";
+import { motifAnnulation, nomInvite, quiAAnnule } from "./calendly.ts";
 
 describe("nomInvite — les trois cas de la décision 8", () => {
   it("1. prend first_name et last_name quand Calendly les donne", () => {
@@ -85,5 +85,47 @@ describe("nomInvite — ce que la base accepte", () => {
     const { prenom, nom } = nomInvite({ name: "b".repeat(120) });
     assert.equal(prenom, "b".repeat(80));
     assert.equal(nom, "");
+  });
+});
+
+describe("quiAAnnule — les deux seules réponses que Calendly donne", () => {
+  it("1. host, c'est le client depuis son propre agenda", () => {
+    assert.equal(quiAAnnule({ canceler_type: "host" }), "host");
+  });
+
+  it("2. invitee, c'est la personne qui avait réservé", () => {
+    assert.equal(quiAAnnule({ canceler_type: "invitee" }), "invitee");
+  });
+
+  it("3. un champ absent ne se fait pas passer pour une réponse", () => {
+    assert.equal(quiAAnnule({}), null);
+    assert.equal(quiAAnnule(null), null);
+    assert.equal(quiAAnnule(undefined), null);
+  });
+
+  it("4. une valeur inconnue de Calendly tombe sur null, pas sur host", () => {
+    assert.equal(quiAAnnule({ canceler_type: "ADMIN" }), null);
+    assert.equal(quiAAnnule({ canceler_type: "" }), null);
+  });
+});
+
+describe("motifAnnulation — ce que la fiche affiche", () => {
+  it("1. une reprogrammation passe avant le par-qui : le rendez-vous n'est pas perdu", () => {
+    assert.equal(motifAnnulation(true, "host"), "Reprogrammée depuis Calendly");
+    assert.equal(motifAnnulation(true, "invitee"), "Reprogrammée depuis Calendly");
+  });
+
+  it("2. annulée par le client, depuis son agenda", () => {
+    assert.equal(motifAnnulation(false, "host"), "Annulée par toi dans Calendly");
+  });
+
+  it("3. annulée par la personne qui avait réservé", () => {
+    assert.equal(motifAnnulation(false, "invitee"), "Annulée par la personne");
+  });
+
+  it("4. sans le par-qui, le libellé d'avant : un vieux message ne ment pas", () => {
+    assert.equal(motifAnnulation(false, null), "Annulée dans Calendly");
+    assert.equal(motifAnnulation(false), "Annulée dans Calendly");
+    assert.equal(motifAnnulation(null), "Annulée dans Calendly");
   });
 });

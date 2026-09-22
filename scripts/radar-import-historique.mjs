@@ -51,7 +51,13 @@ import { readFileSync } from "node:fs";
 
 import { SUPABASE, env } from "./qa-commun.mjs";
 import { attribuer, precedent, reponseDeclaree } from "../src/tools/resultats/attribution.ts";
-import { cleInvite, motifAnnulation, nomInvite, utmRetenus } from "../src/tools/resultats/calendly.ts";
+import {
+  cleInvite,
+  motifAnnulation,
+  nomInvite,
+  quiAAnnule,
+  utmRetenus,
+} from "../src/tools/resultats/calendly.ts";
 
 // ------------------------------- Arguments ---------------------------------
 
@@ -293,6 +299,7 @@ for (const ev of await evenements(reglages.calendly_user_uri)) {
       annule_calendly: annuleCalendly,
       reprogramme: invite.rescheduled,
       annule_le: annuleCalendly ? (invite.cancellation?.created_at ?? invite.updated_at) : null,
+      annule_par: annuleCalendly ? quiAAnnule(invite.cancellation) : null,
       decision,
       e,
       origine: "calendly",
@@ -384,7 +391,9 @@ for (const item of aCreer) {
 
   let note = e?.note ?? NOTES[decision] ?? null;
   if (statut === "annule") {
-    note = item.annule_calendly ? motifAnnulation(item.reprogramme) : "Annulé ou reprogrammé hors Calendly, selon le client";
+    note = item.annule_calendly
+      ? motifAnnulation(item.reprogramme, item.annule_par)
+      : "Annulé ou reprogrammé hors Calendly, selon le client";
   }
 
   const ligne = {

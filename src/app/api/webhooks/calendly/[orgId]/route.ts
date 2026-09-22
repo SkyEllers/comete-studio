@@ -17,6 +17,7 @@ import {
   type MessageCalendly,
   motifAnnulation,
   nomInvite,
+  quiAAnnule,
   utmRetenus,
   verifierSignature,
 } from "@/tools/resultats/calendly";
@@ -218,12 +219,14 @@ export async function POST(
         return sansCorps(200);
       }
 
+      const par = quiAAnnule(invite.cancellation);
+
       await admin
         .from("radar_bookings")
         .update({
           status: "annule",
           status_origin: "calendly",
-          status_note: motifAnnulation(invite.rescheduled),
+          status_note: motifAnnulation(invite.rescheduled, par),
           canceled_at: recuLe,
           updated_at: new Date().toISOString(),
         })
@@ -233,7 +236,8 @@ export async function POST(
         booking_id: connu.id,
         organization_id: orgId,
         type: "booking.canceled",
-        payload: { reprogramme: Boolean(invite.rescheduled), from: connu.status },
+        // `par` est ce qui se compte : le libellé, lui, peut être réécrit.
+        payload: { reprogramme: Boolean(invite.rescheduled), from: connu.status, par },
       });
 
       return accepter(message.event);
