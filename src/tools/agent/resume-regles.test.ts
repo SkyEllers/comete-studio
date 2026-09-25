@@ -79,6 +79,11 @@ describe("le mail du matin", () => {
     assert.match(m?.texte ?? "", /Sandrine \(simulation\)/);
   });
 
+  it("le test d'une closeuse dit pour qui", () => {
+    const m = mailDuResume({ jour: "2026-10-02", fuseau: P, diagnostics: [diag()], test: true, pour: "Johanna" });
+    assert.ok(m?.sujet.startsWith("[Test pour Johanna] "));
+  });
+
   it("échappe le HTML de ce qu'elle a dit", () => {
     const m = mailDuResume({ jour: "2026-10-02", fuseau: P, diagnostics: [diag({ notes: ["<script>x</script>"] })] });
     assert.ok(!m?.html.includes("<script>"));

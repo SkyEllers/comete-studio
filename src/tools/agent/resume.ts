@@ -9,12 +9,17 @@ import { ajouterJours, instantLocal, jourLocal } from "./temps.ts";
 type Admin = ReturnType<typeof createAdminClient>;
 
 /**
- * Le mail du matin : les diagnostics du jour, envoyés au client à 8h.
+ * Le mail du matin : chacune reçoit ses diagnostics du jour (Louis,
+ * 25/09/2026). Le client reçoit les siens ; chaque closeuse, les rendez-vous
+ * que Radar lui attribue, les jours où elle en a. Une closeuse retirée du
+ * client rend ses rendez-vous au client.
  *
  * L'horloge passe toutes les 5 minutes ; le premier passage après 8h (heure
  * de Paris) réserve la journée dans `resume_envoye_le` avant d'envoyer. Deux
- * passages simultanés n'envoient donc qu'un mail. Si Resend refuse, la
- * réservation est rendue et le passage suivant réessaie.
+ * passages simultanés n'envoient donc qu'une fois. Si aucun mail n'est parti
+ * (Resend en panne), la réservation est rendue et le passage suivant
+ * réessaie ; si une partie seulement est partie, on ne renvoie pas à celles
+ * qui l'ont déjà.
  *
  * Seules les vraies conversations comptent. Les simulations n'y entrent que
  * par l'envoi de test, qui part chez Louis seul.
@@ -38,7 +43,7 @@ export async function diagnosticsDuJour(
   let requete = admin
     .from("agent_conversations")
     .select(
-      "id, rdv_debut, prenom, fuseau, etat, confirme_le, reports_agent, invites_precedents, sans_reponse_veille, simulation",
+      "id, booking_id, rdv_debut, prenom, fuseau, etat, confirme_le, reports_agent, invites_precedents, sans_reponse_veille, simulation",
     )
     .eq("organization_id", orgId)
     .gte("rdv_debut", debut)
@@ -50,15 +55,22 @@ export async function diagnosticsDuJour(
   const { data: conversations } = await requete;
   if (!conversations?.length) return [];
 
-  const { data: entrants } = await admin
-    .from("agent_messages")
-    .select("conversation_id, comprehension")
-    .in(
-      "conversation_id",
-      conversations.map((c) => c.id),
-    )
-    .eq("sens", "entrant")
-    .order("created_at");
+  const bookings = conversations.map((c) => c.booking_id).filter((b): b is string => Boolean(b));
+  const [{ data: entrants }, { data: rdvs }] = await Promise.all([
+    admin
+      .from("agent_messages")
+      .select("conversation_id, comprehension")
+      .in(
+        "conversation_id",
+        conversations.map((c) => c.id),
+      )
+      .eq("sens", "entrant")
+      .order("created_at"),
+    bookings.length
+      ? admin.from("radar_bookings").select("id, closeuse_id").in("id", bookings)
+      : Promise.resolve({ data: [] as { id: string; closeuse_id: string | null }[] }),
+  ]);
+  const closeuseDe = new Map((rdvs ?? []).map((r) => [r.id, r.closeuse_id]));
 
   return conversations.map((c) => ({
     rdv_debut: c.rdv_debut,
@@ -70,11 +82,52 @@ export async function diagnosticsDuJour(
     deplace: c.invites_precedents.length > 0,
     sans_reponse_veille: c.sans_reponse_veille,
     simulation: c.simulation,
+    closeuse_id: c.booking_id ? (closeuseDe.get(c.booking_id) ?? null) : null,
     notes: (entrants ?? [])
       .filter((m) => m.conversation_id === c.id)
       .map((m) => (m.comprehension as NoteIa)?.ia?.note_pour_peggy ?? "")
       .filter((n): n is string => Boolean(n)),
   }));
+}
+
+type Envoi = { pour: string | null; a: string[]; diagnostics: DiagnosticDuJour[] };
+
+/**
+ * Qui reçoit quoi. Le client : ses destinataires réglés ; une closeuse : son
+ * adresse de connexion au hub, tant qu'elle travaille pour ce client.
+ */
+export async function repartir(
+  admin: Admin,
+  orgId: string,
+  destinatairesClient: string[],
+  diagnostics: DiagnosticDuJour[],
+): Promise<Envoi[]> {
+  const ids = [...new Set(diagnostics.map((d) => d.closeuse_id).filter((c): c is string => Boolean(c)))];
+  const closeuses = new Map<string, { nom: string; email: string }>();
+  if (ids.length) {
+    const [{ data: actives }, { data: profils }] = await Promise.all([
+      admin.from("radar_closeuses").select("user_id").eq("organization_id", orgId).in("user_id", ids),
+      admin.from("profiles").select("id, email, full_name").in("id", ids),
+    ]);
+    const encore = new Set((actives ?? []).map((a) => a.user_id));
+    for (const p of profils ?? []) {
+      if (encore.has(p.id) && p.email) closeuses.set(p.id, { nom: p.full_name || p.email, email: p.email });
+    }
+  }
+
+  const envois = new Map<string, Envoi>();
+  for (const d of diagnostics) {
+    const closeuse = d.closeuse_id ? closeuses.get(d.closeuse_id) : undefined;
+    const cle = closeuse ? d.closeuse_id! : "client";
+    const envoi =
+      envois.get(cle) ??
+      (closeuse
+        ? { pour: closeuse.nom, a: [closeuse.email], diagnostics: [] }
+        : { pour: null, a: destinatairesClient, diagnostics: [] });
+    envoi.diagnostics.push(d);
+    envois.set(cle, envoi);
+  }
+  return [...envois.values()].filter((e) => e.a.length > 0);
 }
 
 /** Ce que l'horloge appelle à chaque passage. Rend le nombre de mails partis. */
@@ -90,7 +143,6 @@ export async function envoyerResumes(admin: Admin, reel = Date.now()): Promise<n
 
   let partis = 0;
   for (const client of clients ?? []) {
-    if (client.resume_destinataires.length === 0) continue;
     if (client.resume_envoye_le && client.resume_envoye_le >= jour) continue;
 
     // Réserver la journée : un seul passage gagne.
@@ -103,16 +155,21 @@ export async function envoyerResumes(admin: Admin, reel = Date.now()): Promise<n
       .maybeSingle();
     if (!reserve) continue;
 
-    const mail = mailDuResume({
-      jour,
-      fuseau: PARIS,
-      diagnostics: await diagnosticsDuJour(admin, client.organization_id, jour, false),
-    });
-    if (!mail) continue;
+    const envois = await repartir(
+      admin,
+      client.organization_id,
+      client.resume_destinataires,
+      await diagnosticsDuJour(admin, client.organization_id, jour, false),
+    );
 
-    if (await envoyer({ ...mail, a: client.resume_destinataires })) {
-      partis++;
-    } else {
+    let partisIci = 0;
+    for (const e of envois) {
+      const mail = mailDuResume({ jour, fuseau: PARIS, diagnostics: e.diagnostics });
+      if (mail && (await envoyer({ ...mail, a: e.a }))) partisIci++;
+    }
+    partis += partisIci;
+
+    if (envois.length > 0 && partisIci === 0) {
       await admin
         .from("agent_reglages")
         .update({ resume_envoye_le: client.resume_envoye_le })
@@ -123,20 +180,25 @@ export async function envoyerResumes(admin: Admin, reel = Date.now()): Promise<n
 }
 
 /**
- * L'envoi de test : le résumé d'un jour choisi, simulations comprises, chez
- * Louis seul. Rend `null` si la journée est vide.
+ * L'envoi de test : les mails d'un jour choisi, simulations comprises, tous
+ * chez Louis, chacun marqué de celle qui l'aurait reçu. Rend `null` si la
+ * journée est vide, sinon vrai si tous sont partis.
  */
 export async function envoyerResumeTest(
   admin: Admin,
   orgId: string,
   jour: string,
 ): Promise<boolean | null> {
-  const mail = mailDuResume({
-    jour,
-    fuseau: PARIS,
-    diagnostics: await diagnosticsDuJour(admin, orgId, jour, true),
-    test: true,
-  });
-  if (!mail) return null;
-  return envoyer(mail);
+  const diagnostics = await diagnosticsDuJour(admin, orgId, jour, true);
+  if (diagnostics.length === 0) return null;
+
+  // Les adresses ne servent pas : tout part chez Louis. `["louis"]` garde
+  // le mail du client, même sans destinataire réglé.
+  const envois = await repartir(admin, orgId, ["louis"], diagnostics);
+  let tous = true;
+  for (const e of envois) {
+    const mail = mailDuResume({ jour, fuseau: PARIS, diagnostics: e.diagnostics, test: true, pour: e.pour ?? undefined });
+    if (!mail || !(await envoyer(mail))) tous = false;
+  }
+  return tous;
 }

@@ -1799,6 +1799,7 @@ export type Database = {
       }
       radar_bookings: {
         Row: {
+          agent_suivi: string | null
           amount_cents: number
           attribution: Database["public"]["Enums"]["radar_attribution"]
           attribution_note: string | null
@@ -1838,6 +1839,7 @@ export type Database = {
           utm: Json
         }
         Insert: {
+          agent_suivi?: string | null
           amount_cents?: number
           attribution?: Database["public"]["Enums"]["radar_attribution"]
           attribution_note?: string | null
@@ -1877,6 +1879,7 @@ export type Database = {
           utm?: Json
         }
         Update: {
+          agent_suivi?: string | null
           amount_cents?: number
           attribution?: Database["public"]["Enums"]["radar_attribution"]
           attribution_note?: string | null

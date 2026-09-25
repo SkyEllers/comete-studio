@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { agentRecoit } from "@/tools/agent/conversations";
+import { ancienDuReport, annuleParLeReport } from "@/tools/agent/radar";
 import {
   attribuer,
   precedent,
@@ -248,14 +249,18 @@ async function radar(
         return sansCorps(200);
       }
 
-      const par = quiAAnnule(invite.cancellation);
+      // L'agent annule l'ancien rendez-vous après avoir réservé le nouveau :
+      // c'est une reprogrammation, pas une annulation du client (0041).
+      const parAgent = !invite.rescheduled && (await annuleParLeReport(admin, orgId, invite.uri));
+      const reprogramme = Boolean(invite.rescheduled) || parAgent;
+      const par = parAgent ? null : quiAAnnule(invite.cancellation);
 
       await admin
         .from("radar_bookings")
         .update({
           status: "annule",
           status_origin: "calendly",
-          status_note: motifAnnulation(invite.rescheduled, par),
+          status_note: parAgent ? "Reprogrammée par l'assistante" : motifAnnulation(invite.rescheduled, par),
           canceled_at: recuLe,
           updated_at: new Date().toISOString(),
         })
@@ -266,7 +271,7 @@ async function radar(
         organization_id: orgId,
         type: "booking.canceled",
         // `par` est ce qui se compte : le libellé, lui, peut être réécrit.
-        payload: { reprogramme: Boolean(invite.rescheduled), from: connu.status, par },
+        payload: { reprogramme, from: connu.status, par, ...(parAgent ? { agent: true } : {}) },
       });
 
       return accepter(message.event);
@@ -356,6 +361,16 @@ async function radar(
       }
     }
 
+    /*
+     * Un report fait par l'agent (0041) : Calendly l'annonce comme une
+     * réservation neuve, sans `old_invitee`. L'agent sait quel rendez-vous il
+     * remplace ; Radar le traite alors comme une reprogrammation.
+     */
+    const reportAgent = invite.old_invitee
+      ? null
+      : await ancienDuReport(admin, orgId, { uri: invite.uri, debut: invite.scheduled_event.start_time });
+    const ancienUri = invite.old_invitee ?? reportAgent;
+
     const [canaux, historique, ancien] = await Promise.all([
       admin
         .from("radar_channels")
@@ -368,7 +383,7 @@ async function radar(
         .eq("invitee_key", invitee_key)
         .order("scheduled_start", { ascending: false })
         .limit(50),
-      invite.old_invitee
+      ancienUri
         ? admin
             .from("radar_bookings")
             .select("id, channel_id, attribution, closeuse_id")
@@ -378,7 +393,7 @@ async function radar(
             // n'est pas une hypothèse d'école depuis que l'export sert
             // `rescheduled_from` — la valeur sortirait.
             .eq("organization_id", orgId)
-            .eq("invitee_uri", invite.old_invitee)
+            .eq("invitee_uri", ancienUri)
             .maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
@@ -397,7 +412,7 @@ async function radar(
      * suffirait à le faire basculer en « direct » — et à effacer le canal qui
      * l'avait amené.
      */
-    const heritage = invite.rescheduled && ancien.data ? ancien.data : null;
+    const heritage = (invite.rescheduled || reportAgent) && ancien.data ? ancien.data : null;
 
     const verdict = heritage
       ? {
@@ -497,6 +512,7 @@ async function radar(
         attribution: verdict.attribution,
         utm,
         ...(heritage ? { rescheduled_from: heritage.id } : {}),
+        ...(heritage && reportAgent ? { agent: true } : {}),
       },
     });
 

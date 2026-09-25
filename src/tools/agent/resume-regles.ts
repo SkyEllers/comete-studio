@@ -22,6 +22,8 @@ export type DiagnosticDuJour = {
   simulation: boolean;
   /** Ce qu'elle a dit à l'agent, tel que l'agent l'a noté pour la coach. */
   notes: string[];
+  /** La closeuse qui tient ce rendez-vous dans Radar ; null : le client. */
+  closeuse_id?: string | null;
 };
 
 /** Où en est son rendez-vous, en une phrase. */
@@ -71,13 +73,15 @@ export function mailDuResume(q: {
   fuseau: string;
   diagnostics: DiagnosticDuJour[];
   test?: boolean;
+  /** À l'envoi de test : pour qui ce mail serait parti (« Johanna »). */
+  pour?: string;
 }): { sujet: string; texte: string; html: string } | null {
   if (q.diagnostics.length === 0) return null;
 
   const n = q.diagnostics.length;
   // Midi, pour que le jour ne glisse pas d'un fuseau à l'autre.
   const date = jourEnMots(`${q.jour}T12:00:00Z`, q.fuseau);
-  const prefixe = q.test ? "[Test] " : "";
+  const prefixe = q.test ? (q.pour ? `[Test pour ${q.pour}] ` : "[Test] ") : "";
   const sujet = `${prefixe}${n === 1 ? "Ton diagnostic" : `Tes ${n} diagnostics`} du ${date}`;
   const intro = `Aujourd'hui, ${n === 1 ? "1 diagnostic" : `${n} diagnostics`} :`;
   const pied = "Rien à faire de ton côté. C'est juste pour que tu saches, avant chaque Zoom, où elle en est.";

@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { libelleSuivi } from "@/tools/agent/suivi";
 import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
 import { libelleMois, moisPrecedent, moisSuivant } from "@/tools/resultats/mois";
 import { LIBELLES_MOTIF, MOTIFS, type Motif, type Raison } from "@/tools/resultats/non-vente";
@@ -357,6 +358,14 @@ function CarteRdv({ rdv, urgent, onNoter }: { rdv: RdvCloseuse; urgent?: boolean
             {rdv.typeNom ? ` · ${rdv.typeNom}` : ""}
           </p>
           <p className="mt-1 text-base font-medium">{rdv.prenom}</p>
+          {libelleSuivi(rdv.agentSuivi) ? (
+            <Badge
+              variant={rdv.agentSuivi === "confirme" ? "secondary" : "outline"}
+              className={cn("mt-2", rdv.agentSuivi === "confirme" && "bg-success/15 text-success")}
+            >
+              {libelleSuivi(rdv.agentSuivi)}
+            </Badge>
+          ) : null}
         </div>
         {urgent ? (
           <Button size="sm" onClick={() => onNoter(rdv)}>

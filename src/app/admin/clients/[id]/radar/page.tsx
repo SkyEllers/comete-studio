@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { libelleSuivi } from "@/tools/agent/suivi";
 import { cn } from "@/lib/utils";
 import {
   attributionADire,
@@ -242,6 +243,13 @@ async function SectionRendezVous({
   const lignes = rdv.data ?? [];
   const parCanal = new Map((canaux.data ?? []).map((canal) => [canal.id, canal]));
 
+  // La marque de l'agent (0041) : hors de la vue, lue sur la table.
+  const idsRdv = lignes.map((l) => l.id).filter((id): id is string => Boolean(id));
+  const { data: suivis } = idsRdv.length
+    ? await supabase.from("radar_bookings").select("id, agent_suivi").in("id", idsRdv).not("agent_suivi", "is", null)
+    : { data: [] as { id: string; agent_suivi: string | null }[] };
+  const suiviDe = new Map((suivis ?? []).map((s) => [s.id, s.agent_suivi]));
+
   const chemin = `/admin/clients/${organizationId}/radar`;
   const garde = new URLSearchParams(
     Object.entries(caches).filter(([, valeur]) => valeur) as [string, string][],
@@ -345,6 +353,9 @@ async function SectionRendezVous({
 
                 <TableCell>
                   <p className="text-sm">{statutLisible(ligne.effective_status!)}</p>
+                  {libelleSuivi(suiviDe.get(ligne.id!)) ? (
+                    <p className="text-muted-foreground text-xs">{libelleSuivi(suiviDe.get(ligne.id!))}</p>
+                  ) : null}
                   {ligne.counts_for_commission ? (
                     <p className="text-success font-mono text-xs">compte</p>
                   ) : null}

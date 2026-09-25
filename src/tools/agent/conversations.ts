@@ -182,8 +182,17 @@ async function deplacer(
   ]);
   if (lecture || !actuelle) return "erreur";
 
-  // Déjà fait : Calendly a rejoué le message.
-  if (actuelle.invitee_uri === invite.uri) return "ok";
+  // Déjà basculée : Calendly a rejoué le message, ou l'agent a déplacé le
+  // rendez-vous lui-même avant que ce message arrive. Il reste à la relier
+  // au nouveau rendez-vous de Radar, que seul ce message fait naître.
+  if (actuelle.invitee_uri === invite.uri) {
+    if (!booking) return "ok";
+    const { error } = await admin
+      .from("agent_conversations")
+      .update({ booking_id: booking.id })
+      .eq("id", id);
+    return error ? "erreur" : "ok";
+  }
 
   const { error } = await admin
     .from("agent_conversations")
