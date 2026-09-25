@@ -39,6 +39,15 @@ export type Profil = {
   };
   faconsDeDecider: { facon: FaconDeDecider; motif: RegExp }[];
   modeles: Record<CleModele, Modele>;
+  /** Durée du rendez-vous suivi, pour la simulation. */
+  dureeMinutes: number;
+  /**
+   * Le formulaire de réservation tel que la simulation le remplit, avec des
+   * réponses d'exemple que Louis modifie avant de lancer.
+   */
+  formulaire: { question: string; exemple: string; choix?: string[] }[];
+  /** Les réponses fixes qui ne passent pas par l'IA. */
+  textes: { stop: string };
 };
 
 export type ValeursModele = Record<VariableModele, string>;

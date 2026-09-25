@@ -182,6 +182,44 @@ export async function tournerConversation(
   return faits;
 }
 
+/**
+ * Un message écrit librement, dans la fenêtre de 24 h ouverte par sa
+ * dernière parole. Hors fenêtre, WhatsApp le refuserait : l'appelant a
+ * vérifié avant.
+ */
+export async function envoyerLibre(
+  admin: Admin,
+  conversationId: string,
+  texte: string,
+  reel = Date.now(),
+): Promise<boolean> {
+  const { data: c } = await admin
+    .from("agent_conversations")
+    .select("id, organization_id, simulation, decalage, telephone")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (!c) return false;
+  const reglages = await reglagesDe(admin, c.organization_id);
+  if (!reglages) return false;
+
+  const canal = canalPour(c.simulation, reglages.canal);
+  const resultat = await canal.envoyer({ telephone: c.telephone, texte });
+
+  await admin.from("agent_messages").insert({
+    conversation_id: c.id,
+    organization_id: c.organization_id,
+    sens: "sortant",
+    genre: "libre",
+    texte,
+    canal: canal.nom,
+    statut: resultat.ok ? "envoye" : "echec",
+    erreur: resultat.ok ? null : resultat.erreur,
+    id_externe: resultat.ok ? resultat.idExterne : null,
+    created_at: new Date(maintenantDe(c, reel)).toISOString(),
+  });
+  return resultat.ok;
+}
+
 /** Toutes les conversations en cours : c'est ce que l'horloge appelle. */
 export async function tournerTout(admin: Admin, reel = Date.now()): Promise<number> {
   const { data } = await admin

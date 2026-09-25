@@ -26,6 +26,41 @@ export const peggy: Profil = {
     { facon: "accompagnee", motif: /accompagn/i },
   ],
 
+  dureeMinutes: 45,
+
+  // Les six questions du diagnostic (relevé du 22/09/2026 sur 35
+  // réservations), reformulées : le libellé exact se relira dans Calendly
+  // au branchement. Les motifs plus haut ne dépendent que de quelques mots.
+  formulaire: [
+    { question: "Ton numéro de téléphone", exemple: "06 00 00 00 00" },
+    {
+      question:
+        "Qu'est-ce qui te pousse à vouloir perdre du poids, et qu'as-tu déjà essayé qui n'a pas tenu ?",
+      exemple: "Je n'arrive plus à perdre depuis ma ménopause. J'ai fait Weight Watchers deux fois.",
+    },
+    { question: "Ton âge, ton poids actuel, le poids que tu vises", exemple: "52 ans, 78 kg, 68 kg" },
+    {
+      question: "Comment tu fonctionnes quand tu décides de changer ?",
+      exemple: "J'ai besoin d'être accompagnée",
+      choix: [
+        "Je fonce",
+        "J'analyse tout avant",
+        "J'avance pas à pas",
+        "J'ai besoin d'être accompagnée",
+      ],
+    },
+    { question: "Comment m'as-tu connue ?", exemple: "Facebook" },
+    {
+      question: "Quel budget mensuel peux-tu mettre sur ta santé ?",
+      exemple: "Entre 100 et 200 € par mois",
+    },
+  ],
+
+  // PROVISOIRE : pas encore passé par humaniseur-fr ni validé par Louis.
+  textes: {
+    stop: "C'est noté, je ne t'écris plus. Ton rendez-vous reste réservé : pour le déplacer ou l'annuler, le lien est dans ton mail de confirmation.",
+  },
+
   modeles: {
     reservation: {
       corps:
