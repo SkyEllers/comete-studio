@@ -159,7 +159,13 @@ function exemples(maintenant: Date): Rdv[] {
     id: `${prenom}-${debut}`,
     prenom,
     debut,
-    reserveLe: new Date(Date.parse(debut) - 4 * 86_400_000).toISOString(),
+    // Jamais réservé dans le futur : au plus tard la veille de qui regarde.
+    reserveLe: new Date(
+      Math.min(
+        Date.parse(debut) - 4 * 86_400_000,
+        maintenant.getTime() - 86_400_000,
+      ),
+    ).toISOString(),
     reponses: [
       { q: "Qu'est-ce qui t'amène ?", r: motif },
       { q: "Depuis combien de temps ?", r: depuis },
@@ -485,7 +491,7 @@ export default function EspaceCloseuse() {
 
       <div
         role="tablist"
-        className="border-line mb-6 flex gap-1 overflow-x-auto border-b"
+        className="border-line mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b"
       >
         {ONGLETS.map((o) => (
           <button
@@ -494,7 +500,7 @@ export default function EspaceCloseuse() {
             aria-selected={onglet === o.id}
             onClick={() => setOnglet(o.id)}
             className={cn(
-              "-mb-px shrink-0 border-b-2 px-3 py-2 text-sm transition-colors",
+              "shrink-0 border-b-2 px-3 py-2 text-sm transition-colors",
               onglet === o.id
                 ? "border-ember text-foreground font-medium"
                 : "text-muted-foreground hover:text-foreground border-transparent",
@@ -900,7 +906,7 @@ function OngletVentes({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-muted-foreground text-xs">
-                  {rang}e vente du mois ·{" "}
+                  {rang === 1 ? "1re" : `${rang}e`} vente du mois ·{" "}
                   {majuscule(jour.format(new Date(r.debut)))}
                 </p>
                 <p className="mt-1 text-base font-medium">{r.prenom}</p>
