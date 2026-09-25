@@ -32,7 +32,7 @@ $entetes = @{ apikey = $service; Authorization = "Bearer $service" }
 $org = @(Invoke-RestMethod -Uri "$url/rest/v1/organizations?select=id,name&slug=eq.$Client" -Headers $entetes)
 if ($org.Count -ne 1) { throw "Client introuvable dans le hub : $Client" }
 
-$secret = Read-Host "Colle le jeton ($Type) puis Entrée (rien ne s'affiche)" -AsSecureString
+$secret = Read-Host "Colle le jeton ($Type) puis Entree (rien ne s'affiche)" -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
 try { $jeton = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim() }
 finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
