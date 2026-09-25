@@ -154,7 +154,8 @@ create table public.agent_messages (
   boutons          text[] not null default '{}',
   -- Ce que l'agent a compris d'un message entrant (confirmation, report,
   -- STOP, santé…), pour relire ses décisions.
-  analyse          jsonb,
+  -- (« analyse » est un mot réservé de Postgres.)
+  comprehension    jsonb,
   canal            text not null check (canal in ('simule', 'whatsapp')),
   statut           text not null default 'envoye'
                    check (statut in ('envoye', 'recu', 'echec')),
