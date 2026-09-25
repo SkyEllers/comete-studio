@@ -1822,6 +1822,7 @@ export type Database = {
           sale_date: string | null
           sale_fois: number
           sale_note: string | null
+          sale_premier_cents: number | null
           sale_recorded_at: string | null
           sale_recorded_by: string | null
           scheduled_end: string
@@ -1860,6 +1861,7 @@ export type Database = {
           sale_date?: string | null
           sale_fois?: number
           sale_note?: string | null
+          sale_premier_cents?: number | null
           sale_recorded_at?: string | null
           sale_recorded_by?: string | null
           scheduled_end: string
@@ -1898,6 +1900,7 @@ export type Database = {
           sale_date?: string | null
           sale_fois?: number
           sale_note?: string | null
+          sale_premier_cents?: number | null
           sale_recorded_at?: string | null
           sale_recorded_by?: string | null
           scheduled_end?: string
@@ -2978,7 +2981,7 @@ export type Database = {
         Returns: undefined
       }
       radar_set_sale_fois: {
-        Args: { booking_id: string; fois: number }
+        Args: { booking_id: string; fois: number; premier_cents?: number }
         Returns: undefined
       }
       radar_set_secret: {
