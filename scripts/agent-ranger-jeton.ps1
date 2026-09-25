@@ -13,7 +13,8 @@
 param(
   [string]$Client = "peggy",
   [ValidateSet("calendly_token", "whatsapp_token")]
-  [string]$Type = "calendly_token"
+  [string]$Type = "calendly_token",
+  [switch]$PressePapiers
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,10 +33,16 @@ $entetes = @{ apikey = $service; Authorization = "Bearer $service" }
 $org = @(Invoke-RestMethod -Uri "$url/rest/v1/organizations?select=id,name&slug=eq.$Client" -Headers $entetes)
 if ($org.Count -ne 1) { throw "Client introuvable dans le hub : $Client" }
 
-$secret = Read-Host "Colle le jeton ($Type) puis Entree (rien ne s'affiche)" -AsSecureString
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
-try { $jeton = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim() }
-finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+if ($PressePapiers) {
+  $jeton = ([string](Get-Clipboard -Raw)).Trim()
+  Set-Clipboard -Value " "
+  Write-Host "Jeton lu dans le presse-papiers, presse-papiers vide."
+} else {
+  $secret = Read-Host "Colle le jeton ($Type) par clic droit puis Entree (rien ne s'affiche)" -AsSecureString
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
+  try { $jeton = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr).Trim() }
+  finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+}
 
 Write-Host ("Longueur : {0}" -f $jeton.Length)
 if ($jeton.Length -ge 4) { Write-Host ("4 derniers caracteres : {0}" -f $jeton.Substring($jeton.Length - 4)) }
