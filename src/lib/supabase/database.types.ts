@@ -39,6 +39,428 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_bilans: {
+        Row: {
+          a_repondu: boolean
+          confirme: boolean
+          created_at: string
+          delai_jours: number
+          etat_final: string
+          id: string
+          messages_libres: number
+          modeles_envoyes: number
+          mois: string
+          organization_id: string
+          questions_montees: number
+          reports_agent: number
+          sans_reponse_veille: boolean
+          simulation: boolean
+          stop: boolean
+        }
+        Insert: {
+          a_repondu: boolean
+          confirme: boolean
+          created_at?: string
+          delai_jours: number
+          etat_final: string
+          id?: string
+          messages_libres: number
+          modeles_envoyes: number
+          mois: string
+          organization_id: string
+          questions_montees: number
+          reports_agent: number
+          sans_reponse_veille: boolean
+          simulation: boolean
+          stop: boolean
+        }
+        Update: {
+          a_repondu?: boolean
+          confirme?: boolean
+          created_at?: string
+          delai_jours?: number
+          etat_final?: string
+          id?: string
+          messages_libres?: number
+          modeles_envoyes?: number
+          mois?: string
+          organization_id?: string
+          questions_montees?: number
+          reports_agent?: number
+          sans_reponse_veille?: boolean
+          simulation?: boolean
+          stop?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_bilans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_conversations: {
+        Row: {
+          booking_id: string | null
+          confirme_le: string | null
+          contenu_propose_le: string | null
+          created_at: string
+          creneaux_proposes: string[]
+          decalage: string
+          derniere_entree_le: string | null
+          efface_apres: string
+          email: string | null
+          etat: string
+          event_type_uri: string | null
+          event_uri: string | null
+          facon_de_decider: string | null
+          fuseau: string
+          id: string
+          invitee_uri: string
+          invites_precedents: string[]
+          lien_annulation: string | null
+          lien_report: string | null
+          lien_visio: string | null
+          nom: string | null
+          organization_id: string
+          premiere_reponse_le: string | null
+          prenom: string
+          rdv_debut: string
+          rdv_fin: string
+          reponses: Json
+          report_attendu: string | null
+          report_demande_le: string | null
+          reports_agent: number
+          reserve_le: string
+          sans_reponse_veille: boolean
+          simulation: boolean
+          stop_le: string | null
+          telephone: string | null
+          updated_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          confirme_le?: string | null
+          contenu_propose_le?: string | null
+          created_at?: string
+          creneaux_proposes?: string[]
+          decalage?: string
+          derniere_entree_le?: string | null
+          efface_apres: string
+          email?: string | null
+          etat?: string
+          event_type_uri?: string | null
+          event_uri?: string | null
+          facon_de_decider?: string | null
+          fuseau?: string
+          id?: string
+          invitee_uri: string
+          invites_precedents?: string[]
+          lien_annulation?: string | null
+          lien_report?: string | null
+          lien_visio?: string | null
+          nom?: string | null
+          organization_id: string
+          premiere_reponse_le?: string | null
+          prenom: string
+          rdv_debut: string
+          rdv_fin: string
+          reponses?: Json
+          report_attendu?: string | null
+          report_demande_le?: string | null
+          reports_agent?: number
+          reserve_le: string
+          sans_reponse_veille?: boolean
+          simulation?: boolean
+          stop_le?: string | null
+          telephone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          confirme_le?: string | null
+          contenu_propose_le?: string | null
+          created_at?: string
+          creneaux_proposes?: string[]
+          decalage?: string
+          derniere_entree_le?: string | null
+          efface_apres?: string
+          email?: string | null
+          etat?: string
+          event_type_uri?: string | null
+          event_uri?: string | null
+          facon_de_decider?: string | null
+          fuseau?: string
+          id?: string
+          invitee_uri?: string
+          invites_precedents?: string[]
+          lien_annulation?: string | null
+          lien_report?: string | null
+          lien_visio?: string | null
+          nom?: string | null
+          organization_id?: string
+          premiere_reponse_le?: string | null
+          prenom?: string
+          rdv_debut?: string
+          rdv_fin?: string
+          reponses?: Json
+          report_attendu?: string | null
+          report_demande_le?: string | null
+          reports_agent?: number
+          reserve_le?: string
+          sans_reponse_veille?: boolean
+          simulation?: boolean
+          stop_le?: string | null
+          telephone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_conversations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_conversations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_conversations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_messages: {
+        Row: {
+          boutons: string[]
+          canal: string
+          cle_envoi: string | null
+          comprehension: Json | null
+          conversation_id: string
+          created_at: string
+          erreur: string | null
+          genre: string
+          id: string
+          id_externe: string | null
+          modele: string | null
+          organization_id: string
+          sens: string
+          statut: string
+          texte: string
+        }
+        Insert: {
+          boutons?: string[]
+          canal: string
+          cle_envoi?: string | null
+          comprehension?: Json | null
+          conversation_id: string
+          created_at?: string
+          erreur?: string | null
+          genre: string
+          id?: string
+          id_externe?: string | null
+          modele?: string | null
+          organization_id: string
+          sens: string
+          statut?: string
+          texte: string
+        }
+        Update: {
+          boutons?: string[]
+          canal?: string
+          cle_envoi?: string | null
+          comprehension?: Json | null
+          conversation_id?: string
+          created_at?: string
+          erreur?: string | null
+          genre?: string
+          id?: string
+          id_externe?: string | null
+          modele?: string | null
+          organization_id?: string
+          sens?: string
+          statut?: string
+          texte?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_questions: {
+        Row: {
+          brouillon: string | null
+          conversation_id: string
+          created_at: string
+          etat: string
+          genre: string
+          id: string
+          message_id: string | null
+          notifie_le: string | null
+          organization_id: string
+          question: string
+          reponse: string | null
+          traitee_le: string | null
+        }
+        Insert: {
+          brouillon?: string | null
+          conversation_id: string
+          created_at?: string
+          etat?: string
+          genre: string
+          id?: string
+          message_id?: string | null
+          notifie_le?: string | null
+          organization_id: string
+          question: string
+          reponse?: string | null
+          traitee_le?: string | null
+        }
+        Update: {
+          brouillon?: string | null
+          conversation_id?: string
+          created_at?: string
+          etat?: string
+          genre?: string
+          id?: string
+          message_id?: string | null
+          notifie_le?: string | null
+          organization_id?: string
+          question?: string
+          reponse?: string | null
+          traitee_le?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_questions_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_questions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "agent_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_questions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_reglages: {
+        Row: {
+          actif: boolean
+          canal: string
+          created_at: string
+          delai_minimum: string
+          organization_id: string
+          profil: string
+          resume_actif: boolean
+          resume_destinataires: string[]
+          types_suivis: string[]
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          canal?: string
+          created_at?: string
+          delai_minimum?: string
+          organization_id: string
+          profil: string
+          resume_actif?: boolean
+          resume_destinataires?: string[]
+          types_suivis?: string[]
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          canal?: string
+          created_at?: string
+          delai_minimum?: string
+          organization_id?: string
+          profil?: string
+          resume_actif?: boolean
+          resume_destinataires?: string[]
+          types_suivis?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_reglages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_reponses_fixes: {
+        Row: {
+          actif: boolean
+          created_at: string
+          id: string
+          organization_id: string
+          question: string
+          reponse: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          id?: string
+          organization_id: string
+          question: string
+          reponse: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          id?: string
+          organization_id?: string
+          question?: string
+          reponse?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_reponses_fixes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automatisations: {
         Row: {
           actif: boolean
@@ -1329,6 +1751,49 @@ export type Database = {
           },
         ]
       }
+      radar_booking_answers: {
+        Row: {
+          answers: Json
+          booking_id: string
+          organization_id: string
+          received_at: string
+        }
+        Insert: {
+          answers: Json
+          booking_id: string
+          organization_id: string
+          received_at?: string
+        }
+        Update: {
+          answers?: Json
+          booking_id?: string
+          organization_id?: string
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_booking_answers_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_booking_answers_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_booking_answers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_bookings: {
         Row: {
           amount_cents: number
@@ -1337,6 +1802,7 @@ export type Database = {
           attribution_source_id: string | null
           canceled_at: string | null
           channel_id: string | null
+          closeuse_id: string | null
           created_at: string
           currency: string
           declared_source: string | null
@@ -1354,6 +1820,7 @@ export type Database = {
           rescheduled_from: string | null
           sale_amount_cents: number | null
           sale_date: string | null
+          sale_fois: number
           sale_note: string | null
           sale_recorded_at: string | null
           sale_recorded_by: string | null
@@ -1373,6 +1840,7 @@ export type Database = {
           attribution_source_id?: string | null
           canceled_at?: string | null
           channel_id?: string | null
+          closeuse_id?: string | null
           created_at?: string
           currency?: string
           declared_source?: string | null
@@ -1390,6 +1858,7 @@ export type Database = {
           rescheduled_from?: string | null
           sale_amount_cents?: number | null
           sale_date?: string | null
+          sale_fois?: number
           sale_note?: string | null
           sale_recorded_at?: string | null
           sale_recorded_by?: string | null
@@ -1409,6 +1878,7 @@ export type Database = {
           attribution_source_id?: string | null
           canceled_at?: string | null
           channel_id?: string | null
+          closeuse_id?: string | null
           created_at?: string
           currency?: string
           declared_source?: string | null
@@ -1426,6 +1896,7 @@ export type Database = {
           rescheduled_from?: string | null
           sale_amount_cents?: number | null
           sale_date?: string | null
+          sale_fois?: number
           sale_note?: string | null
           sale_recorded_at?: string | null
           sale_recorded_by?: string | null
@@ -1458,6 +1929,13 @@ export type Database = {
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "radar_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_closeuse_id_fkey"
+            columns: ["closeuse_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1586,8 +2064,113 @@ export type Database = {
           },
         ]
       }
+      radar_closeuses: {
+        Row: {
+          created_at: string
+          organization_id: string
+          palier_apres: number
+          taux: number
+          taux_palier: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          palier_apres?: number
+          taux?: number
+          taux_palier?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          palier_apres?: number
+          taux?: number
+          taux_palier?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_closeuses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_closeuses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      radar_encaissement_incidents: {
+        Row: {
+          booking_id: string
+          created_at: string
+          created_by: string | null
+          note: string | null
+          numero: number
+          organization_id: string
+          type: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          numero: number
+          organization_id: string
+          type: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          created_by?: string | null
+          note?: string | null
+          numero?: number
+          organization_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_encaissement_incidents_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_encaissement_incidents_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_encaissement_incidents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_encaissement_incidents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_event_filters: {
         Row: {
+          closeuse_id: string | null
           event_type_name: string
           event_type_uri: string
           first_seen_at: string
@@ -1597,6 +2180,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          closeuse_id?: string | null
           event_type_name: string
           event_type_uri: string
           first_seen_at?: string
@@ -1606,6 +2190,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          closeuse_id?: string | null
           event_type_name?: string
           event_type_uri?: string
           first_seen_at?: string
@@ -1615,6 +2200,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "radar_event_filters_closeuse_id_fkey"
+            columns: ["closeuse_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "radar_event_filters_organization_id_fkey"
             columns: ["organization_id"]
@@ -2197,6 +2789,7 @@ export type Database = {
           attribution_source_id: string | null
           canceled_at: string | null
           channel_id: string | null
+          closeuse_id: string | null
           commission_basis:
             | Database["public"]["Enums"]["radar_commission_basis"]
             | null
@@ -2223,6 +2816,7 @@ export type Database = {
           rescheduled_from: string | null
           sale_amount_cents: number | null
           sale_date: string | null
+          sale_fois: number | null
           sale_note: string | null
           sale_recorded_at: string | null
           sale_recorded_by: string | null
@@ -2257,6 +2851,13 @@ export type Database = {
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "radar_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_bookings_closeuse_id_fkey"
+            columns: ["closeuse_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -2298,6 +2899,13 @@ export type Database = {
       }
     }
     Functions: {
+      agent_clear_secrets: { Args: { org: string }; Returns: number }
+      agent_get_secret: { Args: { kind: string; org: string }; Returns: string }
+      agent_purger_conversations: { Args: never; Returns: number }
+      agent_set_secret: {
+        Args: { kind: string; org: string; value: string }
+        Returns: undefined
+      }
       can_access_board: { Args: { b: string }; Returns: boolean }
       can_access_files: { Args: { org: string }; Returns: boolean }
       can_access_files_path: { Args: { object_name: string }; Returns: boolean }
@@ -2312,6 +2920,7 @@ export type Database = {
       }
       has_tool: { Args: { org: string; tool_slug: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_closeuse: { Args: { org: string }; Returns: boolean }
       is_member: { Args: { org: string }; Returns: boolean }
       is_org_owner: { Args: { org: string }; Returns: boolean }
       org_du_chemin: { Args: { object_name: string }; Returns: string }
@@ -2335,6 +2944,10 @@ export type Database = {
         Args: { booking_id: string; motif: string; recontacter?: string }
         Returns: boolean
       }
+      radar_peut_saisir: {
+        Args: { closeuse: string; org: string }
+        Returns: boolean
+      }
       radar_purger_identite: {
         Args: { avec_vente?: string; sans_vente?: string }
         Returns: number
@@ -2344,6 +2957,7 @@ export type Database = {
         Args: { anciennete?: string }
         Returns: number
       }
+      radar_purger_reponses: { Args: { anciennete?: string }; Returns: number }
       radar_recontact_fait: { Args: { booking_id: string }; Returns: boolean }
       radar_review_statement: {
         Args: {
@@ -2361,6 +2975,10 @@ export type Database = {
           note?: string
           sale_date?: string
         }
+        Returns: undefined
+      }
+      radar_set_sale_fois: {
+        Args: { booking_id: string; fois: number }
         Returns: undefined
       }
       radar_set_secret: {
@@ -2400,7 +3018,7 @@ export type Database = {
     }
     Enums: {
       file_status: "uploading" | "ready"
-      membership_role: "owner" | "member"
+      membership_role: "owner" | "member" | "closeuse"
       pulsar_modele: "recurrent" | "one_shot" | "commission" | "historique"
       pulsar_phase: "setup" | "pilotage" | "interne"
       pulsar_profil: "p1" | "p2" | "p3" | "hors_cible"
@@ -2553,7 +3171,7 @@ export const Constants = {
   public: {
     Enums: {
       file_status: ["uploading", "ready"],
-      membership_role: ["owner", "member"],
+      membership_role: ["owner", "member", "closeuse"],
       pulsar_modele: ["recurrent", "one_shot", "commission", "historique"],
       pulsar_phase: ["setup", "pilotage", "interne"],
       pulsar_profil: ["p1", "p2", "p3", "hors_cible"],
