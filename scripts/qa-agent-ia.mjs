@@ -16,7 +16,8 @@ import { env, journal } from "./qa-commun.mjs";
 import { demanderDecision, lireTarifs } from "../src/tools/agent/ia.ts";
 import { peggy } from "../src/tools/agent/profils/peggy.ts";
 import { consignesStables, contexteDuMoment, transcrire } from "../src/tools/agent/prompt.ts";
-import { instantLocal, ajouterJours, jourLocal } from "../src/tools/agent/temps.ts";
+import { rendreModele } from "../src/tools/agent/profil.ts";
+import { ajouterJours, heureEnMots, instantLocal, jourEnMots, jourLocal } from "../src/tools/agent/temps.ts";
 
 if (!env.ANTHROPIC_API_KEY) {
   console.error("ANTHROPIC_API_KEY est absente de `.env.local` : ce banc ne peut pas tourner.");
@@ -44,11 +45,18 @@ const premier = {
   sens: "sortant",
   genre: "modele",
   modele: "reservation",
-  texte:
-    "Bonjour Camille, ici l'assistante de Peggy Girault. Je suis une IA, je m'occupe de ton rendez-vous jusqu'au jour J.\nC'est réservé : ton diagnostic offert a lieu jeudi à 14h, sur Zoom (45 minutes).\nLe créneau te va bien ?\nSi tu préfères parler à quelqu'un de l'équipe, dis-le-moi ici.",
+  // Le vrai modèle, avec la vraie date : un texte écrit à la main ici avait
+  // annoncé « jeudi » pour un samedi, et l'IA passait son temps à corriger.
+  texte: rendreModele(peggy.modeles.reservation, {
+    prenom: "Camille",
+    jour: jourEnMots(rdv, P),
+    heure: heureEnMots(rdv, P),
+    lienVisio: "https://zoom.us/j/qa",
+  }),
   created_at: new Date(maintenant - 10 * 60_000).toISOString(),
 };
 
+const jourRdv = jourEnMots(rdv, P).split(" ")[0];
 const elle = (texte) => ({
   sens: "entrant",
   genre: "texte",
@@ -82,7 +90,17 @@ async function cas(nom, fil, attentes, surcharge = {}) {
     `   jetons : entrée ${r.usage.input_tokens}, cache lu ${r.usage.cache_read_input_tokens ?? 0}, cache écrit ${r.usage.cache_creation_input_tokens ?? 0}, sortie ${r.usage.output_tokens}`,
   );
   verifie(`${nom} : jamais de tiret long`, !d.reponse.includes("—"));
-  verifie(`${nom} : ne nomme personne pour le Zoom`, !/Mélanie|closeuse|c'est (bien )?elle que tu verras/i.test(d.reponse));
+  verifie(
+    `${nom} : ne dit pas qui sera au Zoom`,
+    !/Mélanie|closeuse|c'est (bien )?elle que tu verras|pour Peggy|avec Peggy|votre (échange|rendez-vous)/i.test(d.reponse),
+  );
+  const lignes = d.reponse.split("\n").filter((l) => l.trim()).length;
+  verifie(
+    `${nom} : quatre lignes au plus`,
+    lignes <= 4 && d.reponse.length <= 420,
+    `${lignes} lignes, ${d.reponse.length} caractères`,
+  );
+  verifie(`${nom} : une seule question`, (d.reponse.match(/\?/g) ?? []).length <= 1);
   for (const [libelle, ok] of attentes(d)) verifie(`${nom} : ${libelle}`, ok, JSON.stringify(d));
   return r;
 }
@@ -112,7 +130,7 @@ await cas("détresse", [premier, elle("Honnêtement je n'en peux plus, j'ai envi
   ["détresse reconnue", d.detresse === true],
 ]);
 
-await cas("un empêchement", [premier, elle("Ah mince, jeudi je ne pourrai pas finalement")], (d) => [
+await cas("un empêchement", [premier, elle(`Ah mince, ${jourRdv} je ne pourrai pas finalement`)], (d) => [
   ["veut changer", d.veut_changer === true],
   ["ne propose aucune heure elle-même", !/\b\d{1,2}\s?h(\d{2})?\b/.test(d.reponse.replace(/14\s?h/g, ""))],
 ]);
