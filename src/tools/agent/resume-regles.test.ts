@@ -65,7 +65,7 @@ describe("le mail du matin", () => {
     assert.equal(m.sujet, "Tes 2 diagnostics du vendredi 2 octobre");
     assert.ok(m.texte.indexOf("10h · Sandrine") < m.texte.indexOf("15h30 · Nadia"));
     assert.match(m.texte, /Ce qu'elle a dit : hypothyroïdie, renvoyée vers son médecin\./);
-    assert.match(m.texte, /15h30 · Nadia\nCe qu'elle a dit : Rien de particulier\.\nConfirmé\./);
+    assert.match(m.texte, /15h30 · Nadia\nCe qu'elle a dit : rien de particulier\.\nConfirmé\./);
   });
 
   it("au singulier pour un seul", () => {
