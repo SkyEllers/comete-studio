@@ -2944,7 +2944,12 @@ export type Database = {
         Returns: boolean
       }
       radar_note_non_vente: {
-        Args: { booking_id: string; motif: string; recontacter?: string }
+        Args: {
+          booking_id: string
+          motif: string
+          recontacter?: string
+          recontacter_le?: string
+        }
         Returns: boolean
       }
       radar_peut_saisir: {

@@ -93,6 +93,7 @@ try {
   const vieux = await rdv(orgs.a.id, "c1-vieux", -120 * jour, comptes.c1);
   const vieuxRappel = await rdv(orgs.a.id, "c1-vieux-rappel", -120 * jour, comptes.c1);
   const autre = await rdv(orgs.b.id, "b-passe", -2 * jour);
+  const pourLaDate = await rdv(orgs.a.id, "c1-date", -1 * jour, comptes.c1);
 
   for (const b of [b1, b3, b4, vieux, vieuxRappel]) {
     await creer("radar_booking_answers", {
@@ -218,13 +219,13 @@ try {
   // 0038 : le jour exact où la rappeler.
   const dansDixJours = new Date(Date.now() + 10 * jour).toISOString().slice(0, 10);
   const avecDate = await c1("POST", "rpc/radar_note_non_vente", {
-    booking_id: vieux.id,
+    booking_id: pourLaDate.id,
     motif: "argent",
     recontacter_le: dansDixJours,
   });
   verifie("C1 note une date exacte où la rappeler", avecDate.status < 300, JSON.stringify(avecDate.data));
   const raisonLue = (
-    await srv("GET", `radar_booking_activities?select=payload&booking_id=eq.${vieux.id}&type=eq.sale.reason`)
+    await srv("GET", `radar_booking_activities?select=payload&booking_id=eq.${pourLaDate.id}&type=eq.sale.reason`)
   ).data?.[0]?.payload;
   verifie(
     "la raison porte le jour exact et son mois",
@@ -232,7 +233,7 @@ try {
     JSON.stringify(raisonLue),
   );
   const datePassee = await c1("POST", "rpc/radar_note_non_vente", {
-    booking_id: vieux.id,
+    booking_id: pourLaDate.id,
     motif: "argent",
     recontacter_le: "2026-01-02",
   });
