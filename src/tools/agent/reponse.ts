@@ -6,6 +6,7 @@ import type { Json } from "@/lib/supabase/database.types";
 import { annulerAncien, creneauxLibres, jetonAgent, reserver } from "./calendly.ts";
 import { choisirCreneaux } from "./creneaux.ts";
 import { envoyerLibre, maintenantDe } from "./envoi.ts";
+import { mettreEnFile as mettreDansLaFile } from "./file.ts";
 import { demanderDecision, lireTarifs } from "./ia.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import {
@@ -34,7 +35,7 @@ type Admin = ReturnType<typeof createAdminClient>;
  * Un seul envoi par message reçu, même si l'horloge passe deux fois : la clé
  * `reponse:<id du message>` le garantit.
  *
- * Le mail à Louis pour la file et la détresse vient à l'étape suivante (7).
+ * Chaque entrée dans la file prévient Louis par mail (`file.ts`).
  */
 
 export type Issue = "repondu" | "file" | "detresse" | "rien";
@@ -307,20 +308,20 @@ function resumeDecision(d: Decision) {
   };
 }
 
-async function mettreEnFile(
+function mettreEnFile(
   admin: Admin,
   c: { id: string; organization_id: string },
   messageId: string,
   genre: "incertain" | "detresse",
   q: { question: string; brouillon: string | null; maintenant: number },
 ) {
-  await admin.from("agent_questions").insert({
+  return mettreDansLaFile(admin, {
     conversation_id: c.id,
     organization_id: c.organization_id,
     message_id: messageId,
     genre,
-    question: q.question.slice(0, 2000),
-    brouillon: q.brouillon?.slice(0, 2000) ?? null,
+    question: q.question,
+    brouillon: q.brouillon,
     created_at: new Date(q.maintenant).toISOString(),
   });
 }

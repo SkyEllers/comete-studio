@@ -11,6 +11,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ouvrir } from "@/tools/agent/conversations";
 import { recevoir } from "@/tools/agent/entrees";
+import { traiter } from "@/tools/agent/file";
 import { maintenantDe, tournerConversation } from "@/tools/agent/moteur";
 import { CLES_PROFILS, profil as profilDe } from "@/tools/agent/profils";
 import { invitationCalendly } from "@/tools/agent/reservation";
@@ -260,4 +261,75 @@ export async function supprimerSimulation(
   if (error) return fail("La simulation n'a pas pu être supprimée.");
 
   redirect("/admin/agent");
+}
+
+// ------------------------------ La file ------------------------------------
+
+const schemaQuestion = z.discriminatedUnion("choix", [
+  z.object({
+    id: z.uuid(),
+    choix: z.literal("envoyer"),
+    texte: z.string().trim().min(1, "Écris la réponse.").max(2000),
+    garder: z.boolean(),
+    question_type: z.string().trim().max(2000),
+  }),
+  z.object({ id: z.uuid(), choix: z.literal("classer") }),
+]);
+
+/**
+ * Louis tranche une question de la file : la réponse part dans la voix de
+ * l'agent (et devient une réponse fixe s'il la garde), ou la question est
+ * classée sans rien envoyer.
+ */
+export async function traiterQuestion(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const lu = schemaQuestion.safeParse({
+    id: formData.get("id"),
+    choix: formData.get("choix"),
+    texte: formData.get("texte") ?? "",
+    garder: formData.get("garder") === "on",
+    question_type: formData.get("question_type") ?? "",
+  });
+  if (!lu.success) return failFromZod(lu.error);
+
+  const d = lu.data;
+  if (d.choix === "envoyer" && d.garder && !d.question_type) {
+    return fail("Écris la question type à garder, ou décoche « Garder ».", "question_type");
+  }
+
+  const admin = createAdminClient();
+  const issue = await traiter(
+    admin,
+    d.id,
+    d.choix === "classer"
+      ? { choix: "classer" }
+      : { choix: "envoyer", texte: d.texte, fixe: d.garder ? { question: d.question_type } : null },
+  );
+  if (!issue.ok) return fail(issue.erreur);
+
+  revalidatePath("/admin/agent/file");
+  revalidatePath("/admin/agent");
+  return ok();
+}
+
+/** Une réponse fixe qui ne tient plus : l'agent cesse de s'en servir. */
+export async function retirerReponseFixe(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const id = z.uuid().safeParse(formData.get("id"));
+  if (!id.success) return fail("Réponse introuvable.");
+
+  const { error } = await createAdminClient()
+    .from("agent_reponses_fixes")
+    .update({ actif: false })
+    .eq("id", id.data);
+  if (error) return fail("La réponse n'a pas pu être retirée.");
+
+  revalidatePath("/admin/agent/file");
+  return ok();
 }

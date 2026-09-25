@@ -40,7 +40,7 @@ export default async function AgentPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: reglages }, { data: organisations }, { data: conversations }] = await Promise.all([
+  const [{ data: reglages }, { data: organisations }, { data: conversations }, { count: enAttente }] = await Promise.all([
     supabase.from("agent_reglages").select("organization_id, profil, actif, canal, types_suivis"),
     supabase.from("organizations").select("id, name").order("name"),
     supabase
@@ -48,6 +48,10 @@ export default async function AgentPage() {
       .select("id, organization_id, simulation, prenom, rdv_debut, etat, confirme_le, created_at")
       .order("created_at", { ascending: false })
       .limit(50),
+    supabase
+      .from("agent_questions")
+      .select("id", { count: "exact", head: true })
+      .eq("etat", "ouverte"),
   ]);
 
   const nomDe = new Map((organisations ?? []).map((o) => [o.id, o.name]));
@@ -64,6 +68,16 @@ export default async function AgentPage() {
         title="Agent"
         description="Ce que l'agent écrit entre la réservation et le rendez-vous. Tant que WhatsApp n'est pas branché, tu joues la cliente ici."
       />
+
+      <Link
+        href="/admin/agent/file"
+        className={`mb-6 inline-flex items-baseline gap-2 rounded-lg border px-4 py-2 text-sm transition-colors ${
+          enAttente ? "border-ember/60 bg-ember/10 hover:bg-ember/20" : "border-line bg-surface-1 hover:bg-surface-2"
+        }`}
+      >
+        La file des questions
+        <span className="font-mono text-xs">{enAttente ? `${enAttente} en attente` : "rien en attente"}</span>
+      </Link>
 
       <section className="mb-8 grid gap-4 lg:grid-cols-2">
         <div className="border-line bg-surface-1 rounded-lg border p-5">

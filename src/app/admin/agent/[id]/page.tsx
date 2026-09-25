@@ -45,13 +45,18 @@ export default async function ConversationPage({ params }: PageProps<"/admin/age
     .maybeSingle();
   if (!c) notFound();
 
-  const [{ data: messages }, { data: reglages }] = await Promise.all([
+  const [{ data: messages }, { data: reglages }, { count: enAttente }] = await Promise.all([
     supabase
       .from("agent_messages")
       .select("id, sens, genre, modele, texte, boutons, statut, erreur, created_at")
       .eq("conversation_id", id)
       .order("created_at"),
     supabase.from("agent_reglages").select("profil").eq("organization_id", c.organization_id).maybeSingle(),
+    supabase
+      .from("agent_questions")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", id)
+      .eq("etat", "ouverte"),
   ]);
   const profil = reglages ? profilDe(reglages.profil) : null;
   const maintenant = maintenantDe(c);
@@ -82,6 +87,16 @@ export default async function ConversationPage({ params }: PageProps<"/admin/age
         {c.simulation ? "heure simulée : " : "maintenant : "}
         {quand(maintenant)}
       </p>
+
+      {enAttente ? (
+        <Link
+          href="/admin/agent/file"
+          className="border-ember/60 bg-ember/10 hover:bg-ember/20 mb-6 block rounded-lg border px-4 py-2 text-sm transition-colors"
+        >
+          {enAttente === 1 ? "Une question" : `${enAttente} questions`} de cette conversation
+          attend{enAttente === 1 ? "" : "ent"} ta réponse dans la file →
+        </Link>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div>
