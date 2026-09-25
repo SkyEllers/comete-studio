@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { agentRecoit } from "@/tools/agent/conversations";
 import {
   attribuer,
   precedent,
@@ -95,10 +96,36 @@ type Journal = {
   message?: string | null;
 };
 
-export async function POST(
+type Contexte = { params: Promise<{ orgId: string }> };
+
+/**
+ * Radar d'abord, puis l'agent, sur le même message authentifié.
+ *
+ * L'agent ne passe que si Radar a répondu 200 — message signé et compris, y
+ * compris un doublon ou un type coupé : un rejeu de Calendly après une panne
+ * de l'agent doit lui laisser une seconde chance, même quand Radar a déjà
+ * tout noté. Une panne de l'agent répond 500 pour que Calendly rejoue ;
+ * Radar, idempotent, n'en souffre pas.
+ */
+export async function POST(request: NextRequest, contexte: Contexte) {
+  const retenu: { message: MessageCalendly | null } = { message: null };
+  const reponse = await radar(request, contexte, retenu);
+  if (reponse.status !== 200 || !retenu.message) return reponse;
+
+  const { orgId } = await contexte.params;
+  try {
+    const issue = await agentRecoit(createAdminClient(), orgId, retenu.message);
+    return issue === "erreur" ? sansCorps(500) : reponse;
+  } catch {
+    return sansCorps(500);
+  }
+}
+
+async function radar(
   request: NextRequest,
-  { params }: { params: Promise<{ orgId: string }> },
-) {
+  { params }: Contexte,
+  retenu: { message: MessageCalendly | null },
+): Promise<Response> {
   const { orgId } = await params;
 
   // Une adresse qui n'est même pas un identifiant : on ne touche pas la base,
@@ -172,6 +199,7 @@ export async function POST(
 
     const message = lu.data;
     const invite = message.payload;
+    retenu.message = message;
 
     if (message.event !== CREATION && message.event !== ANNULATION) {
       await noter({ event_kind: message.event, outcome: "ignored" });

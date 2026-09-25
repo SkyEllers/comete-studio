@@ -55,6 +55,9 @@ export const invitationCalendly = souple({
 export type InvitationCalendly = z.infer<typeof invitationCalendly>;
 export type ReponseFormulaire = z.infer<typeof reponseFormulaire>;
 
+/** Ce qu'on garde d'une réponse : trois champs, rien de ce que Calendly ajoutera demain. */
+export type ReponseGardee = { question: string; answer: string; position: number | null };
+
 /** 30 jours après le rendez-vous, tout s'efface (Louis, 25/09/2026). */
 export const CONSERVATION_JOURS = 30;
 
@@ -116,7 +119,7 @@ export type NouvelleConversation = {
   email: string | null;
   telephone: string | null;
   fuseau: string;
-  reponses: ReponseFormulaire[];
+  reponses: ReponseGardee[];
   facon_de_decider: FaconDeDecider | null;
   etat: "active" | "hors_champ";
   efface_apres: string;
@@ -134,7 +137,11 @@ export function lireReservation(
   profil: Profil,
   options: { delaiMinimumMs: number; recuLe: string },
 ): NouvelleConversation {
-  const reponses = [...(invite.questions_and_answers ?? [])];
+  const reponses: ReponseGardee[] = (invite.questions_and_answers ?? []).map((r) => ({
+    question: r.question.slice(0, 300),
+    answer: r.answer.slice(0, 2000),
+    position: r.position ?? null,
+  }));
   const telephone =
     telephoneInternational(reponseA(reponses, profil.questions.telephone)) ??
     telephoneInternational(invite.text_reminder_number);
