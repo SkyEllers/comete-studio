@@ -25,6 +25,7 @@
     "qa:prospection": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-prospection.mjs",
     "qa:agent-report": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-report.mjs",
     "qa:agent-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-ia.mjs",
+    "qa:agent-horloge": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-horloge.mjs",
     "qa:agent-file": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-file.mjs",
     "qa:agent": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent.mjs",
     "qa:automatisations": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-automatisations.mjs",
