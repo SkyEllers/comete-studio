@@ -18,6 +18,7 @@ function conv(surcharge: Partial<ConversationPlanning> = {}): ConversationPlanni
     fuseau: P,
     confirme_le: null,
     derniere_entree_le: null,
+    derniere_sortie_le: null,
     sans_reponse_veille: false,
     envois: [],
     ...surcharge,
@@ -83,7 +84,7 @@ describe("planifier — sans aucune réponse", () => {
 
 describe("planifier — elle répond", () => {
   it("un message d'elle repousse le rappel de deux jours", () => {
-    const c = conv({ envois: [reservation], derniere_entree_le: iso(t("2026-10-02", 18)) });
+    const c = conv({ envois: [reservation], derniere_entree_le: iso(t("2026-10-02", 18)), derniere_sortie_le: iso(t("2026-10-02", 18, 1)) });
     assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), []);
     assert.deepEqual(cles(planifier(c, t("2026-10-04", 10))), ["rappel:2026-10-04"]);
   });
@@ -93,6 +94,7 @@ describe("planifier — elle répond", () => {
       envois: [reservation],
       confirme_le: iso(t("2026-10-01", 9, 30)),
       derniere_entree_le: iso(t("2026-10-01", 9, 30)),
+      derniere_sortie_le: iso(t("2026-10-01", 9, 31)),
     });
     assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), [], "plus de rappel");
     assert.deepEqual(cles(planifier(c, t("2026-10-04", 10))), ["preparation:2026-10-08"]);
@@ -106,6 +108,7 @@ describe("planifier — elle répond", () => {
       envois: [reservation],
       confirme_le: iso(t("2026-10-03", 11)),
       derniere_entree_le: iso(t("2026-10-03", 11)),
+      derniere_sortie_le: iso(t("2026-10-03", 11, 1)),
     });
     for (const jour of ["2026-10-04", "2026-10-05", "2026-10-06"]) {
       assert.deepEqual(cles(planifier(c, t(jour, 10))), [], jour);
@@ -116,8 +119,49 @@ describe("planifier — elle répond", () => {
     const c = conv({
       envois: [reservation, envoi("veille", "veille:2026-10-08", t("2026-10-07", 10))],
       derniere_entree_le: iso(t("2026-10-07", 12)),
+      derniere_sortie_le: iso(t("2026-10-07", 12, 1)),
     });
     assert.deepEqual(cles(planifier(c, t("2026-10-08", 8))), ["matin:2026-10-08"]);
+  });
+});
+
+describe("planifier — répondre", () => {
+  it("elle a écrit en dernier : l'agent lui répond avant tout modèle", () => {
+    const c = conv({
+      envois: [reservation],
+      derniere_sortie_le: reservation.le,
+      derniere_entree_le: iso(t("2026-10-07", 10, 30)),
+    });
+    assert.deepEqual(cles(planifier(c, t("2026-10-07", 10, 31))), ["repondre"]);
+  });
+
+  it("un message de la nuit attend 8h", () => {
+    const c = conv({
+      envois: [reservation],
+      derniere_sortie_le: reservation.le,
+      derniere_entree_le: iso(t("2026-10-02", 23, 10)),
+    });
+    assert.deepEqual(cles(planifier(c, t("2026-10-02", 23, 15))), []);
+    assert.deepEqual(cles(planifier(c, t("2026-10-03", 7, 59))), []);
+    assert.deepEqual(cles(planifier(c, t("2026-10-03", 8))), ["repondre"]);
+  });
+
+  it("une fois répondu, le planning reprend", () => {
+    const c = conv({
+      envois: [reservation],
+      derniere_entree_le: iso(t("2026-10-01", 9, 30)),
+      derniere_sortie_le: iso(t("2026-10-01", 9, 31)),
+    });
+    assert.deepEqual(cles(planifier(c, t("2026-10-01", 12))), []);
+  });
+
+  it("un empêchement écrit juste avant le Zoom reçoit encore une réponse", () => {
+    const c = conv({
+      envois: [reservation, envoi("matin", "matin:2026-10-08", t("2026-10-08", 8))],
+      derniere_sortie_le: iso(t("2026-10-08", 8)),
+      derniere_entree_le: iso(t("2026-10-08", 14, 2)),
+    });
+    assert.deepEqual(cles(planifier(c, t("2026-10-08", 14, 3))), ["repondre"]);
   });
 });
 

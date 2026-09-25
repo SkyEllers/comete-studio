@@ -23,6 +23,9 @@ import { ajouterJours, instantLocal, jourLocal, joursEntre } from "./temps.ts";
  * Aucun modèle ne part après 20h (21h pour la veille), sauf le premier. Un
  * passage manqué se rattrape dans la journée, pas le lendemain.
  *
+ * Quand c'est elle qui a écrit en dernier, l'agent lui répond d'abord,
+ * entre 8h et 21h ; un message de la nuit attend 8h (Louis, 25/09/2026).
+ *
  * Et surtout : **rien ici n'annule jamais un rendez-vous.** Sans réponse à la
  * veille, le rendez-vous reste, et le lien part le matin.
  */
@@ -31,6 +34,9 @@ export const HEURE_JOURNEE = 10;
 export const FIN_JOURNEE = 20;
 export const FIN_VEILLE = 21;
 export const HEURE_MATIN = 8;
+/** Les réponses libres : de 8h à 21h, heure de la cliente. */
+export const DEBUT_REPONSES = 8;
+export const FIN_REPONSES = 21;
 /** Deux jours sans nouvelles avant un rappel. */
 export const JOURS_AVANT_RAPPEL = 2;
 /** Au-delà de cet écart entre confirmation et veille, un message de préparation. */
@@ -48,6 +54,8 @@ export type ConversationPlanning = {
   fuseau: string;
   confirme_le: string | null;
   derniere_entree_le: string | null;
+  /** Le dernier message parti vers elle, modèle ou libre. */
+  derniere_sortie_le: string | null;
   sans_reponse_veille: boolean;
   /** Les modèles déjà partis, pour ce rendez-vous et les précédents. */
   envois: EnvoiPasse[];
@@ -55,6 +63,7 @@ export type ConversationPlanning = {
 
 export type Action =
   | { genre: "envoyer"; modele: CleModele; cle: string }
+  | { genre: "repondre" }
   | { genre: "noter_sans_reponse_veille" }
   | { genre: "terminer" };
 
@@ -63,19 +72,31 @@ export function planifier(c: ConversationPlanning, maintenant: number): Action[]
 
   const debut = Date.parse(c.rdv_debut);
   if (maintenant >= Date.parse(c.rdv_fin)) return [{ genre: "terminer" }];
+
+  const f = c.fuseau;
+  const aujourdhui = jourLocal(maintenant, f);
+  const a = (heure: number, jour = aujourdhui) => instantLocal(jour, heure, 0, f);
+
+  // Elle attend une réponse : ça passe avant tout modèle.
+  const attend =
+    c.derniere_entree_le !== null &&
+    (c.derniere_sortie_le === null ||
+      Date.parse(c.derniere_entree_le) > Date.parse(c.derniere_sortie_le));
+  if (attend) {
+    const heureOuverte = maintenant >= a(DEBUT_REPONSES) && maintenant < a(FIN_REPONSES);
+    return heureOuverte ? [{ genre: "repondre" }] : [];
+  }
+
   if (maintenant >= debut) return [];
 
   const deja = new Set(c.envois.map((e) => e.cle_envoi));
-  const f = c.fuseau;
 
   if (!deja.has("reservation")) {
     return [{ genre: "envoyer", modele: "reservation", cle: "reservation" }];
   }
 
-  const aujourdhui = jourLocal(maintenant, f);
   const jourRdv = jourLocal(debut, f);
   const veille = ajouterJours(jourRdv, -1);
-  const a = (heure: number, jour = aujourdhui) => instantLocal(jour, heure, 0, f);
   const enJournee = maintenant >= a(HEURE_JOURNEE) && maintenant < a(FIN_JOURNEE);
 
   // --------------------------- Le jour même ----------------------------------

@@ -26,6 +26,9 @@ export type Modele = {
   boutons: { texte: string; sens: SensBouton }[];
 };
 
+/** Un contenu que l'agent peut proposer, puis envoyer sur un oui. */
+export type Contenu = { titre: string; url: string; theme: string; resume: string };
+
 export type Profil = {
   cle: string;
   /** Le nom de celle ou celui au nom de qui l'agent écrit. */
@@ -47,7 +50,22 @@ export type Profil = {
    */
   formulaire: { question: string; exemple: string; choix?: string[] }[];
   /** Les réponses fixes qui ne passent pas par l'IA. */
-  textes: { stop: string };
+  textes: {
+    stop: string;
+    /** Détresse : part tel quel, sans IA, avec le numéro d'écoute. */
+    detresse: string;
+    /** L'agent n'est pas sûr : la question monte chez Louis, elle attend. */
+    attente: string;
+  };
+  /**
+   * La voix et les règles de conduite, en consignes pour l'IA. Stables d'un
+   * appel à l'autre : c'est la partie mise en cache.
+   */
+  consignes: string;
+  /** Ce que l'agent peut proposer à lire. */
+  catalogue: Contenu[];
+  /** La page des prix publics, lue au moment de répondre, jamais recopiée. */
+  urlTarifs: string | null;
 };
 
 export type ValeursModele = Record<VariableModele, string>;

@@ -3,7 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { estStop, sensDuBouton } from "./lecture.ts";
-import { envoyerLibre, maintenantDe } from "./moteur.ts";
+import { envoyerLibre, maintenantDe } from "./envoi.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import type { SensBouton } from "./profil.ts";
 
@@ -73,7 +73,7 @@ export async function recevoir(
     })
     .eq("id", c.id);
 
-  if (stop) await envoyerLibre(admin, c.id, profil.textes.stop, reel);
+  if (stop) await envoyerLibre(admin, c.id, profil.textes.stop, { reel, cle: `stop:${message.id}` });
 
   return { stop, sens, messageId: message.id };
 }

@@ -3,7 +3,7 @@
  */
 
 /** « jeudi 8 octobre » */
-export function jourEnMots(instant: string | Date, fuseau: string): string {
+export function jourEnMots(instant: string | Date | number, fuseau: string): string {
   return new Intl.DateTimeFormat("fr-FR", {
     timeZone: fuseau,
     weekday: "long",
@@ -13,7 +13,7 @@ export function jourEnMots(instant: string | Date, fuseau: string): string {
 }
 
 /** « 14h », « 9h30 » */
-export function heureEnMots(instant: string | Date, fuseau: string): string {
+export function heureEnMots(instant: string | Date | number, fuseau: string): string {
   const parties = new Intl.DateTimeFormat("fr-FR", {
     timeZone: fuseau,
     hour: "numeric",

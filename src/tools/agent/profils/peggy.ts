@@ -1,4 +1,6 @@
 import type { Profil } from "../profil.ts";
+import { articlesPeggy } from "./peggy-articles.ts";
+import { consignesPeggy } from "./peggy-consignes.ts";
 
 /**
  * Peggy Girault : le diagnostic offert de 45 minutes, sur Zoom.
@@ -61,10 +63,17 @@ export const peggy: Profil = {
     },
   ],
 
-  // PROVISOIRE : pas encore passé par humaniseur-fr ni validé par Louis.
+  // PROVISOIRE : pas encore passés par humaniseur-fr ni validés par Louis.
   textes: {
     stop: "C'est noté, je ne t'écris plus. Ton rendez-vous reste réservé : pour le déplacer ou l'annuler, le lien est dans ton mail de confirmation.",
+    detresse:
+      "Ce que tu vis a l'air très lourd, et tu n'as pas à le porter seule. Tu peux appeler le 3114, jour et nuit, c'est gratuit : des professionnels sont là pour t'écouter. Si tu es en danger tout de suite, appelle le 15.",
+    attente: "Je vérifie et je reviens vers toi très vite.",
   },
+
+  consignes: consignesPeggy,
+  catalogue: articlesPeggy,
+  urlTarifs: "https://www.peggygirault.fr/tarifs/",
 
   modeles: {
     reservation: {

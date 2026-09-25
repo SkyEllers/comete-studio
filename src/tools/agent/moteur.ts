@@ -3,10 +3,14 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { canalPour } from "./canal.ts";
+import { maintenantDe } from "./envoi.ts";
 import { planifier, type Action, type EnvoiPasse } from "./planning.ts";
 import { profil as profilDe } from "./profils/index.ts";
+import { repondre } from "./reponse.ts";
 import { MODELES, rendreModele, type CleModele, type Profil, type ValeursModele } from "./profil.ts";
-import { heureEnMots, intervalleMs, jourEnMots } from "./temps.ts";
+import { heureEnMots, jourEnMots } from "./temps.ts";
+
+export { envoyerLibre, maintenantDe } from "./envoi.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -41,11 +45,6 @@ type Conversation = {
   lien_visio: string | null;
 };
 
-/** L'heure de la conversation : la vraie, ou celle qu'on a avancée en simulation. */
-export function maintenantDe(c: { decalage: string }, reel = Date.now()): number {
-  return reel + intervalleMs(c.decalage);
-}
-
 export function valeursPour(c: Conversation): ValeursModele {
   return {
     prenom: c.prenom,
@@ -62,6 +61,18 @@ async function reglagesDe(admin: Admin, orgId: string) {
     .eq("organization_id", orgId)
     .maybeSingle();
   return data;
+}
+
+async function derniereSortie(admin: Admin, id: string): Promise<string | null> {
+  const { data } = await admin
+    .from("agent_messages")
+    .select("created_at")
+    .eq("conversation_id", id)
+    .eq("sens", "sortant")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.created_at ?? null;
 }
 
 async function envoisDe(admin: Admin, id: string): Promise<EnvoiPasse[]> {
@@ -86,10 +97,15 @@ async function appliquer(
   canalReglage: string,
   action: Action,
   maintenant: number,
+  reel: number,
 ): Promise<boolean> {
   if (action.genre === "terminer") {
     await admin.from("agent_conversations").update({ etat: "terminee" }).eq("id", c.id);
     return true;
+  }
+
+  if (action.genre === "repondre") {
+    return (await repondre(admin, c.id, reel)) !== "rien";
   }
 
   if (action.genre === "noter_sans_reponse_veille") {
@@ -172,52 +188,18 @@ export async function tournerConversation(
     if (!reglages || !profil) return faits;
 
     const maintenant = maintenantDe(c, reel);
-    const actions = planifier({ ...c, envois: await envoisDe(admin, c.id) }, maintenant);
+    const [envois, derniere_sortie_le] = await Promise.all([
+      envoisDe(admin, c.id),
+      derniereSortie(admin, c.id),
+    ]);
+    const actions = planifier({ ...c, envois, derniere_sortie_le }, maintenant);
     if (actions.length === 0) return faits;
 
     for (const action of actions) {
-      if (await appliquer(admin, c, profil, reglages.canal, action, maintenant)) faits++;
+      if (await appliquer(admin, c, profil, reglages.canal, action, maintenant, reel)) faits++;
     }
   }
   return faits;
-}
-
-/**
- * Un message écrit librement, dans la fenêtre de 24 h ouverte par sa
- * dernière parole. Hors fenêtre, WhatsApp le refuserait : l'appelant a
- * vérifié avant.
- */
-export async function envoyerLibre(
-  admin: Admin,
-  conversationId: string,
-  texte: string,
-  reel = Date.now(),
-): Promise<boolean> {
-  const { data: c } = await admin
-    .from("agent_conversations")
-    .select("id, organization_id, simulation, decalage, telephone")
-    .eq("id", conversationId)
-    .maybeSingle();
-  if (!c) return false;
-  const reglages = await reglagesDe(admin, c.organization_id);
-  if (!reglages) return false;
-
-  const canal = canalPour(c.simulation, reglages.canal);
-  const resultat = await canal.envoyer({ telephone: c.telephone, texte });
-
-  await admin.from("agent_messages").insert({
-    conversation_id: c.id,
-    organization_id: c.organization_id,
-    sens: "sortant",
-    genre: "libre",
-    texte,
-    canal: canal.nom,
-    statut: resultat.ok ? "envoye" : "echec",
-    erreur: resultat.ok ? null : resultat.erreur,
-    id_externe: resultat.ok ? resultat.idExterne : null,
-    created_at: new Date(maintenantDe(c, reel)).toISOString(),
-  });
-  return resultat.ok;
 }
 
 /** Toutes les conversations en cours : c'est ce que l'horloge appelle. */

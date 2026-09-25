@@ -42,6 +42,11 @@ import { ajouterJours, instantLocal, jourLocal } from "../src/tools/agent/temps.
 
 annoncerCible("QA — Agent");
 
+// Sans clé, l'IA « tombe en panne » : le banc éprouve le chemin de secours
+// (message d'attente, question dans la file) sans dépenser un centime.
+// Les réponses de l'IA elles-mêmes sont éprouvées par `qa:agent-ia`.
+delete process.env.ANTHROPIC_API_KEY;
+
 const { verifie, bilan } = journal();
 const marque = Math.random().toString(36).slice(2, 8);
 const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -169,6 +174,25 @@ try {
   const lu = await recevoir(admin, c.id, "Oui, ça tient", a(2, 11));
   verifie("le bouton « Oui » confirme", lu?.sens === "confirme" && (await conversation(inv.uri)).confirme_le !== null);
 
+  await tournerConversation(admin, c.id, a(2, 11, 1));
+  const apresReponse = await messages(c.id);
+  verifie(
+    "IA en panne : elle reçoit « je vérifie et je reviens », une seule fois",
+    apresReponse.filter((m) => m.genre === "libre").length === 1 &&
+      apresReponse.at(-1)?.texte === peggy.textes.attente,
+  );
+  const { data: file } = await admin.from("agent_questions").select("genre, etat").eq("conversation_id", c.id);
+  verifie("… et la question entre dans la file de Louis", file?.length === 1 && file[0].etat === "ouverte");
+
+  const nuit = await recevoir(admin, c.id, "Et on se voit sur Zoom c'est ça ?", a(2, 23, 30));
+  await tournerConversation(admin, c.id, a(2, 23, 31));
+  verifie(
+    "un message de la nuit n'a pas de réponse avant 8h",
+    nuit !== null && (await messages(c.id)).at(-1)?.sens === "entrant",
+  );
+  await tournerConversation(admin, c.id, a(3, 8, 1));
+  verifie("… et en a une à 8h", (await messages(c.id)).at(-1)?.sens === "sortant");
+
   // Confirmée au jour 2, veille au jour 7 : plus de 4 jours, donc la
   // préparation part au milieu (jour 4), et plus aucun rappel.
   await tournerConversation(admin, c.id, a(4, 10, 5));
@@ -280,6 +304,8 @@ try {
       b.confirme === true &&
       b.sans_reponse_veille === true &&
       b.modeles_envoyes === 5 &&
+      b.questions_montees === 2 &&
+      b.messages_libres === 2 &&
       !JSON.stringify(b).includes("Camille") &&
       !JSON.stringify(b).includes("+336"),
     JSON.stringify(b),
