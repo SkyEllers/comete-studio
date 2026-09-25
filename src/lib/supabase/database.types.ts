@@ -2904,6 +2904,12 @@ export type Database = {
     Functions: {
       agent_clear_secrets: { Args: { org: string }; Returns: number }
       agent_get_secret: { Args: { kind: string; org: string }; Returns: string }
+      agent_horloge: { Args: never; Returns: number }
+      agent_horloge_couper: { Args: never; Returns: number }
+      agent_horloge_regler: {
+        Args: { secret: string; url: string }
+        Returns: undefined
+      }
       agent_purger_conversations: { Args: never; Returns: number }
       agent_set_secret: {
         Args: { kind: string; org: string; value: string }
