@@ -139,3 +139,31 @@ export const getMesEspaces = cache(async (): Promise<Espace[]> => {
     .filter((org): org is Espace => Boolean(org))
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 });
+
+/**
+ * L'espace d'une closeuse : le sien si elle en est une, ou celui de la
+ * closeuse choisie quand c'est Louis qui regarde (`?c=<id>`, la première par
+ * défaut). Un membre du client n'y entre pas : 404, comme partout ailleurs.
+ */
+export async function requireCloseuse(
+  slug: string,
+  choisie?: string | null,
+): Promise<Access & { closeuseId: string }> {
+  const access = await requireMembership(slug);
+
+  if (access.role === "closeuse") return { ...access, closeuseId: access.userId };
+  if (access.role !== "admin") notFound();
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("radar_closeuses")
+    .select("user_id, created_at")
+    .eq("organization_id", access.org.id)
+    .order("created_at");
+
+  const ids = (data ?? []).map((ligne) => ligne.user_id);
+  const closeuseId = choisie && ids.includes(choisie) ? choisie : ids[0];
+  if (!closeuseId) notFound();
+
+  return { ...access, closeuseId };
+}

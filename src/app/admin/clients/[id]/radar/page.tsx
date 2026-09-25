@@ -18,6 +18,7 @@ import {
 } from "@/app/admin/clients/[id]/radar/radar-releves";
 import { ClientTabs } from "@/components/admin/client-tabs";
 import { EmptyState } from "@/components/app/empty-state";
+import { SectionCloseuses } from "./closeuses-section";
 import { TableSkeleton } from "@/components/app/skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -927,6 +928,13 @@ export default async function RadarAdminPage({
             <h2 className="text-lg">Types de séance</h2>
             <Suspense fallback={<TableSkeleton rows={2} />}>
               <SectionTypes organizationId={org.id} />
+            </Suspense>
+          </section>
+
+          <section className="mt-10 space-y-4">
+            <h2 className="text-lg">Closeuses</h2>
+            <Suspense fallback={<TableSkeleton rows={2} />}>
+              <SectionCloseuses organizationId={org.id} orgSlug={org.slug} />
             </Suspense>
           </section>
 

@@ -18,6 +18,7 @@ import {
   motifAnnulation,
   nomInvite,
   quiAAnnule,
+  reponsesGardees,
   utmRetenus,
   verifierSignature,
 } from "@/tools/resultats/calendly";
@@ -275,11 +276,13 @@ export async function POST(
      */
     const typeUri = invite.scheduled_event.event_type ?? null;
     const typeNom = invite.scheduled_event.name.slice(0, 200);
+    // La closeuse que Louis a reliée à ce type de séance, s'il y en a une.
+    let closeuseDuType: string | null = null;
 
     if (typeUri) {
       const { data: filtre, error: filtreIllisible } = await admin
         .from("radar_event_filters")
-        .select("id, tracked, event_type_name")
+        .select("id, tracked, event_type_name, closeuse_id")
         .eq("organization_id", orgId)
         .eq("event_type_uri", typeUri)
         .maybeSingle();
@@ -307,6 +310,8 @@ export async function POST(
           .update({ event_type_name: typeNom })
           .eq("id", filtre.id);
       }
+
+      closeuseDuType = filtre?.closeuse_id ?? null;
 
       if (filtre && !filtre.tracked) {
         await admin
@@ -338,7 +343,7 @@ export async function POST(
       invite.old_invitee
         ? admin
             .from("radar_bookings")
-            .select("id, channel_id, attribution")
+            .select("id, channel_id, attribution, closeuse_id")
             // L'URI vient du message, et `invitee_uri` est unique dans toute
             // la table : sans cette borne, un client signerait un report qui
             // désigne la séance d'un autre, et hériterait de son canal. Ce
@@ -383,6 +388,12 @@ export async function POST(
     const paiement = invite.payment;
 
     /*
+     * Un report reste chez la closeuse qui tenait le rendez-vous d'origine,
+     * même si la personne a changé de type en reprogrammant.
+     */
+    const closeuse = closeuseDuType ?? heritage?.closeuse_id ?? null;
+
+    /*
      * La seule donnée nominative de Radar. Elle est écrite ici, sur la ligne
      * du rendez-vous, et nulle part ailleurs : ni dans l'activité juste en
      * dessous, ni dans le journal, ni dans le relevé que la clôture figera.
@@ -416,6 +427,7 @@ export async function POST(
         payment_ok: paiement?.successful === true,
         payment_ref: paiement?.external_id ?? null,
         rescheduled_from: heritage?.id ?? null,
+        closeuse_id: closeuse,
       })
       .select("id")
       .single();
@@ -431,6 +443,22 @@ export async function POST(
         message: doublon ? null : "insertion refusée",
       });
       return sansCorps(doublon ? 200 : 500);
+    }
+
+    /*
+     * Les réponses du formulaire, pour une closeuse seulement : elle prépare
+     * son appel avec, et rappelle la personne au numéro donné. Nulle part
+     * ailleurs dans Radar, et effacées par `radar_purger_reponses` (0036).
+     */
+    if (closeuse) {
+      const reponses = reponsesGardees(invite.questions_and_answers ?? []);
+      if (reponses.length > 0) {
+        await admin.from("radar_booking_answers").insert({
+          booking_id: cree.id,
+          organization_id: orgId,
+          answers: reponses,
+        });
+      }
     }
 
     await admin.from("radar_booking_activities").insert({

@@ -121,6 +121,7 @@ export function InviteMemberDialog({
             >
               <option value="member">Membre</option>
               <option value="owner">Responsable</option>
+              <option value="closeuse">Closeuse (ses rendez-vous seulement)</option>
             </select>
             <FieldError state={state} field="role" id="invite-role-error" />
           </div>
@@ -159,9 +160,15 @@ export function MemberRole({
   organizationId: string;
   userId: string;
   name: string;
-  role: "owner" | "member";
+  role: "owner" | "member" | "closeuse";
 }) {
   const [pending, startTransition] = useTransition();
+
+  // Une closeuse ne change pas de rôle d'un clic : elle ne voit que ses
+  // rendez-vous, et en faire une membre lui ouvrirait tout le client.
+  if (role === "closeuse") {
+    return <span className="text-sm">Closeuse</span>;
+  }
 
   const owner = role === "owner";
   const cible = owner ? "member" : "owner";

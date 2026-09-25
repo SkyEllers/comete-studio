@@ -148,7 +148,7 @@ async function MembersSection({ organizationId }: { organizationId: string }) {
                     organizationId={organizationId}
                     userId={member.user_id}
                     name={name}
-                    role={member.role === "owner" ? "owner" : "member"}
+                    role={member.role === "owner" || member.role === "closeuse" ? member.role : "member"}
                   />
                 </TableCell>
                 <TableCell className="text-muted-foreground font-mono text-xs">

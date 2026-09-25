@@ -118,6 +118,17 @@ export async function inviteMember(
     return fail("Impossible d'ajouter cette personne pour le moment.");
   }
 
+  // Une closeuse a sa grille de commission dès son arrivée (0036) : les taux
+  // par défaut sont ceux validés par Peggy, Louis les change dans Radar.
+  if (parsed.data.role === "closeuse") {
+    await supabase
+      .from("radar_closeuses")
+      .upsert(
+        { organization_id: parsed.data.organizationId, user_id: userId },
+        { onConflict: "organization_id,user_id", ignoreDuplicates: true },
+      );
+  }
+
   refresh(parsed.data.organizationId);
   return ok({ status });
 }
@@ -168,7 +179,11 @@ export async function removeMember(input: {
  * nomme d'ailleurs qu'une seule colonne, `role`, sur une seule table — il n'y
  * a pas de chemin par lequel un `is_admin` pourrait s'y glisser.
  */
-const roleSchema = memberSchema.extend({ role: membershipRoleSchema });
+// Responsable ou membre seulement : une closeuse entre et sort par l'invitation,
+// jamais par ce bouton (0036).
+const roleSchema = memberSchema.extend({
+  role: z.enum(["owner", "member"], { error: "Rôle inconnu." }),
+});
 
 export async function changeMemberRole(input: {
   organizationId: string;

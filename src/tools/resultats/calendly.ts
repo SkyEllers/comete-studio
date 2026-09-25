@@ -313,3 +313,17 @@ export function motifAnnulation(
   if (par === "invitee") return "Annulée par la personne";
   return "Annulée dans Calendly";
 }
+
+/**
+ * Les réponses du formulaire de réservation, telles qu'une closeuse les lit
+ * (0036). Bornées : 20 questions, 300 caractères par question, 2 000 par
+ * réponse. Une réponse vide n'apprend rien, elle ne passe pas.
+ */
+export function reponsesGardees(
+  questions: { question: string; answer: string }[],
+): { q: string; r: string }[] {
+  return questions
+    .map((qa) => ({ q: qa.question.trim().slice(0, 300), r: qa.answer.trim().slice(0, 2000) }))
+    .filter((qa) => qa.q && qa.r)
+    .slice(0, 20);
+}

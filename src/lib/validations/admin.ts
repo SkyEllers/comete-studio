@@ -45,7 +45,7 @@ export const renameOrganizationSchema = z.object({
     .max(60, { error: "Le nom ne peut pas dépasser 60 caractères." }),
 });
 
-export const membershipRoleSchema = z.enum(["owner", "member"], {
+export const membershipRoleSchema = z.enum(["owner", "member", "closeuse"], {
   error: "Rôle inconnu.",
 });
 

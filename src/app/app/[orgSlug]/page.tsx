@@ -1,4 +1,5 @@
 import { LayoutGrid, PanelsTopLeft } from "lucide-react";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { EmptyState } from "@/components/app/empty-state";
@@ -85,7 +86,10 @@ export default async function EspacePage({
 }: PageProps<"/app/[orgSlug]">) {
   const { orgSlug } = await params;
   // Garde hors `<Suspense>` : c'est elle qui décide du statut de la réponse.
-  const { org } = await requireMembership(orgSlug);
+  const { org, role } = await requireMembership(orgSlug);
+
+  // Une closeuse n'a qu'une page dans l'espace du client : la sienne.
+  if (role === "closeuse") redirect(`/app/${orgSlug}/closeuse`);
 
   return (
     <>

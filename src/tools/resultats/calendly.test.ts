@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { motifAnnulation, nomInvite, quiAAnnule } from "./calendly.ts";
+import { motifAnnulation, nomInvite, quiAAnnule, reponsesGardees } from "./calendly.ts";
 
 describe("nomInvite — les trois cas de la décision 8", () => {
   it("1. prend first_name et last_name quand Calendly les donne", () => {
@@ -127,5 +127,25 @@ describe("motifAnnulation — ce que la fiche affiche", () => {
     assert.equal(motifAnnulation(false, null), "Annulée dans Calendly");
     assert.equal(motifAnnulation(false), "Annulée dans Calendly");
     assert.equal(motifAnnulation(null), "Annulée dans Calendly");
+  });
+});
+
+describe("reponsesGardees — ce que la closeuse lit (0036)", () => {
+  it("garde question et réponse, sans les blancs autour", () => {
+    assert.deepEqual(
+      reponsesGardees([{ question: " Comment m'as-tu connue ? ", answer: " Instagram " }]),
+      [{ q: "Comment m'as-tu connue ?", r: "Instagram" }],
+    );
+  });
+
+  it("écarte une réponse vide", () => {
+    assert.deepEqual(reponsesGardees([{ question: "Téléphone", answer: "  " }]), []);
+  });
+
+  it("borne le nombre et la longueur", () => {
+    const beaucoup = Array.from({ length: 30 }, (_, i) => ({ question: `Q${i}`, answer: "x".repeat(3000) }));
+    const gardees = reponsesGardees(beaucoup);
+    assert.equal(gardees.length, 20);
+    assert.equal(gardees[0].r.length, 2000);
   });
 });
