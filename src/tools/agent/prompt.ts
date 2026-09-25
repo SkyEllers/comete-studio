@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { creneauEnMots } from "./creneaux.ts";
 import type { Profil } from "./profil.ts";
 import { heureEnMots, jourEnMots } from "./temps.ts";
 
@@ -37,6 +38,8 @@ export const SCHEMA_DECISION = {
     "contenu_propose",
     "contenu_envoye",
     "note_pour_peggy",
+    "creneaux_proposes",
+    "creneau_choisi",
   ],
   properties: {
     reponse: { type: "string", description: "Le message exact à lui envoyer, ou une chaîne vide." },
@@ -51,6 +54,15 @@ export const SCHEMA_DECISION = {
       type: "string",
       description: "Ce qui doit figurer dans le résumé du matin (santé, prix, ce qu'elle veut avoir compris), ou vide.",
     },
+    creneaux_proposes: {
+      type: "array",
+      items: { type: "string" },
+      description: "Les valeurs exactes (entre parenthèses) des créneaux proposés dans ce message, ou une liste vide.",
+    },
+    creneau_choisi: {
+      type: "string",
+      description: "La valeur exacte du créneau qu'elle vient de choisir parmi ceux proposés, ou vide.",
+    },
   },
 } as const;
 
@@ -64,6 +76,8 @@ export const decision = z.object({
   contenu_propose: z.string().max(300),
   contenu_envoye: z.string().max(300),
   note_pour_peggy: z.string().max(1000),
+  creneaux_proposes: z.array(z.string().max(40)).max(6),
+  creneau_choisi: z.string().max(40),
 });
 export type Decision = z.infer<typeof decision>;
 
@@ -101,13 +115,20 @@ export type EtatConversation = {
   reports_agent: number;
   contenu_propose_le: string | null;
   reponses: { question: string; answer: string }[];
+  report_demande_le: string | null;
+  creneaux_proposes: string[];
+  lien_report: string | null;
 };
+
+/** Ce que le système a lu dans Calendly pour un report en cours. */
+export type CreneauxDuMoment = { memeJour: string[]; plusProches: string[] } | "illisibles" | null;
 
 /** Le bloc qui change à chaque appel : jamais mis en cache. */
 export function contexteDuMoment(
   c: EtatConversation,
   maintenant: number,
   tarifs: string | null,
+  creneaux: CreneauxDuMoment = null,
 ): string {
   const formulaire = c.reponses.map((r) => `- ${r.question}\n  ${r.answer || "(vide)"}`).join("\n");
   return `# Aujourd'hui
@@ -129,7 +150,55 @@ ${formulaire || "(aucune)"}
 
 # La page Tarifs, lue à l'instant
 
-${tarifs ?? "(page illisible pour l'instant : ne donne aucun prix, dis que tu vérifies)"}`;
+${tarifs ?? "(page illisible pour l'instant : ne donne aucun prix, dis que tu vérifies)"}${sectionReport(c, creneaux)}`;
+}
+
+function sectionReport(c: EtatConversation, creneaux: CreneauxDuMoment): string {
+  const liste = (valeurs: string[]) =>
+    valeurs.length === 0 ? "(aucun)" : valeurs.map((v) => `- ${creneauEnMots(v, c.fuseau)}`).join("\n");
+
+  if (c.reports_agent >= 1) {
+    return `
+
+# Changer de créneau
+
+Tu as déjà déplacé son rendez-vous une fois. Si elle doit encore changer, ne propose aucun créneau : donne-lui ce lien pour reprendre rendez-vous quand elle sera prête, et laisse "creneaux_proposes" et "creneau_choisi" vides.
+${c.lien_report ?? "(lien introuvable : mets \"sur\" à false)"}`;
+  }
+
+  if (c.creneaux_proposes.length > 0) {
+    return `
+
+# Changer de créneau
+
+Tu lui as proposé ces créneaux :
+${liste(c.creneaux_proposes)}
+Si elle en choisit un, recopie sa valeur exacte (entre parenthèses) dans "creneau_choisi" et dis-lui que tu le réserves. Si aucun ne lui va, dis-le simplement et mets "sur" à false.`;
+  }
+
+  if (!c.report_demande_le) return "";
+
+  if (creneaux === "illisibles" || creneaux === null) {
+    return `
+
+# Changer de créneau
+
+Elle doit changer, mais l'agenda est illisible pour l'instant : ne propose rien, dis que tu regardes et mets "sur" à false.`;
+  }
+
+  return `
+
+# Changer de créneau
+
+Elle doit changer de créneau. Voici ce qui est libre, lu à l'instant dans l'agenda :
+
+Le même jour que son rendez-vous :
+${liste(creneaux.memeJour)}
+
+Les plus proches :
+${liste(creneaux.plusProches)}
+
+Si elle garde sa journée, propose ceux du même jour ; sinon, ou s'il n'y en a pas, les plus proches. Trois au plus, en mots (jour et heure), jamais un créneau qui n'est pas dans ces listes. Recopie leurs valeurs exactes (entre parenthèses) dans "creneaux_proposes". Si rien n'est libre, dis-le et mets "sur" à false.`;
 }
 
 export type LigneFil = { sens: string; genre: string; modele: string | null; texte: string; created_at: string };

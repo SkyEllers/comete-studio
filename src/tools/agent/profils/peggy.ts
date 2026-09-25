@@ -69,6 +69,8 @@ export const peggy: Profil = {
     detresse:
       "Ce que tu vis a l'air très lourd, et tu n'as pas à le porter seule. Tu peux appeler le 3114, jour et nuit, c'est gratuit : des professionnels sont là pour t'écouter. Si tu es en danger tout de suite, appelle le 15.",
     attente: "Je vérifie et je reviens vers toi très vite.",
+    creneauPris: "Ce créneau vient d'être pris juste avant toi. Je regarde ce qui reste et je reviens vers toi très vite.",
+    raisonAnnulation: "Rendez-vous déplacé à ta demande : ton nouveau créneau t'a été confirmé par mail.",
   },
 
   consignes: consignesPeggy,

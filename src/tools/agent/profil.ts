@@ -56,6 +56,10 @@ export type Profil = {
     detresse: string;
     /** L'agent n'est pas sûr : la question monte chez Louis, elle attend. */
     attente: string;
+    /** Le créneau choisi vient d'être pris par quelqu'un d'autre. */
+    creneauPris: string;
+    /** Le motif d'annulation de l'ancien rendez-vous, que Calendly lui montre. */
+    raisonAnnulation: string;
   };
   /**
    * La voix et les règles de conduite, en consignes pour l'IA. Stables d'un
