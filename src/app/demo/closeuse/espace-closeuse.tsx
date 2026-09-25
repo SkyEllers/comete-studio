@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
  * seulement), versée au fil des mensualités.
  */
 
-const CLE = "comete-demo-closeuse-v1";
+const CLE = "comete-demo-closeuse-v2";
 const DUREE_MIN = 45;
 const TAUX = 0.15;
 const TAUX_PALIER = 0.18;
@@ -63,7 +63,10 @@ type Rdv = {
   prenom: string;
   debut: string;
   reserveLe: string;
+  /** Le formulaire Calendly, obligatoire. */
   reponses: { q: string; r: string }[];
+  /** Le questionnaire de /merci-rdv, que toutes ne remplissent pas. */
+  site?: { q: string; r: string }[];
   resultat?: Resultat;
 };
 
@@ -134,6 +137,70 @@ function euros(v: number) {
 
 /* ------------------------------------------------------------ Exemples */
 
+/*
+ * Les vraies questions de Peggy, mot pour mot : les six du formulaire Calendly
+ * du « RDV diagnostic offert 45 min » (obligatoires), puis les quatre du
+ * questionnaire facultatif de /merci-rdv. Les réponses, elles, sont inventées.
+ */
+const Q_TEL = "Quel est ton numéro de téléphone ?";
+const Q_POURQUOI =
+  "Qu'est-ce qui te pousse à vouloir perdre du poids aujourd'hui ? Et qu'as-tu déjà essayé qui n'a pas tenu ?";
+const Q_AGE =
+  "Quel est ton âge, ton poids actuel, et le poids que tu aimerais atteindre ?";
+const Q_CHANGER =
+  "Quand tu décides de changer quelque chose dans ta vie, comment ça se passe en général ? Tu fonces, tu analyses tout avant, tu avances pas à pas, ou tu as besoin d'être accompagnée ?";
+const Q_CONNU = "Comment m'as-tu connue ?";
+const Q_BUDGET =
+  "Pour préparer notre échange : quel budget mensuel pourrais-tu consacrer à ta santé aujourd'hui ?";
+
+const Q_OBSTACLE = "Ton obstacle principal";
+const Q_DECISION = "Où tu en es dans ta décision";
+const Q_INVEST = "Ta capacité d'investissement";
+const Q_ATTENTE = "Ce que tu attends de ce RDV";
+
+const BUDGETS = [
+  "Moins de 100 €/mois",
+  "Entre 100 et 150 €/mois",
+  "Entre 150 et 250 €/mois",
+  "Plus de 250 €/mois",
+];
+
+type Reponses = {
+  tel: string;
+  pourquoi: string;
+  age: string;
+  changer: string;
+  connu: string;
+  budget: string;
+  site?: {
+    obstacle: string;
+    decision: string;
+    invest: string;
+    attente: string;
+  };
+};
+
+function versReponses(r: Reponses): Pick<Rdv, "reponses" | "site"> {
+  return {
+    reponses: [
+      { q: Q_TEL, r: r.tel },
+      { q: Q_POURQUOI, r: r.pourquoi },
+      { q: Q_AGE, r: r.age },
+      { q: Q_CHANGER, r: r.changer },
+      { q: Q_CONNU, r: r.connu },
+      { q: Q_BUDGET, r: r.budget },
+    ],
+    site: r.site
+      ? [
+          { q: Q_OBSTACLE, r: r.site.obstacle },
+          { q: Q_DECISION, r: r.site.decision },
+          { q: Q_INVEST, r: r.site.invest },
+          { q: Q_ATTENTE, r: r.site.attente || "—" },
+        ]
+      : undefined,
+  };
+}
+
 function exemples(maintenant: Date): Rdv[] {
   // Le vendredi de la semaine en cours (ou le dernier passé) : les créneaux
   // de Mélanie sont le vendredi 9h-16h et le samedi 9h-13h.
@@ -151,9 +218,7 @@ function exemples(maintenant: Date): Rdv[] {
   const rdv = (
     prenom: string,
     debut: string,
-    motif: string,
-    depuis: string,
-    essaye: string,
+    reponses: Reponses,
     resultat?: Resultat,
   ): Rdv => ({
     id: `${prenom}-${debut}`,
@@ -166,11 +231,7 @@ function exemples(maintenant: Date): Rdv[] {
         maintenant.getTime() - 86_400_000,
       ),
     ).toISOString(),
-    reponses: [
-      { q: "Qu'est-ce qui t'amène ?", r: motif },
-      { q: "Depuis combien de temps ?", r: depuis },
-      { q: "Qu'as-tu déjà essayé ?", r: essaye },
-    ],
+    ...versReponses(reponses),
     resultat,
   });
 
@@ -178,41 +239,95 @@ function exemples(maintenant: Date): Rdv[] {
     rdv(
       "Sandrine M.",
       le(-14, 9, 30),
-      "Ballonnements et fatigue après chaque repas",
-      "Deux ans",
-      "Sans gluten, probiotiques en pharmacie",
+      {
+        tel: "06 •• •• •• 47",
+        pourquoi:
+          "Je ne me reconnais plus sur les photos et mon mariage est en juin. J'ai fait WW deux fois, les shakes, Comme j'aime… je reprends tout à chaque fois.",
+        age: "44 ans, 82 kg, j'aimerais revenir à 68",
+        changer: "J'analyse tout avant, et après j'y vais à fond",
+        connu: "Instagram",
+        budget: BUDGETS[2],
+        site: {
+          obstacle: "Le grignotage le soir quand les enfants sont couchés",
+          decision: "Prête à m'engager si c'est le bon match",
+          invest: "Prête à investir si ça me convient",
+          attente: "Comprendre pourquoi je craque toujours au même moment",
+        },
+      },
       { type: "vente", montant: 1450, fois: 3 },
     ),
     rdv(
       "Nathalie B.",
       le(-14, 11),
-      "Des kilos qui ne partent plus depuis la ménopause",
-      "Trois ans",
-      "Rééquilibrage alimentaire, sport",
+      {
+        tel: "06 •• •• •• 12",
+        pourquoi:
+          "La ménopause : 10 kg en deux ans sans rien changer. J'ai suivi une diététicienne, perdu 4 kg, tout repris.",
+        age: "56 ans, 78 kg, objectif 68",
+        changer: "J'avance pas à pas",
+        connu: "Facebook",
+        budget: BUDGETS[0],
+      },
       { type: "pas-de-vente", motif: "Le prix", recontacter: le(10, 10) },
     ),
     rdv(
       "Céline R.",
       le(-13, 9),
-      "Sommeil haché, réveils à 3 h du matin",
-      "Six mois",
-      "Mélatonine, tisanes",
+      {
+        tel: "07 •• •• •• 83",
+        pourquoi:
+          "Mon médecin m'a parlé de pré-diabète, ça m'a fait peur. J'ai essayé le jeûne intermittent, j'ai tenu trois semaines.",
+        age: "39 ans, 91 kg, 75 kg",
+        changer: "J'ai besoin d'être accompagnée",
+        connu: "Instagram",
+        budget: BUDGETS[1],
+        site: {
+          obstacle: "Le sucre, je ne peux pas m'en passer l'après-midi",
+          decision: "Je me renseigne",
+          invest: "J'en parle au RDV",
+          attente: "",
+        },
+      },
       { type: "absente" },
     ),
     rdv(
       "Aurélie P.",
       le(-13, 10, 30),
-      "Fringales de sucre le soir",
-      "Un an",
-      "Rien de précis",
+      {
+        tel: "06 •• •• •• 05",
+        pourquoi:
+          "Je mange mes émotions depuis l'adolescence. Dukan, keto, même une appli d'hypnose, rien n'a tenu.",
+        age: "35 ans, 74 kg, 62 kg",
+        changer: "Je fonce… et je lâche au bout de trois semaines",
+        connu: "Instagram",
+        budget: BUDGETS[3],
+        site: {
+          obstacle: "La faim émotionnelle dès que je suis stressée au travail",
+          decision: "Je veux démarrer",
+          invest: "C'est une priorité pour moi",
+          attente: "Un vrai plan, pas encore un régime",
+        },
+      },
       { type: "vente", montant: 1450, fois: 1 },
     ),
     rdv(
       "Virginie L.",
       le(-7, 10),
-      "Fatigue le matin, aucune énergie",
-      "Plus d'un an",
-      "Magnésium, cures de vitamines",
+      {
+        tel: "06 •• •• •• 61",
+        pourquoi:
+          "Je cuisine pour toute la famille et je finis les assiettes. Je n'ai jamais rien essayé de sérieux.",
+        age: "47 ans, 86 kg, 72 kg",
+        changer: "J'analyse tout avant",
+        connu: "Facebook",
+        budget: BUDGETS[1],
+        site: {
+          obstacle: "Je m'occupe de tout le monde sauf de moi",
+          decision: "Prête à m'engager si c'est le bon match",
+          invest: "J'en parle au RDV",
+          attente: "Savoir si l'hypnose peut marcher sur moi",
+        },
+      },
       {
         type: "pas-de-vente",
         motif: "En parler à son conjoint",
@@ -222,91 +337,149 @@ function exemples(maintenant: Date): Rdv[] {
     rdv(
       "Stéphanie G.",
       le(-7, 14),
-      "Troubles digestifs, a déjà tout essayé",
-      "Cinq ans",
-      "Gastro-entérologue, régime FODMAP",
+      {
+        tel: "07 •• •• •• 29",
+        pourquoi:
+          "Le chirurgien veut que je perde 12 kg avant l'opération du genou. Nutritionniste, salle de sport, arrêtée à cause du genou.",
+        age: "51 ans, 95 kg, 83 kg",
+        changer: "J'avance pas à pas",
+        connu: "Facebook",
+        budget: BUDGETS[2],
+      },
       { type: "vente", montant: 1200, fois: 4 },
     ),
     rdv(
       "Laurence D.",
       le(-6, 11),
-      "Ventre gonflé en fin de journée",
-      "Un an",
-      "Charbon actif",
+      {
+        tel: "06 •• •• •• 90",
+        pourquoi:
+          "La masterclass m'a parlé sur le sucre. Deux cafés sucrés et des gâteaux au bureau tous les jours. Jamais fait de régime.",
+        age: "42 ans, 70 kg, 63 kg",
+        changer: "Je fonce",
+        connu: "Instagram",
+        budget: BUDGETS[0],
+        site: {
+          obstacle: "Le sucre au bureau",
+          decision: "Je me renseigne",
+          invest: "J'en parle au RDV",
+          attente: "Des conseils pour arrêter le sucre",
+        },
+      },
       { type: "pas-de-vente", motif: "Pas le bon moment" },
     ),
-    rdv(
-      "Karine T.",
-      le(0, 9),
-      "Envie de retrouver de l'énergie après deux grossesses",
-      "Deux ans",
-      "Rien",
-      undefined,
-    ),
-    rdv(
-      "Delphine F.",
-      le(0, 10, 30),
-      "Digestion lente, lourdeurs",
-      "Huit mois",
-      "Enzymes digestives",
-      undefined,
-    ),
-    rdv(
-      "Isabelle C.",
-      le(0, 14),
-      "Perte de poids, et garder le résultat cette fois",
-      "Dix ans",
-      "Plusieurs régimes, WW",
-      undefined,
-    ),
-    rdv(
-      "Émilie V.",
-      le(0, 15),
-      "Peau terne et fatigue",
-      "Un an",
-      "Compléments beauté",
-      undefined,
-    ),
-    rdv(
-      "Caroline N.",
-      le(1, 9, 30),
-      "Ballonnements, transit irrégulier",
-      "Trois ans",
-      "Psyllium",
-      undefined,
-    ),
-    rdv(
-      "Sophie A.",
-      le(1, 11),
-      "Stress qui se loge dans le ventre",
-      "Deux ans",
-      "Sophrologie",
-      undefined,
-    ),
-    rdv(
-      "Magali H.",
-      le(7, 10),
-      "Fatigue chronique",
-      "Quatre ans",
-      "Bilans sanguins normaux",
-      undefined,
-    ),
-    rdv(
-      "Hélène J.",
-      le(7, 13, 30),
-      "Envie de mieux manger sans se priver",
-      "Six mois",
-      "Applications de calories",
-      undefined,
-    ),
-    rdv(
-      "Julie K.",
-      le(8, 10),
-      "Reflux et brûlures d'estomac",
-      "Un an",
-      "Anti-acides",
-      undefined,
-    ),
+    rdv("Karine T.", le(0, 9), {
+      tel: "06 •• •• •• 38",
+      pourquoi:
+        "Deux grossesses rapprochées, 15 kg qui ne sont jamais repartis. WW après la première, ça marchait jusqu'à la deuxième.",
+      age: "36 ans, 79 kg, 64 kg",
+      changer: "J'ai besoin d'être accompagnée",
+      connu: "Instagram",
+      budget: BUDGETS[1],
+      site: {
+        obstacle: "Pas de temps pour moi, je mange ce qui reste",
+        decision: "Prête à m'engager si c'est le bon match",
+        invest: "Prête à investir si ça me convient",
+        attente:
+          "Un accompagnement qui tient compte de ma vie avec deux petits",
+      },
+    }),
+    rdv("Delphine F.", le(0, 10, 30), {
+      tel: "06 •• •• •• 74",
+      pourquoi:
+        "Je veux arrêter de me cacher en été. Régimes en boucle depuis mes 20 ans, le dernier avec une appli de calories.",
+      age: "48 ans, 88 kg, 70 kg",
+      changer: "J'analyse tout avant",
+      connu: "Facebook",
+      budget: BUDGETS[2],
+    }),
+    rdv("Isabelle C.", le(0, 14), {
+      tel: "07 •• •• •• 16",
+      pourquoi:
+        "Mon fils se marie en mai et je veux être bien dans ma robe. Une cure de shakes : 6 kg perdus, tout repris en deux mois.",
+      age: "58 ans, 84 kg, 72 kg",
+      changer: "J'avance pas à pas",
+      connu: "Facebook",
+      budget: BUDGETS[3],
+      site: {
+        obstacle: "Je reprends toujours tout après",
+        decision: "Je veux démarrer",
+        invest: "C'est une priorité pour moi",
+        attente: "Une méthode qui tienne dans la durée",
+      },
+    }),
+    rdv("Émilie V.", le(0, 15), {
+      tel: "06 •• •• •• 52",
+      pourquoi:
+        "J'ai arrêté de fumer il y a un an et pris 9 kg. Rien essayé, j'ai peur de reprendre la cigarette.",
+      age: "41 ans, 71 kg, 62 kg",
+      changer: "Je fonce",
+      connu: "Instagram",
+      budget: BUDGETS[1],
+    }),
+    rdv("Caroline N.", le(1, 9, 30), {
+      tel: "06 •• •• •• 08",
+      pourquoi:
+        "Je grignote dès que je m'ennuie, surtout le week-end. Keto pendant quatre mois, craqué à Noël.",
+      age: "33 ans, 68 kg, 58 kg",
+      changer: "Je fonce",
+      connu: "Instagram",
+      budget: BUDGETS[0],
+      site: {
+        obstacle: "L'ennui et le grignotage",
+        decision: "Je me renseigne",
+        invest: "J'en parle au RDV",
+        attente: "",
+      },
+    }),
+    rdv("Sophie A.", le(1, 11), {
+      tel: "07 •• •• •• 65",
+      pourquoi:
+        "Le stress au travail, je compense le soir. La sophrologie m'a aidée à dormir, pas à moins manger.",
+      age: "45 ans, 83 kg, 70 kg",
+      changer: "J'ai besoin d'être accompagnée",
+      connu: "Facebook",
+      budget: BUDGETS[2],
+      site: {
+        obstacle: "Le soir après le travail",
+        decision: "Prête à m'engager si c'est le bon match",
+        invest: "Prête à investir si ça me convient",
+        attente: "Comprendre le lien entre mon stress et la nourriture",
+      },
+    }),
+    rdv("Magali H.", le(7, 10), {
+      tel: "06 •• •• •• 33",
+      pourquoi:
+        "Hypothyroïdie, j'ai l'impression que rien ne marche. Régimes, sport, compléments.",
+      age: "50 ans, 90 kg, 75 kg",
+      changer: "J'analyse tout avant",
+      connu: "Facebook",
+      budget: BUDGETS[1],
+    }),
+    rdv("Hélène J.", le(7, 13, 30), {
+      tel: "06 •• •• •• 21",
+      pourquoi:
+        "Retrouver confiance en moi. Jamais fait de régime, mais je mange trop vite et trop.",
+      age: "38 ans, 76 kg, 65 kg",
+      changer: "J'avance pas à pas",
+      connu: "Instagram",
+      budget: BUDGETS[2],
+      site: {
+        obstacle: "Je mange trop vite, sans faim",
+        decision: "Je veux démarrer",
+        invest: "Prête à investir si ça me convient",
+        attente: "Savoir par où commencer",
+      },
+    }),
+    rdv("Julie K.", le(8, 10), {
+      tel: "07 •• •• •• 49",
+      pourquoi:
+        "Mon médecin veut que je perde du poids pour ma tension. Comme j'aime : 8 kg perdus, 10 repris.",
+      age: "53 ans, 97 kg, 80 kg",
+      changer: "J'ai besoin d'être accompagnée",
+      connu: "Facebook",
+      budget: BUDGETS[0],
+    }),
   ];
 }
 
@@ -791,6 +964,7 @@ function CarteRdv({
   const debut = new Date(rdv.debut);
   const dans = debut.getTime() - maintenant.getTime();
   const bientot = dans > -DUREE_MIN * 60_000 && dans < 15 * 60_000;
+  const [ouvert, setOuvert] = useState(false);
 
   return (
     <div
@@ -829,17 +1003,63 @@ function CarteRdv({
           )}
         </div>
       </div>
-      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-        {rdv.reponses.map((x) => (
+      <p className="mt-3 text-sm">{rdv.reponses[1]?.r}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{rdv.reponses[2]?.r}</Badge>
+        <Badge variant="secondary">{rdv.reponses[5]?.r}</Badge>
+        {rdv.site ? <Badge variant="secondary">{rdv.site[1]?.r}</Badge> : null}
+        <button
+          className="text-ember ml-auto text-xs underline-offset-4 hover:underline"
+          onClick={() => setOuvert((o) => !o)}
+          aria-expanded={ouvert}
+        >
+          {ouvert ? "Masquer ses réponses" : "Voir toutes ses réponses"}
+        </button>
+      </div>
+      {ouvert ? (
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <BlocReponses
+            titre="Sa réservation (Calendly)"
+            reponses={rdv.reponses}
+          />
+          {rdv.site ? (
+            <BlocReponses
+              titre="Le questionnaire du site, après la réservation"
+              reponses={rdv.site}
+            />
+          ) : (
+            <div className="border-line text-muted-foreground rounded-md border border-dashed p-3 text-sm">
+              Elle n&apos;a pas rempli le questionnaire du site (il est
+              facultatif).
+            </div>
+          )}
+        </div>
+      ) : null}
+      <p className="text-muted-foreground mt-3 text-xs">
+        Réservé le {jour.format(new Date(rdv.reserveLe))}
+      </p>
+    </div>
+  );
+}
+
+function BlocReponses({
+  titre,
+  reponses,
+}: {
+  titre: string;
+  reponses: { q: string; r: string }[];
+}) {
+  return (
+    <div className="border-line rounded-md border p-3">
+      <p className="mb-2 text-xs font-medium">{titre}</p>
+      <dl className="space-y-2.5 text-sm">
+        {reponses.map((x) => (
           <div key={x.q}>
             <dt className="text-muted-foreground text-xs">{x.q}</dt>
             <dd>{x.r}</dd>
           </div>
         ))}
       </dl>
-      <p className="text-muted-foreground mt-3 text-xs">
-        Réservé le {jour.format(new Date(rdv.reserveLe))}
-      </p>
     </div>
   );
 }
@@ -1289,6 +1509,8 @@ function FormAjout({
   const [date, setDate] = useState(aujourdhui);
   const [h, setH] = useState("10:00");
   const [motif, setMotif] = useState("");
+  const [age, setAge] = useState("");
+  const [budget, setBudget] = useState(BUDGETS[1]);
 
   const valide = prenom.trim() && date && h;
 
@@ -1332,13 +1554,39 @@ function FormAjout({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="motif-rdv">Ce qui l&apos;amène</Label>
+          <Label htmlFor="motif-rdv">
+            Ce qui la pousse à perdre du poids, et ce qu&apos;elle a déjà essayé
+          </Label>
           <Textarea
             id="motif-rdv"
             value={motif}
             onChange={(e) => setMotif(e.target.value)}
-            placeholder="Ballonnements, fatigue…"
+            placeholder="Je reprends tout après chaque régime…"
           />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="age-rdv">Âge, poids, poids visé</Label>
+            <Input
+              id="age-rdv"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              placeholder="45 ans, 80 kg, 68 kg"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="budget-rdv">Budget mensuel</Label>
+            <select
+              id="budget-rdv"
+              className={champ}
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+            >
+              {BUDGETS.map((b) => (
+                <option key={b}>{b}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
       <DialogFooter>
@@ -1354,14 +1602,14 @@ function FormAjout({
               prenom: prenom.trim(),
               debut: debut.toISOString(),
               reserveLe: new Date().toISOString(),
-              reponses: [
-                {
-                  q: "Qu'est-ce qui t'amène ?",
-                  r: motif.trim() || "Non précisé",
-                },
-                { q: "Depuis combien de temps ?", r: "Non précisé" },
-                { q: "Qu'as-tu déjà essayé ?", r: "Non précisé" },
-              ],
+              ...versReponses({
+                tel: "06 •• •• •• ••",
+                pourquoi: motif.trim() || "—",
+                age: age.trim() || "—",
+                changer: "—",
+                connu: "Instagram",
+                budget,
+              }),
             });
           }}
         >
