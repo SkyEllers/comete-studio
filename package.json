@@ -20,6 +20,7 @@
     "qa:sas-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas-ia.mjs",
     "qa:sonde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sonde.mjs",
     "qa:pulsar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-pulsar.mjs",
+    "qa:closeuse": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-closeuse.mjs",
     "qa:horizon": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-horizon.mjs",
     "qa:prospection": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-prospection.mjs",
     "qa:automatisations": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-automatisations.mjs",
