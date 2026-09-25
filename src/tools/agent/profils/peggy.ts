@@ -28,31 +28,36 @@ export const peggy: Profil = {
 
   dureeMinutes: 45,
 
-  // Les six questions du diagnostic (relevé du 22/09/2026 sur 35
-  // réservations), reformulées : le libellé exact se relira dans Calendly
-  // au branchement. Les motifs plus haut ne dépendent que de quelques mots.
+  // Les six questions obligatoires du « RDV diagnostic offert 45 min », mot
+  // pour mot (reprises de la démo closeuse du hub, commit 09c370a du
+  // 25/09/2026). Les réponses sont des exemples que Louis modifie.
   formulaire: [
-    { question: "Ton numéro de téléphone", exemple: "06 00 00 00 00" },
+    { question: "Quel est ton numéro de téléphone ?", exemple: "06 00 00 00 00" },
     {
       question:
-        "Qu'est-ce qui te pousse à vouloir perdre du poids, et qu'as-tu déjà essayé qui n'a pas tenu ?",
+        "Qu'est-ce qui te pousse à vouloir perdre du poids aujourd'hui ? Et qu'as-tu déjà essayé qui n'a pas tenu ?",
       exemple: "Je n'arrive plus à perdre depuis ma ménopause. J'ai fait Weight Watchers deux fois.",
     },
-    { question: "Ton âge, ton poids actuel, le poids que tu vises", exemple: "52 ans, 78 kg, 68 kg" },
     {
-      question: "Comment tu fonctionnes quand tu décides de changer ?",
+      question: "Quel est ton âge, ton poids actuel, et le poids que tu aimerais atteindre ?",
+      exemple: "52 ans, 78 kg, 68 kg",
+    },
+    {
+      question:
+        "Quand tu décides de changer quelque chose dans ta vie, comment ça se passe en général ? Tu fonces, tu analyses tout avant, tu avances pas à pas, ou tu as besoin d'être accompagnée ?",
       exemple: "J'ai besoin d'être accompagnée",
-      choix: [
-        "Je fonce",
-        "J'analyse tout avant",
-        "J'avance pas à pas",
-        "J'ai besoin d'être accompagnée",
-      ],
     },
     { question: "Comment m'as-tu connue ?", exemple: "Facebook" },
     {
-      question: "Quel budget mensuel peux-tu mettre sur ta santé ?",
-      exemple: "Entre 100 et 200 € par mois",
+      question:
+        "Pour préparer notre échange : quel budget mensuel pourrais-tu consacrer à ta santé aujourd'hui ?",
+      exemple: "Entre 100 et 150 €/mois",
+      choix: [
+        "Moins de 100 €/mois",
+        "Entre 100 et 150 €/mois",
+        "Entre 150 et 250 €/mois",
+        "Plus de 250 €/mois",
+      ],
     },
   ],
 

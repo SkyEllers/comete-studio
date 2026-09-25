@@ -109,6 +109,36 @@ describe("lireReservation", () => {
   });
 });
 
+describe("le vrai formulaire de Peggy", () => {
+  it("trouve le téléphone et la façon de décider, même en réponse libre", () => {
+    const reponses = peggy.formulaire.map((q, position) => ({
+      question: q.question,
+      answer: position === 0 ? "07 11 22 33 44" : position === 3 ? "Je fonce… et je lâche au bout de trois semaines" : q.exemple,
+      position,
+    }));
+    const c = lireReservation(invitation({ questions_and_answers: reponses }), peggy, options);
+    assert.equal(c.telephone, "+33711223344");
+    assert.equal(c.facon_de_decider, "fonce");
+  });
+
+  it("ne prend aucune autre question pour celle du téléphone ou de la décision", () => {
+    const autres = peggy.formulaire.filter((_, i) => i !== 0 && i !== 3);
+    for (const q of autres) {
+      assert.doesNotMatch(q.question, peggy.questions.telephone, q.question);
+      assert.doesNotMatch(q.question, peggy.questions.faconDeDecider, q.question);
+    }
+  });
+
+  it("lit « j'analyse tout avant, et après j'y vais à fond » comme une analyste", () => {
+    const reponses = [
+      { question: peggy.formulaire[0].question, answer: "0600000000", position: 0 },
+      { question: peggy.formulaire[3].question, answer: "J'analyse tout avant, et après j'y vais à fond", position: 3 },
+    ];
+    const c = lireReservation(invitation({ questions_and_answers: reponses }), peggy, options);
+    assert.equal(c.facon_de_decider, "analyse");
+  });
+});
+
 describe("les modèles de Peggy", () => {
   it("remplacent leurs variables dans l'ordre déclaré", () => {
     const valeurs = {
