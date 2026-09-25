@@ -132,6 +132,14 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   // ------------------------------- Pas sûre ----------------------------------
   if (!d.sur || !d.reponse.trim()) {
     if (!(await envoyerLibre(admin, c.id, profil.textes.attente, { reel, cle }))) return "rien";
+    // « Oui ça me va, par contre… » : la question monte chez Louis, mais la
+    // confirmation, elle, est acquise.
+    if (d.confirme && !c.confirme_le) {
+      await admin
+        .from("agent_conversations")
+        .update({ confirme_le: new Date(maintenant).toISOString() })
+        .eq("id", c.id);
+    }
     await mettreEnFile(admin, c, dernier.id, "incertain", {
       question: d.question_pour_louis || dernier.texte,
       brouillon: d.reponse || null,
