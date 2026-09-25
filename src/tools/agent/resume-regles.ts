@@ -26,7 +26,7 @@ export type DiagnosticDuJour = {
 
 /** Où en est son rendez-vous, en une phrase. */
 export function etatEnMots(d: DiagnosticDuJour): string {
-  if (d.etat === "hors_champ") return "Réservé trop près du rendez-vous : l'assistante ne lui a pas écrit.";
+  if (d.etat === "hors_champ") return "Réservé moins de 24 h avant : l'assistante ne lui a pas écrit.";
   if (d.etat === "stop") return "Elle a demandé à ne plus recevoir de messages. Le rendez-vous tient.";
   const suite = d.confirme_le
     ? "confirmé"
@@ -40,8 +40,10 @@ export function etatEnMots(d: DiagnosticDuJour): string {
 /** Ses notes, dédoublonnées, en une ligne. */
 export function notesEnMots(notes: string[]): string {
   const propres = [...new Set(notes.map((n) => n.trim().replace(/\s+/g, " ")).filter(Boolean))];
-  if (propres.length === 0) return "Rien de particulier.";
-  return propres.map((n) => (/[.!?…]$/.test(n) ? n : `${n}.`)).join(" ");
+  if (propres.length === 0) return "rien de particulier.";
+  const phrase = propres.map((n) => (/[.!?…]$/.test(n) ? n : `${n}.`)).join(" ");
+  // Minuscule après les deux-points, sauf un sigle (« IMC »).
+  return /^\p{Lu}\p{Ll}/u.test(phrase) ? phrase.charAt(0).toLowerCase() + phrase.slice(1) : phrase;
 }
 
 export function blocDuDiagnostic(d: DiagnosticDuJour): string[] {
@@ -77,8 +79,8 @@ export function mailDuResume(q: {
   const date = jourEnMots(`${q.jour}T12:00:00Z`, q.fuseau);
   const prefixe = q.test ? "[Test] " : "";
   const sujet = `${prefixe}${n === 1 ? "Ton diagnostic" : `Tes ${n} diagnostics`} du ${date}`;
-  const intro = `${n === 1 ? "Ton diagnostic" : `Tes ${n} diagnostics`} d'aujourd'hui, ${date} :`;
-  const pied = "Rien à faire de ton côté : c'est ce que les femmes ont dit à l'assistante avant ton Zoom.";
+  const intro = `Aujourd'hui, ${n === 1 ? "1 diagnostic" : `${n} diagnostics`} :`;
+  const pied = "Rien à faire de ton côté. C'est juste pour que tu saches, avant chaque Zoom, où elle en est.";
 
   const blocs = [...q.diagnostics]
     .sort((a, b) => Date.parse(a.rdv_debut) - Date.parse(b.rdv_debut))

@@ -36,14 +36,15 @@ describe("où en est le rendez-vous", () => {
 });
 
 describe("ce qu'elle a dit", () => {
-  it("rien", () => assert.equal(notesEnMots([]), "Rien de particulier."));
+  it("rien", () => assert.equal(notesEnMots([]), "rien de particulier."));
   it("dédoublonne et ponctue", () =>
     assert.equal(
       notesEnMots(["Hypothyroïdie, renvoyée vers son médecin", "Hypothyroïdie, renvoyée vers son médecin", " "]),
-      "Hypothyroïdie, renvoyée vers son médecin.",
+      "hypothyroïdie, renvoyée vers son médecin.",
     ));
+  it("garde un sigle en tête", () => assert.equal(notesEnMots(["IMC élevé"]), "IMC élevé."));
   it("garde la ponctuation d'origine", () =>
-    assert.equal(notesEnMots(["Veut comprendre pourquoi elle stagne ?", "Budget serré."]), "Veut comprendre pourquoi elle stagne ? Budget serré."));
+    assert.equal(notesEnMots(["Veut comprendre pourquoi elle stagne ?", "Budget serré."]), "veut comprendre pourquoi elle stagne ? Budget serré."));
 });
 
 describe("le mail du matin", () => {
@@ -63,7 +64,7 @@ describe("le mail du matin", () => {
     assert.ok(m);
     assert.equal(m.sujet, "Tes 2 diagnostics du vendredi 2 octobre");
     assert.ok(m.texte.indexOf("10h · Sandrine") < m.texte.indexOf("15h30 · Nadia"));
-    assert.match(m.texte, /Ce qu'elle a dit : Hypothyroïdie, renvoyée vers son médecin\./);
+    assert.match(m.texte, /Ce qu'elle a dit : hypothyroïdie, renvoyée vers son médecin\./);
     assert.match(m.texte, /15h30 · Nadia\nCe qu'elle a dit : Rien de particulier\.\nConfirmé\./);
   });
 
