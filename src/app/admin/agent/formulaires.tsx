@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import { creerReglages, nouvelleSimulation } from "./actions";
+import { creerReglages, nouvelleSimulation, reglerResume, testerResume } from "./actions";
 
 const selectClasses =
   "border-line bg-background h-9 w-full rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ember";
@@ -140,5 +140,70 @@ export function FormulaireSimulation({ clients }: { clients: Client[] }) {
       </Button>
       <Erreur message={etat && !etat.ok ? etat.error : undefined} />
     </form>
+  );
+}
+
+/**
+ * Le mail du matin d'un client : qui le reçoit, s'il part, et un envoi de
+ * test chez Louis seul pour un jour choisi (simulations comprises).
+ */
+export function FormulaireResume({
+  organisationId,
+  actif,
+  destinataires,
+  aujourdhui,
+}: {
+  organisationId: string;
+  actif: boolean;
+  destinataires: string[];
+  aujourdhui: string;
+}) {
+  const [etat, action, enCours] = useActionState(reglerResume, null);
+  const [etatTest, actionTest, testEnCours] = useActionState(testerResume, null);
+  return (
+    <div className="border-line mt-2 space-y-3 rounded-md border p-3">
+      <form action={action} className="space-y-2">
+        <input type="hidden" name="organization_id" value={organisationId} />
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="resume_actif" defaultChecked={actif} className="accent-ember" />
+          Mail du matin (8h) : les diagnostics du jour
+        </label>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-56 flex-1">
+            <Label htmlFor={`dest-${organisationId}`} className="mb-1 text-xs">
+              Destinataires (séparés par une virgule)
+            </Label>
+            <Input
+              id={`dest-${organisationId}`}
+              name="resume_destinataires"
+              defaultValue={destinataires.join(", ")}
+            />
+          </div>
+          <Button type="submit" variant="outline" size="sm" disabled={enCours}>
+            Enregistrer
+          </Button>
+        </div>
+        <p className="text-muted-foreground text-xs">
+          Ne part que si l&apos;agent suit les vraies réservations de ce client.
+        </p>
+        <Erreur message={etat && !etat.ok ? etat.error : undefined} />
+        {etat?.ok ? <p className="mt-2 text-xs text-emerald-400">Enregistré.</p> : null}
+      </form>
+
+      <form action={actionTest} className="flex flex-wrap items-end gap-2">
+        <input type="hidden" name="organization_id" value={organisationId} />
+        <div>
+          <Label htmlFor={`jour-${organisationId}`} className="mb-1 text-xs">
+            M&apos;envoyer celui du
+          </Label>
+          <Input id={`jour-${organisationId}`} name="jour" type="date" defaultValue={aujourdhui} />
+        </div>
+        <Button type="submit" variant="outline" size="sm" disabled={testEnCours}>
+          Envoyer le test
+        </Button>
+        <Erreur message={etatTest && !etatTest.ok ? etatTest.error : undefined} />
+        {etatTest?.ok ? <p className="mt-2 text-xs text-emerald-400">Parti vers ta boîte.</p> : null}
+      </form>
+    </div>
   );
 }

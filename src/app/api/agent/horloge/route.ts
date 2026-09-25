@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { tournerTout } from "@/tools/agent/moteur";
+import { envoyerResumes } from "@/tools/agent/resume";
 
 /**
  * L'horloge de l'agent.
@@ -15,6 +16,9 @@ import { tournerTout } from "@/tools/agent/moteur";
  * rangé d'un côté dans le Vault de la base, de l'autre dans la variable
  * `AGENT_HORLOGE_SECRET` de Vercel. Sans la variable, la route répond 503 et
  * ne fait rien.
+ *
+ * Le même passage envoie le mail du matin, une fois par jour après 8h
+ * (`resume.ts`).
  *
  * Deux passages qui se chevauchent n'envoient rien en double : chaque envoi
  * se réserve par sa `cle_envoi` avant de partir (`moteur.ts`).
@@ -45,9 +49,11 @@ export async function POST(request: Request) {
 
   const debut = Date.now();
   try {
-    const faits = await tournerTout(createAdminClient());
+    const admin = createAdminClient();
+    const faits = await tournerTout(admin);
+    const resumes = await envoyerResumes(admin);
     return Response.json(
-      { faits, duree_ms: Date.now() - debut },
+      { faits, resumes, duree_ms: Date.now() - debut },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (erreur) {

@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/app/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { CLES_PROFILS, profil as profilDe } from "@/tools/agent/profils";
+import { jourLocal } from "@/tools/agent/temps";
 
-import { FormulaireReglages, FormulaireSimulation } from "./formulaires";
+import { FormulaireReglages, FormulaireResume, FormulaireSimulation } from "./formulaires";
 
 /**
  * L'agent — ce qu'il fait entre la réservation et le rendez-vous.
@@ -36,12 +37,17 @@ const quand = (iso: string) =>
     minute: "2-digit",
   }).format(new Date(iso));
 
+/** Le jour de Paris, pour préremplir l'envoi de test du mail du matin. */
+const aujourdhuiAParis = () => jourLocal(Date.now(), "Europe/Paris");
+
 export default async function AgentPage() {
   await requireAdmin();
   const supabase = await createClient();
 
   const [{ data: reglages }, { data: organisations }, { data: conversations }, { count: enAttente }] = await Promise.all([
-    supabase.from("agent_reglages").select("organization_id, profil, actif, canal, types_suivis"),
+    supabase
+      .from("agent_reglages")
+      .select("organization_id, profil, actif, canal, types_suivis, resume_actif, resume_destinataires"),
     supabase.from("organizations").select("id, name").order("name"),
     supabase
       .from("agent_conversations")
@@ -98,6 +104,14 @@ export default async function AgentPage() {
                     )}{" "}
                     · {r.types_suivis.length} type(s) suivi(s)
                   </span>
+                  <div className="w-full">
+                    <FormulaireResume
+                      organisationId={r.organization_id}
+                      actif={r.resume_actif}
+                      destinataires={r.resume_destinataires}
+                      aujourdhui={aujourdhuiAParis()}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>

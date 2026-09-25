@@ -20,12 +20,15 @@ export type Courriel = {
   sujet: string;
   texte: string;
   html: string;
+  /** Louis par défaut. Le mail du matin de l'agent part chez le client. */
+  a?: string[];
 };
 
 export async function envoyer({
   sujet,
   texte,
   html,
+  a = [DESTINATAIRE],
 }: Courriel): Promise<boolean> {
   const cle = process.env.RESEND_API_KEY;
 
@@ -42,7 +45,7 @@ export async function envoyer({
       },
       body: JSON.stringify({
         from: EXPEDITEUR,
-        to: [DESTINATAIRE],
+        to: a,
         subject: sujet,
         text: texte,
         html,

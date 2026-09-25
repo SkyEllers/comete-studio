@@ -12,6 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ouvrir } from "@/tools/agent/conversations";
 import { recevoir } from "@/tools/agent/entrees";
 import { traiter } from "@/tools/agent/file";
+import { envoyerResumeTest } from "@/tools/agent/resume";
 import { maintenantDe, tournerConversation } from "@/tools/agent/moteur";
 import { CLES_PROFILS, profil as profilDe } from "@/tools/agent/profils";
 import { invitationCalendly } from "@/tools/agent/reservation";
@@ -331,5 +332,70 @@ export async function retirerReponseFixe(
   if (error) return fail("La réponse n'a pas pu être retirée.");
 
   revalidatePath("/admin/agent/file");
+  return ok();
+}
+
+// --------------------------- Le mail du matin ------------------------------
+
+const schemaResume = z.object({
+  organization_id: z.uuid(),
+  resume_actif: z.boolean(),
+  resume_destinataires: z
+    .array(z.email("Une adresse ne ressemble pas à une adresse mail."))
+    .max(5, "Cinq adresses au plus."),
+});
+
+/** Qui reçoit le mail du matin, et s'il part. */
+export async function reglerResume(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const lu = schemaResume.safeParse({
+    organization_id: formData.get("organization_id"),
+    resume_actif: formData.get("resume_actif") === "on",
+    resume_destinataires: String(formData.get("resume_destinataires") ?? "")
+      .split(/[\s,;]+/)
+      .map((a) => a.trim())
+      .filter(Boolean),
+  });
+  if (!lu.success) return failFromZod(lu.error);
+  if (lu.data.resume_actif && lu.data.resume_destinataires.length === 0) {
+    return fail("Donne au moins une adresse, ou laisse le mail éteint.", "resume_destinataires");
+  }
+
+  const { error } = await createAdminClient()
+    .from("agent_reglages")
+    .update({
+      resume_actif: lu.data.resume_actif,
+      resume_destinataires: lu.data.resume_destinataires,
+    })
+    .eq("organization_id", lu.data.organization_id);
+  if (error) return fail("Le réglage n'a pas pu être enregistré.");
+
+  revalidatePath("/admin/agent");
+  return ok();
+}
+
+const schemaResumeTest = z.object({
+  organization_id: z.uuid(),
+  jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choisis un jour."),
+});
+
+/** Le mail du matin d'un jour choisi, simulations comprises, chez Louis seul. */
+export async function testerResume(
+  _precedent: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const lu = schemaResumeTest.safeParse({
+    organization_id: formData.get("organization_id"),
+    jour: formData.get("jour"),
+  });
+  if (!lu.success) return failFromZod(lu.error);
+
+  const parti = await envoyerResumeTest(createAdminClient(), lu.data.organization_id, lu.data.jour);
+  if (parti === null) return fail("Aucun diagnostic ce jour-là, même en simulation : rien à envoyer.");
+  if (!parti) return fail("Le mail n'est pas parti (Resend).");
   return ok();
 }

@@ -386,6 +386,7 @@ export type Database = {
           profil: string
           resume_actif: boolean
           resume_destinataires: string[]
+          resume_envoye_le: string | null
           types_suivis: string[]
           updated_at: string
         }
@@ -398,6 +399,7 @@ export type Database = {
           profil: string
           resume_actif?: boolean
           resume_destinataires?: string[]
+          resume_envoye_le?: string | null
           types_suivis?: string[]
           updated_at?: string
         }
@@ -410,6 +412,7 @@ export type Database = {
           profil?: string
           resume_actif?: boolean
           resume_destinataires?: string[]
+          resume_envoye_le?: string | null
           types_suivis?: string[]
           updated_at?: string
         }
