@@ -31,7 +31,7 @@ describe("derniereRaison", () => {
       { type: "sale.reason", payload: { motif: "argent", recontacter: "2026-11-01" }, created_at: "2026-09-15T18:00:00Z" },
       { type: "sale.reason", payload: { motif: "moment", recontacter: null }, created_at: "2026-09-15T17:00:00Z" },
     ];
-    const attendue = { motif: "argent", recontacter: "2026-11-01", noteeLe: "2026-09-15T18:00:00Z" };
+    const attendue = { motif: "argent", recontacter: "2026-11-01", recontacterLe: null, noteeLe: "2026-09-15T18:00:00Z" };
     assert.deepEqual(derniereRaison(activites), attendue);
     assert.deepEqual(derniereRaison([...activites].reverse()), attendue);
   });
@@ -123,7 +123,7 @@ describe("le motif « pas encore répondu »", () => {
           created_at: "2026-09-22T10:00:00Z",
         },
       ]),
-      { motif: "pas_encore", recontacter: "2026-11-01", noteeLe: "2026-09-22T10:00:00Z" },
+      { motif: "pas_encore", recontacter: "2026-11-01", recontacterLe: null, noteeLe: "2026-09-22T10:00:00Z" },
     );
   });
 
@@ -134,5 +134,30 @@ describe("le motif « pas encore répondu »", () => {
       ]),
       null,
     );
+  });
+});
+
+describe("derniereRaison — le jour exact de la closeuse (0038)", () => {
+  it("lit la date quand elle est là", () => {
+    const raison = derniereRaison([
+      {
+        type: "sale.reason",
+        payload: { motif: "argent", recontacter: "2026-10-01", recontacter_le: "2026-10-12" },
+        created_at: "2026-09-25T12:00:00Z",
+      },
+    ]);
+    assert.equal(raison?.recontacter, "2026-10-01");
+    assert.equal(raison?.recontacterLe, "2026-10-12");
+  });
+
+  it("ignore une date mal formée", () => {
+    const raison = derniereRaison([
+      {
+        type: "sale.reason",
+        payload: { motif: "argent", recontacter: "2026-10-01", recontacter_le: "le 12" },
+        created_at: "2026-09-25T12:00:00Z",
+      },
+    ]);
+    assert.equal(raison?.recontacterLe, null);
   });
 });

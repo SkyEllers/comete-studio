@@ -1,5 +1,6 @@
 "use client";
 
+import { fr } from "date-fns/locale";
 import {
   CalendarCheck2,
   Check,
@@ -24,6 +25,7 @@ import {
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
@@ -34,13 +36,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
 import { libelleMois, moisPrecedent, moisSuivant } from "@/tools/resultats/mois";
-import { LIBELLES_MOTIF, MOTIFS, moisProposes, type Motif } from "@/tools/resultats/non-vente";
+import { LIBELLES_MOTIF, MOTIFS, type Motif, type Raison } from "@/tools/resultats/non-vente";
 import { Tuile } from "@/tools/resultats/tuiles";
 
-import { echeancier, releveDuMois, type Paiement } from "./commission";
+import { echeancier, plusMois, releveDuMois, type Paiement } from "./commission";
 import type { EspaceCloseuse, RdvCloseuse } from "./queries";
 
 /**
@@ -62,6 +65,28 @@ const court = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short",
 const dateCourte = (jourIso: string) => court.format(new Date(`${jourIso}T00:00:00Z`));
 const majuscule = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const pourcent = (t: number) => `${String(t).replace(".", ",")} %`;
+
+const longue = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const dateLongue = (jourIso: string) => longue.format(new Date(`${jourIso}T00:00:00Z`));
+
+/** « AAAA-MM-JJ » d'une date du calendrier, lue à l'heure locale de qui clique. */
+function jourDuCalendrier(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Le moment de la rappeler est-il arrivé ? Le jour exact quand elle l'a noté
+ * (0038), sinon le mois, comme dans le Radar du client.
+ */
+function rappelArrive(raison: Raison, aujourdhui: string, moisDuJour: string) {
+  if (raison.recontacterLe) return raison.recontacterLe <= aujourdhui;
+  return raison.recontacter !== null && raison.recontacter <= moisDuJour;
+}
+
+function quandRappeler(raison: Raison) {
+  if (raison.recontacterLe) return `le ${dateLongue(raison.recontacterLe)}`;
+  return raison.recontacter ? `en ${libelleMois(raison.recontacter)}` : "";
+}
 
 function aNoter(r: RdvCloseuse, maintenant: number) {
   return (
@@ -179,6 +204,7 @@ export function EspaceCloseuseClient({
           rdvs={espace.rdvs}
           maintenant={maintenant}
           moisDuJour={moisDuJour}
+          aujourdhui={aujourdhui}
           onNoter={setANoterRdv}
         />
       ) : null}
@@ -196,7 +222,6 @@ export function EspaceCloseuseClient({
               orgSlug={orgSlug}
               rdv={aNoterRdv}
               aujourdhui={aujourdhui}
-              moisDuJour={moisDuJour}
               onFini={() => setANoterRdv(null)}
             />
           ) : null}
@@ -219,24 +244,26 @@ function OngletRdv({
   rdvs,
   maintenant,
   moisDuJour,
+  aujourdhui,
   onNoter,
 }: {
   orgSlug: string;
   rdvs: RdvCloseuse[];
   maintenant: number;
   moisDuJour: string;
+  aujourdhui: string;
   onNoter: (r: RdvCloseuse) => void;
 }) {
   const aFaire = rdvs.filter((r) => aNoter(r, maintenant));
   const aVenir = rdvs.filter(
     (r) => r.statut === "confirme" && !bilanPossible(r.debut, maintenant),
   );
-  const recontacter = rdvs
-    .filter((r) => r.raison?.recontacter && !r.recontactFait && r.raison.recontacter <= moisDuJour)
-    .sort((a, b) => (a.raison!.recontacter ?? "").localeCompare(b.raison!.recontacter ?? ""));
-  const plusTard = rdvs.filter(
-    (r) => r.raison?.recontacter && !r.recontactFait && r.raison.recontacter > moisDuJour,
-  ).length;
+  const enAttente = rdvs.filter((r) => r.raison?.recontacter && !r.recontactFait);
+  const cle = (r: RdvCloseuse) => r.raison!.recontacterLe ?? r.raison!.recontacter ?? "";
+  const recontacter = enAttente
+    .filter((r) => rappelArrive(r.raison!, aujourdhui, moisDuJour))
+    .sort((a, b) => cle(a).localeCompare(cle(b)));
+  const plusTard = enAttente.length - recontacter.length;
   const faits = rdvs
     .filter((r) => r.vente || r.declinee || r.raison || r.statut === "no_show" || r.statut === "annule")
     .reverse();
@@ -264,8 +291,8 @@ function OngletRdv({
           titre="À recontacter"
           sousTitre={
             plusTard
-              ? `Celles dont le mois est arrivé. ${plusTard} autre${plusTard > 1 ? "s" : ""} plus tard.`
-              : "Celles dont le mois est arrivé."
+              ? `Celles dont le jour est arrivé. ${plusTard} autre${plusTard > 1 ? "s" : ""} plus tard.`
+              : "Celles dont le jour est arrivé."
           }
         >
           <div className="border-line divide-line divide-y rounded-lg border">
@@ -375,7 +402,7 @@ function LigneRecontact({ orgSlug, rdv }: { orgSlug: string; rdv: RdvCloseuse })
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm">
       <span className="w-36 shrink-0 font-medium">{rdv.prenom}</span>
       <span className="text-muted-foreground">{rdv.raison ? LIBELLES_MOTIF[rdv.raison.motif] : ""}</span>
-      {rdv.raison?.recontacter ? <Badge variant="secondary">{libelleMois(rdv.raison.recontacter)}</Badge> : null}
+      {rdv.raison ? <Badge variant="secondary">{quandRappeler(rdv.raison)}</Badge> : null}
       {tel ? (
         <a href={`tel:${tel.replace(/\s/g, "")}`} className="text-ember inline-flex items-center gap-1 text-xs">
           <Phone aria-hidden="true" className="size-3.5" />
@@ -686,13 +713,11 @@ function FormResultat({
   orgSlug,
   rdv,
   aujourdhui,
-  moisDuJour,
   onFini,
 }: {
   orgSlug: string;
   rdv: RdvCloseuse;
   aujourdhui: string;
-  moisDuJour: string;
   onFini: () => void;
 }) {
   const router = useRouter();
@@ -707,7 +732,9 @@ function FormResultat({
     rdv.vente?.premierCents ? String(rdv.vente.premierCents / 100) : "",
   );
   const [motif, setMotif] = useState<Motif>(rdv.raison?.motif ?? "argent");
-  const [recontacter, setRecontacter] = useState<string>(rdv.raison?.recontacter ?? "");
+  const [recontacterLe, setRecontacterLe] = useState<string>(rdv.raison?.recontacterLe ?? "");
+  const [calendrier, setCalendrier] = useState(false);
+  const dernierJour = plusMois(aujourdhui, 24);
 
   const envoyer = () =>
     startTransition(async () => {
@@ -715,7 +742,7 @@ function FormResultat({
         type === "vente"
           ? await noterVente(orgSlug, { bookingId: rdv.id, montant: montantSaisi, date, fois, premier })
           : type === "non"
-            ? await noterNonVente(orgSlug, { bookingId: rdv.id, motif, recontacter: recontacter || null })
+            ? await noterNonVente(orgSlug, { bookingId: rdv.id, motif, recontacterLe: recontacterLe || null })
             : await noterAbsente(orgSlug, { bookingId: rdv.id });
       if (!resultat.ok) {
         toast.error(resultat.error);
@@ -803,15 +830,44 @@ function FormResultat({
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="recontacter">En reparler en</Label>
-            <select id="recontacter" className={champ} value={recontacter} onChange={(e) => setRecontacter(e.target.value)}>
-              <option value="">Elle n&apos;a pas dit</option>
-              {moisProposes(moisDuJour).map((m) => (
-                <option key={m} value={m}>
-                  {libelleMois(m)}
-                </option>
-              ))}
-            </select>
+            <Label htmlFor="recontacter">La rappeler le</Label>
+            <Popover open={calendrier} onOpenChange={setCalendrier}>
+              <PopoverTrigger asChild>
+                <Button id="recontacter" variant="outline" className="w-full justify-start font-normal">
+                  <CalendarCheck2 aria-hidden="true" />
+                  {recontacterLe ? dateLongue(recontacterLe) : "Elle n'a pas dit"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-2">
+                <Calendar
+                  mode="single"
+                  locale={fr}
+                  selected={recontacterLe ? new Date(`${recontacterLe}T00:00:00`) : undefined}
+                  defaultMonth={recontacterLe ? new Date(`${recontacterLe}T00:00:00`) : undefined}
+                  disabled={[
+                    { before: new Date(`${aujourdhui}T00:00:00`) },
+                    { after: new Date(`${dernierJour}T00:00:00`) },
+                  ]}
+                  onSelect={(jour) => {
+                    setRecontacterLe(jour ? jourDuCalendrier(jour) : "");
+                    setCalendrier(false);
+                  }}
+                />
+                {recontacterLe ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-1 w-full justify-start"
+                    onClick={() => {
+                      setRecontacterLe("");
+                      setCalendrier(false);
+                    }}
+                  >
+                    Elle n&apos;a pas dit
+                  </Button>
+                ) : null}
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       ) : null}

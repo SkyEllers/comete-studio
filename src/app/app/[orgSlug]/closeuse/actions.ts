@@ -88,9 +88,10 @@ export async function noterVente(orgSlug: string, input: unknown): Promise<Actio
 const nonVenteSchema = z.object({
   bookingId: idSchema,
   motif: z.enum(MOTIFS as unknown as [string, ...string[]], { error: "Choisis une raison." }),
-  recontacter: z
+  // Le jour où la rappeler, choisi dans un calendrier (0038).
+  recontacterLe: z
     .string()
-    .regex(/^\d{4}-\d{2}-01$/)
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choisis une date dans le calendrier." })
     .nullable()
     .optional(),
 });
@@ -111,7 +112,8 @@ export async function noterNonVente(orgSlug: string, input: unknown): Promise<Ac
   const { error } = await supabase.rpc("radar_note_non_vente", {
     booking_id: parsed.data.bookingId,
     motif: parsed.data.motif,
-    recontacter: parsed.data.recontacter ?? undefined,
+    recontacter: parsed.data.recontacterLe ? `${parsed.data.recontacterLe.slice(0, 7)}-01` : undefined,
+    recontacter_le: parsed.data.recontacterLe ?? undefined,
   });
   if (error) return fail(lisible(error.message, "Ça n'a pas pu être noté."));
 

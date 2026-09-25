@@ -50,20 +50,30 @@ export type Raison = {
   motif: Motif;
   /** Le premier du mois, « 2026-11-01 », ou null si la personne n'a pas dit quand. */
   recontacter: string | null;
+  /** Le jour exact, quand la closeuse l'a noté (0038). Sinon null : seul le mois compte. */
+  recontacterLe: string | null;
   noteeLe: string;
 };
 
 type ActiviteLue = { type: string; payload: unknown; created_at: string };
 
 function lireRaison(activite: ActiviteLue): Raison | null {
-  const payload = activite.payload as { motif?: unknown; recontacter?: unknown } | null;
+  const payload = activite.payload as {
+    motif?: unknown;
+    recontacter?: unknown;
+    recontacter_le?: unknown;
+  } | null;
   const motif = payload?.motif;
   if (typeof motif !== "string" || !(MOTIFS as readonly string[]).includes(motif)) return null;
   const recontacter =
     typeof payload?.recontacter === "string" && /^\d{4}-\d{2}-01$/.test(payload.recontacter)
       ? payload.recontacter
       : null;
-  return { motif: motif as Motif, recontacter, noteeLe: activite.created_at };
+  const recontacterLe =
+    typeof payload?.recontacter_le === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.recontacter_le)
+      ? payload.recontacter_le
+      : null;
+  return { motif: motif as Motif, recontacter, recontacterLe, noteeLe: activite.created_at };
 }
 
 /** La dernière raison notée pour un rendez-vous, ou null. */

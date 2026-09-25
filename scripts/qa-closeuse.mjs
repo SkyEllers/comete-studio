@@ -215,6 +215,29 @@ try {
   const absente = await c1("POST", "rpc/radar_client_set_status", { booking_id: b4.id, new_status: "no_show" });
   verifie("C1 ne marque pas absente une personne de C2", absente.status >= 400, JSON.stringify(absente.data));
 
+  // 0038 : le jour exact où la rappeler.
+  const dansDixJours = new Date(Date.now() + 10 * jour).toISOString().slice(0, 10);
+  const avecDate = await c1("POST", "rpc/radar_note_non_vente", {
+    booking_id: vieux.id,
+    motif: "argent",
+    recontacter_le: dansDixJours,
+  });
+  verifie("C1 note une date exacte où la rappeler", avecDate.status < 300, JSON.stringify(avecDate.data));
+  const raisonLue = (
+    await srv("GET", `radar_booking_activities?select=payload&booking_id=eq.${vieux.id}&type=eq.sale.reason`)
+  ).data?.[0]?.payload;
+  verifie(
+    "la raison porte le jour exact et son mois",
+    raisonLue?.recontacter_le === dansDixJours && raisonLue?.recontacter === `${dansDixJours.slice(0, 7)}-01`,
+    JSON.stringify(raisonLue),
+  );
+  const datePassee = await c1("POST", "rpc/radar_note_non_vente", {
+    booking_id: vieux.id,
+    motif: "argent",
+    recontacter_le: "2026-01-02",
+  });
+  verifie("une date déjà passée est refusée", datePassee.status >= 400, JSON.stringify(datePassee.data));
+
   const ecritureDirecte = await c1("PATCH", `radar_bookings?id=eq.${b3.id}&select=id`, { closeuse_id: comptes.c1 });
   verifie("C1 ne s'attribue pas un rendez-vous en direct", refuse(ecritureDirecte), `statut ${ecritureDirecte.status}`);
 
