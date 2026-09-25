@@ -17,6 +17,7 @@ import { demanderDecision, lireTarifs } from "../src/tools/agent/ia.ts";
 import { peggy } from "../src/tools/agent/profils/peggy.ts";
 import { consignesStables, contexteDuMoment, transcrire } from "../src/tools/agent/prompt.ts";
 import { rendreModele } from "../src/tools/agent/profil.ts";
+import { tournuresInterdites } from "../src/tools/agent/style.ts";
 import { ajouterJours, heureEnMots, instantLocal, jourEnMots, jourLocal } from "../src/tools/agent/temps.ts";
 
 if (!env.ANTHROPIC_API_KEY) {
@@ -89,7 +90,8 @@ async function cas(nom, fil, attentes, surcharge = {}) {
   console.log(
     `   jetons : entrée ${r.usage.input_tokens}, cache lu ${r.usage.cache_read_input_tokens ?? 0}, cache écrit ${r.usage.cache_creation_input_tokens ?? 0}, sortie ${r.usage.output_tokens}`,
   );
-  verifie(`${nom} : jamais de tiret long`, !d.reponse.includes("—"));
+  const interdites = tournuresInterdites(d.reponse);
+  verifie(`${nom} : aucune tournure interdite`, interdites.length === 0, interdites.join(", "));
   verifie(
     `${nom} : ne dit pas qui sera au Zoom`,
     !/Mélanie|closeuse|c'est (bien )?elle que tu verras|pour Peggy|avec Peggy|votre (échange|rendez-vous)/i.test(d.reponse),

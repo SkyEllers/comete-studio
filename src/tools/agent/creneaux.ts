@@ -18,13 +18,13 @@ export const DELAI_MINIMUM_MS = 2 * 3_600_000;
 export type Choix = {
   /** Le même jour que son rendez-vous, au plus près de l'heure prévue. */
   memeJour: string[];
-  /** Les plus proches, une demi-journée chacun. */
+  /** Les plus proches, une demi-journée chacun, hors du jour du rendez-vous. */
   plusProches: string[];
 };
 
 function demiJournee(instant: string, fuseau: string): string {
   const heure = Number(heureEnMots(instant, fuseau).split("h")[0]);
-  return `${jourLocal(instant, fuseau)}:${heure < 13 ? "matin" : "apres-midi"}`;
+  return `${jourLocal(instant, fuseau)}:${heure < 12 ? "matin" : "apres-midi"}`;
 }
 
 export function choisirCreneaux(
@@ -47,7 +47,9 @@ export function choisirCreneaux(
 
   const vues = new Set<string>();
   const plusProches: string[] = [];
-  for (const c of possibles) {
+  // Le jour du rendez-vous a sa propre liste : si elle ne peut pas ce
+  // jour-là, les « plus proches » ne doivent pas le lui reproposer.
+  for (const c of possibles.filter((p) => jourLocal(p, fuseau) !== jour)) {
     const moment = demiJournee(c, fuseau);
     if (vues.has(moment)) continue;
     vues.add(moment);

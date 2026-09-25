@@ -27,16 +27,16 @@ describe("choisirCreneaux", () => {
     assert.deepEqual(memeJour, [t("2026-10-08", 10), t("2026-10-08", 16, 30), t("2026-10-08", 17)]);
   });
 
-  it("les plus proches : un par demi-journée, pas trois fois le même matin", () => {
+  it("les plus proches : un par demi-journée, hors du jour du rendez-vous", () => {
     const { plusProches } = choisirCreneaux(libres, rdv, P, maintenant);
-    assert.deepEqual(plusProches, [t("2026-10-08", 9, 30), t("2026-10-08", 16, 30), t("2026-10-09", 9, 30)]);
+    assert.deepEqual(plusProches, [t("2026-10-09", 9, 30), t("2026-10-10", 15)]);
   });
 
   it("jamais son créneau actuel, jamais dans moins de deux heures", () => {
     const tot = instantLocal("2026-10-08", 8, 0, P);
-    const { plusProches } = choisirCreneaux([...libres, rdv], rdv, P, tot);
-    assert.ok(!plusProches.includes(rdv));
-    assert.ok(!plusProches.includes(t("2026-10-08", 9, 30)));
+    const { memeJour } = choisirCreneaux([...libres, rdv], rdv, P, tot);
+    assert.ok(!memeJour.includes(rdv));
+    assert.ok(!memeJour.includes(t("2026-10-08", 9, 30)));
   });
 
   it("rien de libre : deux listes vides", () => {

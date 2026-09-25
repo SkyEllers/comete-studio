@@ -107,6 +107,10 @@ export async function nouvelleSimulation(
     name: prenom,
     created_at: new Date(maintenant).toISOString(),
     timezone: PARIS,
+    // Une vraie réservation Calendly porte toujours ces liens ; sans eux,
+    // l'agent ne pourrait pas donner le lien au deuxième report.
+    reschedule_url: `https://calendly.com/reschedulings/simulation-${id}`,
+    cancel_url: `https://calendly.com/cancellations/simulation-${id}`,
     questions_and_answers: profil.formulaire.map((q, position) => ({
       question: q.question,
       answer: reponses[position] ?? "",
