@@ -27,6 +27,13 @@ import {
 const PAS_ACCESSIBLE = "Cet espace n'est plus accessible.";
 const RATE = "Ça n'a pas marché. Réessaie, et si ça recommence, écris à Louis.";
 
+/**
+ * Sous RLS, une écriture refusée ne lève pas toujours d'erreur : elle touche
+ * zéro ligne. On demande donc les lignes touchées, et « zéro » est un échec.
+ * Le 27/09/2026, « C'est noté » s'affichait sans que rien ne soit écrit.
+ */
+const rien = (data: unknown[] | null) => !data || data.length === 0;
+
 function rafraichir(orgSlug: string) {
   revalidatePath(`/app/${orgSlug}/agenda`);
 }
@@ -63,15 +70,16 @@ export async function enregistrerHoraires(orgSlug: string, input: unknown): Prom
   const { data: avant } = await supabase.from("reservation_horaires").select("id").eq("personne_id", lue.fiche.id);
 
   if (parsed.data.length > 0) {
-    const { error } = await supabase.from("reservation_horaires").insert(
-      parsed.data.map((p) => ({ ...p, personne_id: lue.fiche.id, organization_id: lue.org.id })),
-    );
-    if (error) return fail(RATE);
+    const { data, error } = await supabase
+      .from("reservation_horaires")
+      .insert(parsed.data.map((p) => ({ ...p, personne_id: lue.fiche.id, organization_id: lue.org.id })))
+      .select("id");
+    if (error || rien(data)) return fail(RATE);
   }
   const anciens = (avant ?? []).map((h) => h.id);
   if (anciens.length > 0) {
-    const { error } = await supabase.from("reservation_horaires").delete().in("id", anciens);
-    if (error) return fail(RATE);
+    const { data, error } = await supabase.from("reservation_horaires").delete().in("id", anciens).select("id");
+    if (error || rien(data)) return fail(RATE);
   }
 
   rafraichir(orgSlug);
@@ -88,10 +96,11 @@ export async function ajouterAbsence(orgSlug: string, input: unknown): Promise<A
   if (probleme) return fail(probleme);
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("reservation_absences")
-    .insert({ ...parsed.data, personne_id: lue.fiche.id, organization_id: lue.org.id });
-  if (error) return fail(RATE);
+    .insert({ ...parsed.data, personne_id: lue.fiche.id, organization_id: lue.org.id })
+    .select("id");
+  if (error || rien(data)) return fail(RATE);
 
   rafraichir(orgSlug);
   return ok();
@@ -104,12 +113,13 @@ export async function retirerAbsence(orgSlug: string, absenceId: unknown): Promi
   if (!id.success) return fail("Absence introuvable.");
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("reservation_absences")
     .delete()
     .eq("id", id.data)
-    .eq("personne_id", lue.fiche.id);
-  if (error) return fail(RATE);
+    .eq("personne_id", lue.fiche.id)
+    .select("id");
+  if (error || rien(data)) return fail(RATE);
 
   rafraichir(orgSlug);
   return ok();
@@ -122,11 +132,12 @@ export async function enregistrerMaximum(orgSlug: string, input: unknown): Promi
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("reservation_personnes")
     .update({ max_par_jour: parsed.data })
-    .eq("id", lue.fiche.id);
-  if (error) return fail(RATE);
+    .eq("id", lue.fiche.id)
+    .select("id");
+  if (error || rien(data)) return fail(RATE);
 
   rafraichir(orgSlug);
   return ok();
@@ -139,15 +150,16 @@ export async function enregistrerVisio(orgSlug: string, input: unknown): Promise
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("reservation_personnes")
     .update(
       parsed.data.visio === "lien"
         ? { visio: "lien", lien_visio: parsed.data.lien }
         : { visio: "meet", lien_visio: null },
     )
-    .eq("id", lue.fiche.id);
-  if (error) return fail(RATE);
+    .eq("id", lue.fiche.id)
+    .select("id");
+  if (error || rien(data)) return fail(RATE);
 
   rafraichir(orgSlug);
   return ok();
