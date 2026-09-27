@@ -9,7 +9,8 @@ import { ajouterJours, instantLocal, jourLocal } from "../agent/temps.ts";
  *   s'y termine ;
  * - son jour n'est pas une absence ;
  * - elle n'a pas encore atteint son maximum ce jour-là ;
- * - il ne chevauche rien de ce que Google Agenda dit occupé ;
+ * - il ne chevauche rien de ce que Google Agenda dit occupé, et laisse la
+ *   pause libre après lui avant le prochain occupé ;
  * - il laisse la pause avant et après ses autres diagnostics ;
  * - il commence après le préavis.
  *
@@ -121,6 +122,11 @@ export function creneauxDePersonne(
 
   // La pause entoure chacun de ses diagnostics.
   const autour = p.diagnostics.map((d) => ({ debut: d.debut - pause, fin: d.fin + pause }));
+  // Et elle suit le diagnostic, quoi qu'il y ait ensuite dans son agenda : 15
+  // minutes libres après, comme le « tampon après l'événement » du Calendly de
+  // Peggy (relu le 27/09/2026 : 0 avant, 15 après). Rien avant un créneau : un
+  // diagnostic peut commencer dès la fin d'un rendez-vous perso.
+
 
   const parJour = new Map<string, number>();
   for (const d of p.diagnostics) {
@@ -145,7 +151,7 @@ export function creneauxDePersonne(
 
       for (let t = debutPlage; t + duree <= finPlage; t += pas) {
         if (t < de || t >= a) continue;
-        if (chevauche(t, t + duree, p.occupe)) continue;
+        if (chevauche(t, t + duree + pause, p.occupe)) continue;
         if (chevauche(t, t + duree, autour)) continue;
         libres.add(t);
       }

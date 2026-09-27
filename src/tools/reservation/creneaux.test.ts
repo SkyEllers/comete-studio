@@ -144,14 +144,16 @@ describe("les absences", () => {
 });
 
 describe("Google Agenda", () => {
-  it("un rendez-vous perso bloque ce qu'il chevauche, sans pause autour", () => {
+  it("un rendez-vous perso bloque ce qu'il chevauche ; un créneau peut commencer dès sa fin", () => {
     const p = personne({ occupe: [{ debut: heure(LUNDI, 9, 30), fin: heure(LUNDI, 10) }] });
     assert.deepEqual(heures(p, LUNDI), ["10:00", "10:15", "10:30", "10:45", "11:00", "11:15"]);
   });
 
-  it("un créneau qui finit quand l'occupé commence reste libre", () => {
-    const p = personne({ occupe: [{ debut: heure(LUNDI, 9, 45), fin: heure(LUNDI, 12) }] });
+  it("un créneau doit laisser la pause libre avant l'occupé qui suit (tampon après, comme Calendly)", () => {
+    const p = personne({ occupe: [{ debut: heure(LUNDI, 10), fin: heure(LUNDI, 12) }] });
     assert.deepEqual(heures(p, LUNDI), ["9:00"]);
+    const q = personne({ occupe: [{ debut: heure(LUNDI, 9, 45), fin: heure(LUNDI, 12) }] });
+    assert.deepEqual(heures(q, LUNDI), []);
   });
 });
 
