@@ -120,7 +120,9 @@ if (process.argv.includes("--etat")) {
 if (process.argv.includes("--fermer")) {
   const liste = await essais();
   for (const c of liste) await admin.from("agent_conversations").delete().eq("id", c.id);
-  await admin.from("agent_reglages").update({ canal: "simule" }).eq("organization_id", org.id);
+  // Agent allumé : le canal reste sur WhatsApp, les vraies clientes en dépendent.
+  const { data: avant } = await admin.from("agent_reglages").select("actif").eq("organization_id", org.id).single();
+  if (!avant?.actif) await admin.from("agent_reglages").update({ canal: "simule" }).eq("organization_id", org.id);
   const { data: rg } = await admin.from("agent_reglages").select("actif, canal").eq("organization_id", org.id).single();
   console.log(`${liste.length} conversation(s) d'essai effacée(s). Réglage de Peggy : actif ${rg.actif}, canal ${rg.canal}.`);
   process.exit(0);
