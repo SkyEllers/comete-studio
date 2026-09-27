@@ -3,6 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { canalPour } from "./canal.ts";
+import { signalerEchec } from "./echecs.ts";
 import { maintenantDe } from "./envoi.ts";
 import { planifier, type Action, type EnvoiPasse } from "./planning.ts";
 import { profil as profilDe } from "./profils/index.ts";
@@ -150,8 +151,23 @@ async function appliquer(
   });
 
   if (!resultat.ok) {
-    await admin.from("agent_messages").delete().eq("id", reserve.id);
-    console.error("Agent : envoi refusé par le canal", canal.nom, action.modele);
+    // Passager (Meta en panne, trop d'envois d'un coup) : la réservation
+    // s'efface, l'horloge retentera. Définitif : il reste noté en échec, avec
+    // la raison de Meta, et ne repart plus ; Louis est prévenu.
+    if (!resultat.definitif) {
+      await admin.from("agent_messages").delete().eq("id", reserve.id);
+    } else {
+      await admin
+        .from("agent_messages")
+        .update({ statut: "echec", erreur: resultat.erreur })
+        .eq("id", reserve.id);
+      await signalerEchec(admin, {
+        organisationId: c.organization_id,
+        conversationId: c.id,
+        erreur: resultat.erreur,
+      });
+    }
+    console.error("Agent : envoi refusé par le canal", canal.nom, action.modele, resultat.definitif ? "définitif" : "passager");
     return false;
   }
 

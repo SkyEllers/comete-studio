@@ -4,7 +4,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 import type { CleModele, ValeursModele } from "./profil.ts";
 import { profil as profilDe } from "./profils/index.ts";
-import { corpsModele, corpsTexte, raisonRefus, VERSION_API } from "./whatsapp-regles.ts";
+import { codeRefus, corpsModele, corpsTexte, raisonRefus, refusDefinitif, VERSION_API } from "./whatsapp-regles.ts";
 
 /**
  * Par où les messages partent.
@@ -25,7 +25,13 @@ export type Envoi = {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-export type Resultat = { ok: true; idExterne: string | null } | { ok: false; erreur: string };
+/**
+ * `definitif` : retenter dans 5 minutes n'y changerait rien (numéro sans
+ * WhatsApp, modèle absent, réglage manquant). Sinon, l'horloge retentera.
+ */
+export type Resultat =
+  | { ok: true; idExterne: string | null }
+  | { ok: false; erreur: string; definitif: boolean };
 
 export type Canal = {
   nom: "simule" | "whatsapp";
@@ -51,7 +57,7 @@ const DELAI_MS = 15_000;
 export const canalWhatsapp: Canal = {
   nom: "whatsapp",
   async envoyer(admin, envoi) {
-    if (!envoi.telephone) return { ok: false, erreur: "Aucun numéro où écrire." };
+    if (!envoi.telephone) return { ok: false, erreur: "Aucun numéro où écrire.", definitif: true };
 
     const [{ data: reglages }, { data: jeton }] = await Promise.all([
       admin
@@ -62,13 +68,13 @@ export const canalWhatsapp: Canal = {
       admin.rpc("agent_get_secret", { org: envoi.organisationId, kind: "whatsapp_token" }),
     ]);
     const numeroId = reglages?.whatsapp_numero_id;
-    if (!numeroId) return { ok: false, erreur: "Numéro WhatsApp absent du réglage." };
-    if (!jeton) return { ok: false, erreur: "Jeton WhatsApp absent du Vault." };
+    if (!numeroId) return { ok: false, erreur: "Numéro WhatsApp absent du réglage.", definitif: true };
+    if (!jeton) return { ok: false, erreur: "Jeton WhatsApp absent du Vault.", definitif: true };
 
     let corps;
     if (envoi.modele) {
       const profil = profilDe(envoi.modele.profil);
-      if (!profil) return { ok: false, erreur: `Profil inconnu : ${envoi.modele.profil}` };
+      if (!profil) return { ok: false, erreur: `Profil inconnu : ${envoi.modele.profil}`, definitif: true };
       const cle = envoi.modele.cle;
       corps = corpsModele(envoi.telephone, cle, profil.modeles[cle], envoi.modele.valeurs);
     } else {
@@ -90,13 +96,13 @@ export const canalWhatsapp: Canal = {
       if (!reponse.ok) {
         const erreur = raisonRefus(lu, reponse.status);
         console.error("Agent : WhatsApp a refusé l'envoi", erreur);
-        return { ok: false, erreur };
+        return { ok: false, erreur, definitif: refusDefinitif(reponse.status, codeRefus(lu)) };
       }
       const id = (lu as { messages?: { id?: string }[] } | null)?.messages?.[0]?.id ?? null;
       return { ok: true, idExterne: id };
     } catch {
       console.error("Agent : WhatsApp n'a pas répondu");
-      return { ok: false, erreur: "WhatsApp n'a pas répondu." };
+      return { ok: false, erreur: "WhatsApp n'a pas répondu.", definitif: false };
     }
   },
 };

@@ -85,6 +85,25 @@ export function raisonRefus(corps: unknown, statutHttp: number): string {
     .slice(0, 500);
 }
 
+/** Le code d'erreur de Meta, s'il y en a un. */
+export function codeRefus(corps: unknown): number | null {
+  const e = z.object({ error: z.looseObject({ code: z.number() }) }).safeParse(corps);
+  return e.success ? e.data.error.code : null;
+}
+
+/**
+ * Les refus qui passeront peut-être au prochain passage de l'horloge : Meta
+ * en panne ou débordé, trop d'envois d'un coup. Tout le reste (numéro sans
+ * WhatsApp, modèle absent, paiement, fenêtre de 24 h passée, jeton refusé)
+ * échouerait encore dans 5 minutes : on ne le retente pas, on prévient Louis.
+ */
+const PASSAGERS = new Set([1, 2, 4, 17, 32, 613, 80007, 130429, 131000, 131016, 131056, 133004]);
+
+export function refusDefinitif(statutHttp: number, code: number | null): boolean {
+  if (statutHttp >= 500 || statutHttp === 429) return false;
+  return code === null || !PASSAGERS.has(code);
+}
+
 // ------------------------------ Le webhook ---------------------------------
 
 // L'enveloppe est stricte sur ce qu'on lit, tolérante sur le reste : un champ

@@ -3,13 +3,16 @@ import { createHmac } from "node:crypto";
 import { describe, it } from "node:test";
 
 import { peggy } from "./profils/peggy.ts";
+import { mailEchecEnvoi } from "./file-regles.ts";
 import {
+  codeRefus,
   corpsModele,
   corpsTexte,
   depuisMeta,
   lireWebhook,
   nomModeleMeta,
   raisonRefus,
+  refusDefinitif,
   signatureValide,
   suiviAvance,
   versMeta,
@@ -149,5 +152,35 @@ describe("WhatsApp — ce qui arrive", () => {
     assert.equal(suiviAvance("lu", "echec"), true);
     assert.equal(suiviAvance("echec", "echec"), false);
     assert.equal(suiviAvance("recu", "lu"), false);
+  });
+});
+
+describe("WhatsApp — un refus se retente ou non", () => {
+  it("Meta en panne, débordé, limite de débit : on retente", () => {
+    assert.equal(refusDefinitif(500, null), false);
+    assert.equal(refusDefinitif(503, 131016), false);
+    assert.equal(refusDefinitif(429, null), false);
+    assert.equal(refusDefinitif(400, 130429), false);
+    assert.equal(refusDefinitif(400, 131000), false);
+    assert.equal(refusDefinitif(400, 131056), false);
+  });
+  it("numéro sans WhatsApp, modèle absent, paiement, fenêtre passée, jeton : on arrête", () => {
+    assert.equal(refusDefinitif(400, 131026), true);
+    assert.equal(refusDefinitif(404, 132001), true);
+    assert.equal(refusDefinitif(400, 131042), true);
+    assert.equal(refusDefinitif(400, 131047), true);
+    assert.equal(refusDefinitif(401, 190), true);
+    assert.equal(refusDefinitif(400, null), true);
+  });
+  it("le code se lit dans la réponse de Meta", () => {
+    assert.equal(codeRefus({ error: { code: 131026, message: "x" } }), 131026);
+    assert.equal(codeRefus({ autre: 1 }), null);
+  });
+  it("le mail à Louis ne porte ni prénom ni numéro, et échappe le HTML", () => {
+    const m = mailEchecEnvoi({ client: "Peggy", erreur: "HTTP 400 · 131026 · <b>x</b>", lien: "https://app/x" });
+    assert.match(m.sujet, /\[Agent Peggy\] Un message n'est pas parti/);
+    assert.match(m.texte, /131026/);
+    assert.ok(!m.html.includes("<b>x</b>"));
+    assert.ok(!m.texte.includes("—"));
   });
 });

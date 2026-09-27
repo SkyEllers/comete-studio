@@ -2,6 +2,7 @@ import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
 
+import { signalerEchec } from "./echecs.ts";
 import { recevoir } from "./entrees.ts";
 import { suiviAvance, type Entree, type Suivi } from "./whatsapp-regles.ts";
 
@@ -15,7 +16,8 @@ type Admin = ReturnType<typeof createAdminClient>;
  * chez le client dont c'est le numéro WhatsApp), et se note par `recevoir`,
  * comme en simulation. Un message de quelqu'un que l'agent ne suit pas est
  * ignoré : il n'a rien à lui dire. Un suivi (distribué, lu, échec) avance le
- * statut du message sortant, sans jamais le faire reculer.
+ * statut du message sortant, sans jamais le faire reculer ; un échec annoncé
+ * après coup (numéro sans WhatsApp, par exemple) prévient Louis.
  *
  * Rend les conversations à faire tourner : la route les confie à `after()`,
  * pour répondre à Meta en moins de 2 s.
@@ -70,7 +72,7 @@ export async function traiterWebhook(
     if (!orgDe.has(s.numeroId)) continue;
     const { data: m } = await admin
       .from("agent_messages")
-      .select("id, statut")
+      .select("id, statut, organization_id, conversation_id")
       .eq("id_externe", s.idExterne)
       .eq("sens", "sortant")
       .maybeSingle();
@@ -79,6 +81,13 @@ export async function traiterWebhook(
       .from("agent_messages")
       .update({ statut: s.statut, ...(s.erreur ? { erreur: s.erreur } : {}) })
       .eq("id", m.id);
+    if (s.statut === "echec") {
+      await signalerEchec(admin, {
+        organisationId: m.organization_id,
+        conversationId: m.conversation_id,
+        erreur: s.erreur ?? "Meta n'a pas donné de raison.",
+      });
+    }
   }
 
   return { aTourner: [...aTourner], ignores };

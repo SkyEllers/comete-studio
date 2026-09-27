@@ -35,6 +35,19 @@ export function mailDeLaFile(q: {
   return { sujet, texte, html };
 }
 
+/**
+ * Le mail à Louis quand WhatsApp refuse un envoi pour de bon. Sans prénom ni
+ * numéro : la raison de Meta, et où lire la conversation.
+ */
+export function mailEchecEnvoi(q: { client: string; erreur: string; lien: string }) {
+  const sujet = `[Agent ${q.client}] Un message n'est pas parti`;
+  const phrase =
+    "WhatsApp a refusé un message de l'agent, et il ne le retentera pas : la même demande échouerait encore. Voici la raison donnée par Meta.";
+  const texte = `${phrase}\n\n${q.erreur}\n\n${q.lien}\n`;
+  const html = `<p>${echapper(phrase)}</p><p><code>${echapper(q.erreur)}</code></p><p><a href="${echapper(q.lien)}">Ouvrir la conversation</a></p>`;
+  return { sujet, texte, html };
+}
+
 /** Jusqu'à quand l'agent peut encore lui écrire librement (null : jamais ouverte). */
 export function finDeFenetre(derniereEntree: string | null): number | null {
   return derniereEntree ? Date.parse(derniereEntree) + FENETRE_MS : null;

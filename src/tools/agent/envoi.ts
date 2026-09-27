@@ -3,6 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { canalPour } from "./canal.ts";
+import { signalerEchec } from "./echecs.ts";
 import { intervalleMs } from "./temps.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -63,6 +64,15 @@ export async function envoyerLibre(
       .from("agent_messages")
       .update({ statut: "echec", erreur: resultat.erreur })
       .eq("id", reserve.id);
+    // Un message libre ne se retente pas : la réponse suivante de l'agent
+    // partira à sa prochaine parole. Un refus définitif, Louis le sait.
+    if (resultat.definitif) {
+      await signalerEchec(admin, {
+        organisationId: c.organization_id,
+        conversationId: c.id,
+        erreur: resultat.erreur,
+      });
+    }
     return false;
   }
   if (resultat.idExterne) {
