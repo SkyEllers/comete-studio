@@ -39,6 +39,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_accords: {
+        Row: {
+          accepte_le: string | null
+          conversation_id: string | null
+          created_at: string
+          efface_apres: string
+          envoye_le: string | null
+          fin_numero: string | null
+          id: string
+          invitee_uri: string
+          jeton_sha256: string
+          organization_id: string
+          rdv_debut: string
+        }
+        Insert: {
+          accepte_le?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          efface_apres: string
+          envoye_le?: string | null
+          fin_numero?: string | null
+          id?: string
+          invitee_uri: string
+          jeton_sha256: string
+          organization_id: string
+          rdv_debut: string
+        }
+        Update: {
+          accepte_le?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          efface_apres?: string
+          envoye_le?: string | null
+          fin_numero?: string | null
+          id?: string
+          invitee_uri?: string
+          jeton_sha256?: string
+          organization_id?: string
+          rdv_debut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_accords_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_accords_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_bilans: {
         Row: {
           a_repondu: boolean

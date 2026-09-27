@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ouvrirAccords } from "@/tools/agent/accords";
 import { tournerTout } from "@/tools/agent/moteur";
 import { envoyerResumes } from "@/tools/agent/resume";
 
@@ -18,7 +19,8 @@ import { envoyerResumes } from "@/tools/agent/resume";
  * ne fait rien.
  *
  * Le même passage envoie le mail du matin, une fois par jour après 8h
- * (`resume.ts`).
+ * (`resume.ts`), et ouvre la conversation des clientes qui ont donné leur
+ * accord par mail avant le lancement (`accords.ts`, 0046).
  *
  * Deux passages qui se chevauchent n'envoient rien en double : chaque envoi
  * se réserve par sa `cle_envoi` avant de partir (`moteur.ts`).
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
   const debut = Date.now();
   try {
     const admin = createAdminClient();
+    await ouvrirAccords(admin);
     const faits = await tournerTout(admin);
     const resumes = await envoyerResumes(admin);
     return Response.json(

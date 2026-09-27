@@ -2,6 +2,8 @@ import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
 
+import { invitationCalendly, type InvitationCalendly } from "./reservation.ts";
+
 /**
  * Ce que l'agent demande à Calendly : les créneaux libres, réserver le
  * nouveau à la place de la cliente, annuler l'ancien.
@@ -184,4 +186,89 @@ export async function annulerAncien(jeton: string, eventUri: string, raison: str
     console.error("Agent : Calendly n'a pas répondu (annulation)");
     return false;
   }
+}
+
+// ------------------ Les rendez-vous déjà réservés (accords) ------------------
+
+type EvenementCalendly = {
+  uri: string;
+  start_time: string;
+  end_time: string;
+  event_type?: string | null;
+  status?: string;
+  location?: { type?: string | null; join_url?: string | null; location?: string | null } | null;
+};
+
+async function lire<T>(jeton: string, url: string): Promise<T | null> {
+  try {
+    const reponse = await fetch(url, { headers: ENTETES(jeton), signal: AbortSignal.timeout(DELAI_MS) });
+    if (!reponse.ok) {
+      console.error("Agent : lecture Calendly refusée", reponse.status);
+      return null;
+    }
+    return (await reponse.json()) as T;
+  } catch {
+    console.error("Agent : Calendly n'a pas répondu (lecture)");
+    return null;
+  }
+}
+
+/** Un invité et son événement, dans la forme du webhook (`invitationCalendly`). */
+function commeLeWebhook(invite: Record<string, unknown>, ev: EvenementCalendly): InvitationCalendly | null {
+  const lu = invitationCalendly.safeParse({
+    ...invite,
+    scheduled_event: {
+      uri: ev.uri,
+      start_time: ev.start_time,
+      end_time: ev.end_time,
+      event_type: ev.event_type ?? null,
+      location: ev.location ?? null,
+    },
+  });
+  return lu.success ? lu.data : null;
+}
+
+/** Relire un invité dans Calendly : `null` s'il n'est plus actif ou illisible. */
+export async function lireInvitation(jeton: string, inviteeUri: string): Promise<InvitationCalendly | null> {
+  const invite = await lire<{ resource: Record<string, unknown> & { event: string; status?: string } }>(jeton, inviteeUri);
+  if (!invite || invite.resource.status !== "active") return null;
+  const ev = await lire<{ resource: EvenementCalendly }>(jeton, invite.resource.event);
+  if (!ev || ev.resource.status === "canceled") return null;
+  return commeLeWebhook(invite.resource, ev.resource);
+}
+
+/**
+ * Les invités actifs d'un type de séance, entre deux dates. Pour les
+ * rendez-vous pris avant le lancement : l'agent ne les a jamais vus passer.
+ */
+export async function invitationsAVenir(
+  jeton: string,
+  typeUri: string,
+  depuis: number,
+  jusqua: number,
+): Promise<InvitationCalendly[] | null> {
+  const moi = await lire<{ resource: { uri: string } }>(jeton, `${API}/users/me`);
+  if (!moi) return null;
+
+  const resultat: InvitationCalendly[] = [];
+  let page: string | null =
+    `${API}/scheduled_events?user=${encodeURIComponent(moi.resource.uri)}&status=active&count=100` +
+    `&min_start_time=${new Date(depuis).toISOString()}&max_start_time=${new Date(jusqua).toISOString()}`;
+  while (page) {
+    const lot: { collection: EvenementCalendly[]; pagination?: { next_page?: string | null } } | null = await lire(
+      jeton,
+      page,
+    );
+    if (!lot) return null;
+    for (const ev of lot.collection.filter((e) => e.event_type === typeUri)) {
+      const invites = await lire<{ collection: Record<string, unknown>[] }>(jeton, `${ev.uri}/invitees?status=active`);
+      if (!invites) return null;
+      for (const i of invites.collection) {
+        const inv = commeLeWebhook(i, ev);
+        if (inv) resultat.push(inv);
+      }
+    }
+    page = lot.pagination?.next_page ?? null;
+  }
+  return resultat;
 }
