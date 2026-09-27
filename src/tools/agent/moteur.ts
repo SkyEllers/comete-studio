@@ -50,7 +50,7 @@ export function valeursPour(c: Conversation): ValeursModele {
     prenom: c.prenom,
     jour: jourEnMots(c.rdv_debut, c.fuseau),
     heure: heureEnMots(c.rdv_debut, c.fuseau),
-    lienVisio: c.lien_visio ?? "(le lien Zoom est dans ton mail de confirmation)",
+    lienVisio: c.lien_visio ?? "(le lien de la visio est dans ton mail de confirmation)",
   };
 }
 

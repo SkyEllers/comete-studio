@@ -149,11 +149,11 @@ describe("les modèles de Peggy", () => {
     };
     assert.match(
       rendreModele(peggy.modeles.reservation, valeurs),
-      /^Bonjour Camille, [^]*a lieu jeudi 8 octobre à 14h, sur Zoom/,
+      /^Bonjour Camille, [^]*a lieu jeudi 8 octobre à 14h, en visio/,
     );
     assert.match(
       rendreModele(peggy.modeles.matin, valeurs),
-      /c'est aujourd'hui à 14h !\nLe lien Zoom pour ton diagnostic : https:\/\/zoom\.us\/j\/123/,
+      /c'est aujourd'hui à 14h !\nVoici le lien pour rejoindre la visio : https:\/\/zoom\.us\/j\/123/,
     );
   });
 

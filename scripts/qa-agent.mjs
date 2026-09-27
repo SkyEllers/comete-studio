@@ -138,7 +138,7 @@ try {
   const premier = (await messages(c.id))[0];
   verifie(
     "il porte le jour, l'heure et le prénom",
-    /^Bonjour Camille, .*14h, sur Zoom/s.test(premier?.texte ?? ""),
+    /^Bonjour Camille, .*14h, en visio/s.test(premier?.texte ?? ""),
     premier?.texte,
   );
 
