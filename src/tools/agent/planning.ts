@@ -13,10 +13,11 @@ import { ajouterJours, instantLocal, jourLocal, joursEntre } from "./temps.ts";
  * aussi, dans le fuseau de la cliente :
  *
  *   réservation   tout de suite, même le soir : elle vient de réserver
- *   rappel        10h, deux jours sans nouvelles d'elle, tant qu'elle n'a pas
- *                 confirmé ; jamais la veille ni le jour même
- *   préparation   10h, au milieu, si plus de 4 jours séparent sa confirmation
- *                 de la veille
+ *   rappel        10h, à J-14, J-7 et J-3 ; J-3 seulement une fois confirmé
+ *                 (Louis, 27/09/2026 ; remplace « tous les deux jours »)
+ *   contenu       10h, au milieu entre deux points (réservation, rappels,
+ *                 veille), un article choisi d'après son formulaire
+ *   (préparation  validée par Meta, plus planifiée : le contenu la remplace)
  *   veille        10h, la veille, à la place de l'appel de Peggy
  *   matin         8h, ou 1 h avant un rendez-vous fixé avant 9h
  *
@@ -37,10 +38,10 @@ export const HEURE_MATIN = 8;
 /** Les réponses libres : de 8h à 21h, heure de la cliente. */
 export const DEBUT_REPONSES = 8;
 export const FIN_REPONSES = 21;
-/** Deux jours sans nouvelles avant un rappel. */
-export const JOURS_AVANT_RAPPEL = 2;
-/** Au-delà de cet écart entre confirmation et veille, un message de préparation. */
-export const ECART_PREPARATION = 4;
+/** Les rappels, en jours avant le rendez-vous (Louis, 27/09/2026). */
+export const JALONS = [14, 7, 3];
+/** Une fois qu'elle a confirmé : J-3 seulement, puis la veille. */
+export const JALONS_CONFIRMEE = [3];
 
 const HEURE_MS = 3_600_000;
 
@@ -137,33 +138,39 @@ export function planifier(c: ConversationPlanning, maintenant: number): Action[]
 
   if (aujourdhui > veille || !enJournee) return [];
 
-  // --------------------- Avant la veille : rappel ou préparation -------------
+  // ------------- Avant la veille : rappels à dates fixes, contenu entre -------
+  //
+  // Rythme décidé par Louis le 27/09/2026 : des rappels à J-14, J-7 et J-3
+  // tant qu'elle n'a pas confirmé, seulement J-3 une fois confirmé ; entre
+  // deux points (réservation, rappels, veille), un contenu au milieu. Un
+  // message par jour au plus : un passage qui a déjà envoyé aujourd'hui attend
+  // demain.
 
-  if (!c.confirme_le) {
-    const derniers = [
-      ...c.envois.map((e) => Date.parse(e.le)),
-      c.derniere_entree_le ? Date.parse(c.derniere_entree_le) : 0,
-    ];
-    const dernier = Math.max(...derniers);
-    if (joursEntre(jourLocal(dernier, f), aujourdhui) < JOURS_AVANT_RAPPEL) return [];
-    const cle = `rappel:${aujourdhui}`;
-    return deja.has(cle) ? [] : [{ genre: "envoyer", modele: "rappel", cle }];
+  if (c.envois.some((e) => jourLocal(e.le, f) === aujourdhui)) return [];
+
+  const reservation = c.envois.find((e) => e.cle_envoi === "reservation");
+  const jourReserve = jourLocal(reservation?.le ?? c.reserve_le, f);
+  const jalons = (c.confirme_le ? JALONS_CONFIRMEE : JALONS)
+    .map((n) => ajouterJours(jourRdv, -n))
+    .filter((j) => j > jourReserve && j < veille)
+    .sort();
+  const points = [jourReserve, ...jalons, veille];
+
+  // Le rappel du dernier jalon atteint, s'il n'est pas parti (rattrapé tant
+  // que le point suivant n'est pas là).
+  const jalonAtteint = jalons.filter((j) => j <= aujourdhui).at(-1);
+  if (jalonAtteint && !deja.has(`rappel:${jalonAtteint}`)) {
+    return [{ genre: "envoyer", modele: "rappel", cle: `rappel:${jalonAtteint}` }];
   }
 
-  const cle = `preparation:${jourRdv}`;
-  if (deja.has(cle)) return [];
-  const jourConfirme = jourLocal(c.confirme_le, f);
-  const ecart = joursEntre(jourConfirme, veille);
-  if (ecart <= ECART_PREPARATION) return [];
-  const milieu = ajouterJours(jourConfirme, Math.floor(ecart / 2));
-  if (aujourdhui < milieu) return [];
-
-  // Elle a écrit dans les dernières 24 h : la conversation est ouverte,
-  // l'agent n'a pas besoin d'un modèle pour lui parler.
-  const fenetreOuverte =
-    c.derniere_entree_le !== null &&
-    maintenant - Date.parse(c.derniere_entree_le) < 24 * HEURE_MS;
-  if (fenetreOuverte) return [];
-
-  return [{ genre: "envoyer", modele: "preparation", cle }];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [de, suivant] = [points[i], points[i + 1]];
+    const ecart = joursEntre(de, suivant);
+    if (ecart < 2) continue;
+    const jour = ajouterJours(de, Math.floor(ecart / 2));
+    if (aujourdhui >= jour && aujourdhui < suivant && !deja.has(`contenu:${jour}`)) {
+      return [{ genre: "envoyer", modele: "contenu", cle: `contenu:${jour}` }];
+    }
+  }
+  return [];
 }

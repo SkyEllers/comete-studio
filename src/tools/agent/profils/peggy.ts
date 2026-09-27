@@ -134,5 +134,16 @@ export const peggy: Profil = {
         { texte: "J'ai un empêchement", sens: "changer" },
       ],
     },
+    // Entre deux rappels (rythme du 27/09/2026). Texte à valider par Louis
+    // avant la soumission à Meta, en catégorie Marketing.
+    contenu: {
+      corps:
+        "Bonjour {{1}}, en attendant ton diagnostic, Peggy a choisi ceci pour toi : {{2}}\n" +
+        "{{3}}\n" +
+        "Si tu ne veux plus recevoir ces messages, réponds STOP.",
+      variables: ["prenom", "titreContenu", "lienContenu"],
+      boutons: [],
+      categorie: "MARKETING",
+    },
   },
 };

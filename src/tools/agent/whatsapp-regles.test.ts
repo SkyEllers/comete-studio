@@ -18,7 +18,7 @@ import {
   versMeta,
 } from "./whatsapp-regles.ts";
 
-const valeurs = { prenom: "Camille", jour: "jeudi 8 octobre", heure: "14h", lienVisio: "https://zoom.us/j/1" };
+const valeurs = { prenom: "Camille", jour: "jeudi 8 octobre", heure: "14h", lienVisio: "https://zoom.us/j/1", titreContenu: "", lienContenu: "" };
 
 describe("WhatsApp — ce qui part", () => {
   it("un modèle part sous son nom Meta, en français, variables dans l'ordre", () => {

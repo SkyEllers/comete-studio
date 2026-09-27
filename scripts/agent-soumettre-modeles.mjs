@@ -25,11 +25,16 @@ const EXEMPLES = {
   jour: "jeudi 8 octobre",
   heure: "14h",
   lienVisio: "https://zoom.us/j/1234567890",
+  titreContenu: "Pourquoi les régimes ne marchent pas",
+  lienContenu: "https://www.peggygirault.fr/blog/pourquoi-les-regimes-ne-marchent-pas/",
 };
 
 const reel = process.argv.includes("--soumettre");
+// --seulement contenu : un seul modèle (les autres sont déjà chez Meta).
+const iSeul = process.argv.indexOf("--seulement");
+const seulement = iSeul === -1 ? null : process.argv[iSeul + 1];
 
-const modeles = Object.entries(peggy.modeles).map(([cle, m]) => {
+const modeles = Object.entries(peggy.modeles).filter(([cle]) => !seulement || cle === seulement).map(([cle, m]) => {
   const composants = [
     {
       type: "BODY",
@@ -44,7 +49,7 @@ const modeles = Object.entries(peggy.modeles).map(([cle, m]) => {
       buttons: m.boutons.map((b) => ({ type: "QUICK_REPLY", text: b.texte })),
     });
   }
-  return { name: nomModeleMeta(cle), language: LANGUE_MODELES, category: "UTILITY", components: composants };
+  return { name: nomModeleMeta(cle), language: LANGUE_MODELES, category: m.categorie ?? "UTILITY", components: composants };
 });
 
 for (const m of modeles) {

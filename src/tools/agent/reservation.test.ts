@@ -146,6 +146,8 @@ describe("les modèles de Peggy", () => {
       jour: "jeudi 8 octobre",
       heure: "14h",
       lienVisio: "https://zoom.us/j/123",
+      titreContenu: "",
+      lienContenu: "",
     };
     assert.match(
       rendreModele(peggy.modeles.reservation, valeurs),

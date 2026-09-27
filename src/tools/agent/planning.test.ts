@@ -41,20 +41,54 @@ describe("planifier — sans aucune réponse", () => {
     assert.deepEqual(cles(planifier(conv(), t("2026-10-01", 23, 30))), ["reservation"]);
   });
 
-  it("attend deux jours puis rappelle à 10h, pas avant", () => {
+  it("un contenu au milieu entre la réservation et le rappel de J-3, à 10h", () => {
+    // Réservé le 1er pour le 8 : pas de J-14 ni de J-7 (avant ou le jour même
+    // de la réservation) ; J-3 = le 5 ; contenus le 3 et le 6.
     const c = conv({ envois: [reservation] });
     assert.deepEqual(cles(planifier(c, t("2026-10-02", 10))), []);
     assert.deepEqual(cles(planifier(c, t("2026-10-03", 9, 55))), []);
-    assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), ["rappel:2026-10-03"]);
+    assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), ["contenu:2026-10-03"]);
     assert.deepEqual(cles(planifier(c, t("2026-10-03", 20))), [], "pas après 20h");
   });
 
-  it("rappelle encore deux jours après le rappel précédent", () => {
+  it("le rappel de J-3, puis un contenu, puis la veille", () => {
     const c = conv({
-      envois: [reservation, envoi("rappel", "rappel:2026-10-03", t("2026-10-03", 10))],
+      envois: [reservation, envoi("contenu", "contenu:2026-10-03", t("2026-10-03", 10))],
     });
     assert.deepEqual(cles(planifier(c, t("2026-10-04", 12))), []);
     assert.deepEqual(cles(planifier(c, t("2026-10-05", 10, 5))), ["rappel:2026-10-05"]);
+    const apres = { ...c, envois: [...c.envois, envoi("rappel", "rappel:2026-10-05", t("2026-10-05", 10, 5))] };
+    assert.deepEqual(cles(planifier(apres, t("2026-10-06", 10))), ["contenu:2026-10-06"]);
+  });
+
+  it("un message par jour au plus", () => {
+    const c = conv({ envois: [reservation, envoi("contenu", "contenu:2026-10-03", t("2026-10-03", 10))] });
+    assert.deepEqual(cles(planifier(c, t("2026-10-03", 15))), []);
+  });
+
+  it("un rappel manqué se rattrape tant que le point suivant n'est pas là", () => {
+    const c = conv({ envois: [reservation, envoi("contenu", "contenu:2026-10-03", t("2026-10-03", 10))] });
+    assert.deepEqual(cles(planifier(c, t("2026-10-06", 10))), ["rappel:2026-10-05"]);
+  });
+
+  it("à 21 jours sans réponse : rappels J-14, J-7, J-3 et un contenu entre chacun", () => {
+    const c = conv({ rdv_debut: iso(t("2026-10-22", 14)), rdv_fin: iso(t("2026-10-22", 14, 45)), envois: [reservation] });
+    const attendu: [string, string][] = [
+      ["2026-10-04", "contenu:2026-10-04"],
+      ["2026-10-08", "rappel:2026-10-08"],
+      ["2026-10-11", "contenu:2026-10-11"],
+      ["2026-10-15", "rappel:2026-10-15"],
+      ["2026-10-17", "contenu:2026-10-17"],
+      ["2026-10-19", "rappel:2026-10-19"],
+      ["2026-10-20", "contenu:2026-10-20"],
+      ["2026-10-21", "veille:2026-10-22"],
+    ];
+    const envois = [...c.envois];
+    for (const [jour, cle] of attendu) {
+      assert.deepEqual(cles(planifier({ ...c, envois }, t(jour, 10))), [cle], jour);
+      const [modele] = cle.split(":") as [EnvoiPasse["modele"]];
+      envois.push(envoi(modele, cle, t(jour, 10)));
+    }
   });
 
   it("ne rappelle pas la veille : c'est le message de la veille qui part", () => {
@@ -83,36 +117,29 @@ describe("planifier — sans aucune réponse", () => {
 });
 
 describe("planifier — elle répond", () => {
-  it("un message d'elle repousse le rappel de deux jours", () => {
+  it("un message d'elle ne décale pas les dates", () => {
     const c = conv({ envois: [reservation], derniere_entree_le: iso(t("2026-10-02", 18)), derniere_sortie_le: iso(t("2026-10-02", 18, 1)) });
-    assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), []);
-    assert.deepEqual(cles(planifier(c, t("2026-10-04", 10))), ["rappel:2026-10-04"]);
+    assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), ["contenu:2026-10-03"]);
   });
 
-  it("confirmée tôt : une préparation au milieu, puis la veille", () => {
+  it("confirmée à 21 jours : plus que le rappel de J-3, le contenu continue", () => {
     const c = conv({
+      rdv_debut: iso(t("2026-10-22", 14)),
+      rdv_fin: iso(t("2026-10-22", 14, 45)),
       envois: [reservation],
       confirme_le: iso(t("2026-10-01", 9, 30)),
       derniere_entree_le: iso(t("2026-10-01", 9, 30)),
       derniere_sortie_le: iso(t("2026-10-01", 9, 31)),
     });
-    assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), [], "plus de rappel");
-    assert.deepEqual(cles(planifier(c, t("2026-10-04", 10))), ["preparation:2026-10-08"]);
-    const apres = { ...c, envois: [...c.envois, envoi("preparation", "preparation:2026-10-08", t("2026-10-04", 10))] };
-    assert.deepEqual(cles(planifier(apres, t("2026-10-05", 10))), []);
-    assert.deepEqual(cles(planifier(apres, t("2026-10-07", 10))), ["veille:2026-10-08"]);
-  });
-
-  it("pas de préparation quand confirmation et veille sont à 4 jours ou moins", () => {
-    const c = conv({
-      envois: [reservation],
-      confirme_le: iso(t("2026-10-03", 11)),
-      derniere_entree_le: iso(t("2026-10-03", 11)),
-      derniere_sortie_le: iso(t("2026-10-03", 11, 1)),
-    });
-    for (const jour of ["2026-10-04", "2026-10-05", "2026-10-06"]) {
-      assert.deepEqual(cles(planifier(c, t(jour, 10))), [], jour);
-    }
+    assert.deepEqual(cles(planifier(c, t("2026-10-08", 10))), [], "pas de rappel J-14");
+    assert.deepEqual(cles(planifier(c, t("2026-10-10", 10))), ["contenu:2026-10-10"]);
+    const e1 = [...c.envois, envoi("contenu", "contenu:2026-10-10", t("2026-10-10", 10))];
+    assert.deepEqual(cles(planifier({ ...c, envois: e1 }, t("2026-10-15", 10))), [], "pas de rappel J-7");
+    assert.deepEqual(cles(planifier({ ...c, envois: e1 }, t("2026-10-19", 10))), ["rappel:2026-10-19"]);
+    const e2 = [...e1, envoi("rappel", "rappel:2026-10-19", t("2026-10-19", 10))];
+    assert.deepEqual(cles(planifier({ ...c, envois: e2 }, t("2026-10-20", 10))), ["contenu:2026-10-20"]);
+    const e3 = [...e2, envoi("contenu", "contenu:2026-10-20", t("2026-10-20", 10))];
+    assert.deepEqual(cles(planifier({ ...c, envois: e3 }, t("2026-10-21", 10))), ["veille:2026-10-22"]);
   });
 
   it("répondre à la veille évite la mention « sans réponse »", () => {
@@ -211,6 +238,6 @@ describe("planifier — cas limites", () => {
     const c = conv({ fuseau: m, envois: [reservation] });
     // 10h à Paris = 4h à Montréal : trop tôt pour elle.
     assert.deepEqual(cles(planifier(c, t("2026-10-03", 10))), []);
-    assert.deepEqual(cles(planifier(c, instantLocal("2026-10-03", 10, 0, m))), ["rappel:2026-10-03"]);
+    assert.deepEqual(cles(planifier(c, instantLocal("2026-10-03", 10, 0, m))), ["contenu:2026-10-03"]);
   });
 });

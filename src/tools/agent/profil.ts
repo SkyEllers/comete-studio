@@ -7,7 +7,12 @@
  * `agent_reglages` ne porte que la clé du profil.
  */
 
-export const MODELES = ["reservation", "rappel", "preparation", "veille", "matin"] as const;
+/**
+ * `contenu` (27/09/2026) : un article ou une recette entre deux rappels, en
+ * catégorie Marketing chez Meta. En base, sa ligne porte `modele` vide (la
+ * contrainte de 0032 ne le connaît pas) et `cle_envoi` « contenu:<jour> ».
+ */
+export const MODELES = ["reservation", "rappel", "preparation", "veille", "matin", "contenu"] as const;
 export type CleModele = (typeof MODELES)[number];
 
 export const FACONS = ["fonce", "analyse", "pas_a_pas", "accompagnee"] as const;
@@ -16,7 +21,7 @@ export type FaconDeDecider = (typeof FACONS)[number];
 /** Ce qu'un bouton veut dire, quel que soit son libellé. */
 export type SensBouton = "confirme" | "changer";
 
-export type VariableModele = "prenom" | "jour" | "heure" | "lienVisio";
+export type VariableModele = "prenom" | "jour" | "heure" | "lienVisio" | "titreContenu" | "lienContenu";
 
 export type Modele = {
   /** Le texte soumis à Meta, variables en `{{1}}`, `{{2}}`… */
@@ -24,6 +29,8 @@ export type Modele = {
   /** Ce que vaut `{{1}}`, `{{2}}`… dans l'ordre. */
   variables: VariableModele[];
   boutons: { texte: string; sens: SensBouton }[];
+  /** Chez Meta. Utilité par défaut ; le contenu est du Marketing. */
+  categorie?: "UTILITY" | "MARKETING";
 };
 
 /** Un contenu que l'agent peut proposer, puis envoyer sur un oui. */

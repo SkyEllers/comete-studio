@@ -3,6 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { canalPour } from "./canal.ts";
+import { choisirContenu, contenusDeja } from "./contenus.ts";
 import { signalerEchec } from "./echecs.ts";
 import { maintenantDe } from "./envoi.ts";
 import { planifier, type Action, type EnvoiPasse } from "./planning.ts";
@@ -26,7 +27,7 @@ type Admin = ReturnType<typeof createAdminClient>;
  */
 
 const COLONNES =
-  "id, organization_id, simulation, decalage, etat, reserve_le, rdv_debut, rdv_fin, fuseau, confirme_le, derniere_entree_le, sans_reponse_veille, prenom, telephone, lien_visio";
+  "id, organization_id, simulation, decalage, etat, reserve_le, rdv_debut, rdv_fin, fuseau, confirme_le, derniere_entree_le, sans_reponse_veille, prenom, telephone, lien_visio, reponses";
 
 type Conversation = {
   id: string;
@@ -44,6 +45,7 @@ type Conversation = {
   prenom: string;
   telephone: string | null;
   lien_visio: string | null;
+  reponses: unknown;
 };
 
 export function valeursPour(c: Conversation): ValeursModele {
@@ -52,6 +54,8 @@ export function valeursPour(c: Conversation): ValeursModele {
     jour: jourEnMots(c.rdv_debut, c.fuseau),
     heure: heureEnMots(c.rdv_debut, c.fuseau),
     lienVisio: c.lien_visio ?? "(le lien de la visio est dans ton mail de confirmation)",
+    titreContenu: "",
+    lienContenu: "",
   };
 }
 
@@ -85,10 +89,13 @@ async function envoisDe(admin: Admin, id: string): Promise<EnvoiPasse[]> {
     .eq("genre", "modele")
     .not("cle_envoi", "is", null);
   return (data ?? [])
-    .filter((m): m is { modele: CleModele; cle_envoi: string; created_at: string } =>
-      MODELES.includes(m.modele as CleModele),
-    )
-    .map((m) => ({ modele: m.modele, cle_envoi: m.cle_envoi, le: m.created_at }));
+    .map((m) => ({
+      // Un contenu n'a pas de `modele` en base (0032) : sa clé le dit.
+      modele: (m.modele ?? (m.cle_envoi?.startsWith("contenu:") ? "contenu" : null)) as CleModele | null,
+      cle_envoi: m.cle_envoi as string,
+      le: m.created_at,
+    }))
+    .filter((m): m is EnvoiPasse => m.modele !== null && MODELES.includes(m.modele));
 }
 
 async function appliquer(
@@ -118,9 +125,44 @@ async function appliquer(
   }
 
   const modele = profil.modeles[action.modele];
-  const valeurs = valeursPour(c);
-  const texte = rendreModele(modele, valeurs);
+  let valeurs = valeursPour(c);
+  let parModele = true;
   const canal = canalPour(c.simulation, canalReglage);
+
+  if (action.modele === "contenu") {
+    const { data: sortis } = await admin
+      .from("agent_messages")
+      .select("texte")
+      .eq("conversation_id", c.id)
+      .eq("sens", "sortant");
+    const reponses = Array.isArray(c.reponses) ? (c.reponses as { answer: string }[]) : [];
+    const choisi = choisirContenu(
+      profil.catalogue,
+      reponses,
+      contenusDeja(profil.catalogue, (sortis ?? []).map((m) => m.texte)),
+    );
+    if (!choisi) {
+      // Catalogue épuisé pour elle : le créneau se consomme sans rien envoyer.
+      await admin.from("agent_messages").insert({
+        conversation_id: c.id,
+        organization_id: c.organization_id,
+        sens: "sortant",
+        genre: "modele",
+        cle_envoi: action.cle,
+        texte: "(aucun contenu qu'elle n'ait déjà reçu)",
+        canal: canal.nom,
+        statut: "echec",
+        erreur: "Catalogue épuisé : rien envoyé.",
+        created_at: new Date(maintenant).toISOString(),
+      });
+      return false;
+    }
+    valeurs = { ...valeurs, titreContenu: choisi.titre, lienContenu: choisi.url };
+    // Elle a écrit dans les dernières 24 h : un message normal, gratuit,
+    // plutôt qu'un modèle Marketing.
+    parModele = !(c.derniere_entree_le && maintenant - Date.parse(c.derniere_entree_le) < 24 * 3_600_000);
+  }
+  const texte = rendreModele(modele, valeurs);
 
   const { data: reserve, error } = await admin
     .from("agent_messages")
@@ -129,7 +171,8 @@ async function appliquer(
       organization_id: c.organization_id,
       sens: "sortant",
       genre: "modele",
-      modele: action.modele,
+      // `contenu` n'est pas dans la contrainte de 0032 : sa clé suffit à le retrouver.
+      modele: action.modele === "contenu" ? null : action.modele,
       cle_envoi: action.cle,
       texte,
       boutons: modele.boutons.map((b) => b.texte),
@@ -147,7 +190,7 @@ async function appliquer(
     organisationId: c.organization_id,
     telephone: c.telephone,
     texte,
-    modele: { cle: action.modele, profil: profil.cle, valeurs },
+    ...(parModele ? { modele: { cle: action.modele, profil: profil.cle, valeurs } } : {}),
   });
 
   if (!resultat.ok) {
