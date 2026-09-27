@@ -247,12 +247,15 @@ export async function invitationsAVenir(
   depuis: number,
   jusqua: number,
 ): Promise<InvitationCalendly[] | null> {
-  const moi = await lire<{ resource: { uri: string } }>(jeton, `${API}/users/me`);
-  if (!moi) return null;
+  // La personne qui tient ce type de séance, lue sur le type lui-même :
+  // `/users/me` demanderait un droit de plus (`users:read`) au jeton de l'agent.
+  const type = await lire<{ resource: { profile?: { owner?: string } | null } }>(jeton, typeUri);
+  const proprietaire = type?.resource.profile?.owner;
+  if (!proprietaire) return null;
 
   const resultat: InvitationCalendly[] = [];
   let page: string | null =
-    `${API}/scheduled_events?user=${encodeURIComponent(moi.resource.uri)}&status=active&count=100` +
+    `${API}/scheduled_events?user=${encodeURIComponent(proprietaire)}&status=active&count=100` +
     `&min_start_time=${new Date(depuis).toISOString()}&max_start_time=${new Date(jusqua).toISOString()}`;
   while (page) {
     const lot: { collection: EvenementCalendly[]; pagination?: { next_page?: string | null } } | null = await lire(
