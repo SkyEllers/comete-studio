@@ -30,7 +30,7 @@ function AValider({
 
 export default function ConfidentialitePage() {
   return (
-    <LegalShell title="Politique de confidentialité" updatedAt="août 2026">
+    <LegalShell title="Politique de confidentialité" updatedAt="septembre 2026">
       <LegalSection title="Responsable du traitement">
         <p>
           Louis Girault, micro-entreprise, 4 rue Léon Fabre, 69100 Villeurbanne,
@@ -189,11 +189,47 @@ export default function ConfidentialitePage() {
         </p>
       </LegalSection>
 
+      <LegalSection title="Ton agenda Google">
+        <p>
+          Si tu prends des diagnostics avec l&apos;outil de réservation, tu
+          connectes ton agenda Google. L&apos;outil y lit une seule chose : les
+          moments où tu es occupée. Pas le titre de tes rendez-vous, pas leur
+          contenu. Ça lui sert à ne proposer que des créneaux où tu es libre. Il
+          y écrit aussi chaque diagnostic réservé, avec son lien de visio.
+        </p>
+        <p>
+          Il garde l&apos;adresse de ton compte Google et un jeton d&apos;accès,
+          chiffré dans le coffre de la base de données (Supabase Vault). Rien de
+          plus. Ces données ne servent qu&apos;à la réservation : elles ne sont
+          ni vendues, ni transmises à qui que ce soit, ni utilisées pour
+          entraîner une intelligence artificielle.
+        </p>
+        <p>
+          L&apos;utilisation des informations reçues des API Google respecte le{" "}
+          <a
+            href="https://developers.google.com/terms/api-services-user-data-policy"
+            className="text-foreground underline underline-offset-4"
+          >
+            Règlement sur les données utilisateur des services d&apos;API Google
+          </a>
+          , y compris les exigences d&apos;utilisation limitée.
+        </p>
+        <p>
+          Tu peux retirer cet accès quand tu veux, avec le bouton « Déconnecter »
+          de la page Mon agenda ou directement depuis ton compte Google. Le jeton
+          est alors effacé. Les diagnostics déjà écrits dans ton agenda, eux, y
+          restent.
+        </p>
+      </LegalSection>
+
       <LegalSection title="Cookies">
         <p>
-          Cet espace ne dépose qu&apos;un cookie : celui qui maintient ta
-          session ouverte. Il est strictement nécessaire au service, donc exempt
-          de consentement. Pas de mesure d&apos;audience, pas de traceur tiers.
+          Cet espace dépose un cookie : celui qui maintient ta session ouverte.
+          Le temps de connecter ton agenda Google, il en pose un second, de dix
+          minutes au plus, qui vérifie que c&apos;est bien toi qui reviens de
+          chez Google. Les deux sont strictement nécessaires au service, donc
+          exempts de consentement. Pas de mesure d&apos;audience, pas de traceur
+          tiers.
         </p>
       </LegalSection>
 

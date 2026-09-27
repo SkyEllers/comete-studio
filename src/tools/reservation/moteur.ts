@@ -35,6 +35,8 @@ export type PersonneLue = {
   absences: Absence[];
   /** Sans agenda Google connecté, pas de créneau : on ne pourrait ni lire son occupé ni écrire le rendez-vous. */
   agendaConnecte: boolean;
+  /** L'agenda Google lu et écrit : « primary » par défaut. */
+  googleAgenda: string;
 };
 
 export type Diagnostic = { id: string; personneId: string; debut: number; fin: number };

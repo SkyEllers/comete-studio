@@ -71,7 +71,7 @@ export function depotSupabase(db: Admin): Depot {
       const [personnes, horaires, absences] = await Promise.all([
         db
           .from("reservation_personnes")
-          .select("id, user_id, role, fuseau, max_par_jour, google_connecte_le")
+          .select("id, user_id, role, fuseau, max_par_jour, google_connecte_le, google_agenda")
           .eq("organization_id", org)
           .eq("actif", true),
         db.from("reservation_horaires").select("personne_id, jour, debut, fin").eq("organization_id", org),
@@ -88,6 +88,7 @@ export function depotSupabase(db: Admin): Depot {
         fuseau: p.fuseau,
         maxParJour: p.max_par_jour,
         agendaConnecte: p.google_connecte_le !== null,
+        googleAgenda: p.google_agenda,
         plages: (horaires.data ?? [])
           .filter((h) => h.personne_id === p.id)
           .map((h) => ({ jour: h.jour, debut: hhmm(h.debut), fin: hhmm(h.fin) })),

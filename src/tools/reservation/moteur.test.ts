@@ -48,6 +48,7 @@ function personne(id: string, role: PersonneLue["role"], sur: Partial<PersonneLu
     plages: [{ jour: 1, debut: "09:00", fin: "12:00" }],
     absences: [],
     agendaConnecte: true,
+    googleAgenda: "primary",
     ...sur,
   };
 }
