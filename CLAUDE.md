@@ -105,14 +105,15 @@ supabase/
 docs/                                 # briefs par phase, RADAR-INSTALLATION.md, docs/legacy/
 ```
 
-## 5. Charte (héritée de la v1, à respecter)
+## 5. Charte « Carnet de bord » (la même que la vitrine, depuis le 27/09/2026)
 
-- Couleurs : `void #0A0A0A` (fond), `bone #F2F2F0` (texte), `ember #FF6B35` (accent : actions principales et état actif, rien d'autre). Surfaces intermédiaires : `#121212` (cartes), `#1A1A1A` (survol), bordures `#262626`, texte secondaire `#9A9A96`. Sémantique : succès `#4ADE80`, alerte `#FBBF24`, erreur `#F87171`.
-- Typos auto-hébergées via `next/font/local` depuis `public/fonts/` : Space Grotesk (titres, variable `--font-display`), Inter (texte, `--font-body`), JetBrains Mono (labels techniques, dates, identifiants, `--font-mono`). Jamais de Google Fonts CDN.
-- Thème sombre par défaut (c'est la marque). Tous les tokens sont des variables CSS pour pouvoir ajouter un thème clair plus tard sans réécrire les composants.
+- Source : `00-studio/charte.md` du vault. Le hub reprend les jetons de la vitrine (`style.css` de `comete-vitrine`) : papier `#F5EFE4` (fond), papier clair `#FBF8F2` (cartes), trait `#E6DDCF` (bordures), encre `#1E2B2F` (texte), encre douce `#5E6B6E` (texte secondaire), braise foncée `#C2441D` (bouton principal, texte blanc ; survol `#A93815`), braise `#E8562A` (tracés et graphiques seulement), surligneur `#F6D365` (un mot par écran, classe `.surligne`), succès `#3E7C59`. Propres au hub : papier foncé `#F0E8DA` (survol, fonds discrets), champ `#80796D` (contour des champs, 3:1), alerte `#8F6200`, erreur `#B3261E`.
+- Dans du code neuf, écrire les noms de la charte (`bg-papier`, `text-encre`, `border-trait`, `text-braise-fonce`). Les noms de l'ancienne charte sombre (`void`, `bone`, `ember`, `surface-1`, `surface-2`, `line`) restent des alias dans `globals.css` : ne pas en ajouter.
+- Typos auto-hébergées via `next/font/local` depuis `public/fonts/` (les fichiers de la vitrine) : Fraunces 500 (titres, variable `--font-display`), Inter (texte, `--font-body`), JetBrains Mono (chiffres, dates, identifiants, `--font-mono`). Jamais de Google Fonts CDN.
+- Thème clair, sans variante sombre. Boutons à coins de 6 px, cartes à 8 px (`--radius: 0.375rem`). Pas de dégradé, pas de néon, pas de grain.
 - UI sobre et dense : pas de blob curseur, pas de GSAP, pas d'animation décorative. Transitions ≤ 150 ms, respect de `prefers-reduced-motion`.
 - Textes de l'interface en français, tutoiement (cohérent avec la marque), sentence case, aucun jargon technique face au client (« Ton espace », pas « Dashboard »).
-- Logos : `public/brand/logo-slash.svg` (icône) et `public/brand/wordmark.svg` (texte).
+- Logo : `public/brand/comete-logo.svg`, le badge rond braise de la vitrine, suivi de « Comète Studio » en Fraunces 600 (`src/components/app/logo.tsx`). Favicons repris de la vitrine.
 
 ## 6. Modèle d'accès (résumé, détail dans docs/PHASE-1-SOCLE.md)
 

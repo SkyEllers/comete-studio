@@ -666,7 +666,7 @@ export function CardPanel({
             {etiquettes.map((label) => (
               <span
                 key={label.id}
-                className="text-void inline-flex h-7 items-center rounded-md px-2 text-xs font-medium"
+                className="text-encre inline-flex h-7 items-center rounded-md px-2 text-xs font-medium"
                 style={{ backgroundColor: colorHex(label.color) }}
               >
                 {label.name || "Sans nom"}

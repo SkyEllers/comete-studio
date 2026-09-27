@@ -128,7 +128,7 @@ export function NewBoardDialog({
                     {actif ? (
                       <Check
                         aria-hidden="true"
-                        className="text-void size-4"
+                        className="text-encre size-4"
                         strokeWidth={3}
                       />
                     ) : null}

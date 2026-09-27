@@ -234,7 +234,7 @@ function Puces({
           className={cn(
             "shrink-0 snap-start rounded-full border px-3 py-1.5 text-sm transition-colors",
             valeur.cle === courante
-              ? "border-ember bg-ember text-void font-medium"
+              ? "border-ember bg-ember text-primary-foreground font-medium"
               : "border-line text-muted-foreground hover:text-foreground",
           )}
         >

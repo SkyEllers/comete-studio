@@ -22,15 +22,18 @@ export const BOARD_COLORS = [
 
 export type BoardColor = (typeof BOARD_COLORS)[number];
 
+/* Teintes reprises le 27/09/2026 pour le papier de la charte « Carnet de
+   bord » : l'encre tient 4,5 sur chacune (texte des étiquettes). Les clés ne
+   bougent pas, la base n'a rien à migrer. */
 export const PALETTE: Record<BoardColor, { label: string; hex: string }> = {
-  ember: { label: "Ember", hex: "#ff6b35" },
-  sun: { label: "Soleil", hex: "#fbbf24" },
-  mint: { label: "Menthe", hex: "#4ade80" },
-  sky: { label: "Ciel", hex: "#38bdf8" },
-  violet: { label: "Violet", hex: "#a78bfa" },
-  rose: { label: "Rose", hex: "#fb7185" },
-  sand: { label: "Sable", hex: "#d6bfa3" },
-  stone: { label: "Pierre", hex: "#9a9a96" },
+  ember: { label: "Braise", hex: "#ee7c55" },
+  sun: { label: "Soleil", hex: "#f6d365" },
+  mint: { label: "Menthe", hex: "#7fc29b" },
+  sky: { label: "Ciel", hex: "#8ec5e0" },
+  violet: { label: "Violet", hex: "#b9a5e3" },
+  rose: { label: "Rose", hex: "#f29aa8" },
+  sand: { label: "Sable", hex: "#d9c3a5" },
+  stone: { label: "Pierre", hex: "#b3ada2" },
 };
 
 export const DEFAULT_BOARD_COLOR: BoardColor = "ember";

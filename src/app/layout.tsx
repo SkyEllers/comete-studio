@@ -16,11 +16,13 @@ import "./globals.css";
  * n'accepte que des littéraux dans ses arguments, une constante partagée est
  * perdue à la compilation (le build échoue sur `missing field value`).
  */
-const spaceGrotesk = localFont({
-  src: "../../public/fonts/space-grotesk.woff2",
-  weight: "300 700",
+/* Fraunces, les titres de la charte « Carnet de bord » : la même police
+   variable que la vitrine (graisses 100 à 900, axe de taille optique). */
+const fraunces = localFont({
+  src: "../../public/fonts/fraunces.woff2",
+  weight: "100 900",
   display: "swap",
-  variable: "--font-space-grotesk",
+  variable: "--font-fraunces",
   declarations: [
     {
       prop: "unicode-range",
@@ -30,12 +32,12 @@ const spaceGrotesk = localFont({
   ],
 });
 
-const spaceGroteskExt = localFont({
-  src: "../../public/fonts/space-grotesk-latin-ext.woff2",
-  weight: "300 700",
+const frauncesExt = localFont({
+  src: "../../public/fonts/fraunces-latin-ext.woff2",
+  weight: "100 900",
   display: "swap",
   preload: false,
-  variable: "--font-space-grotesk-ext",
+  variable: "--font-fraunces-ext",
   declarations: [
     {
       prop: "unicode-range",
@@ -104,8 +106,8 @@ const jetbrainsMonoExt = localFont({
 });
 
 const fontVariables = [
-  spaceGrotesk.variable,
-  spaceGroteskExt.variable,
+  fraunces.variable,
+  frauncesExt.variable,
   inter.variable,
   interExt.variable,
   jetbrainsMono.variable,
@@ -127,17 +129,17 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0A0A0A",
+  themeColor: "#F5EFE4",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="fr" className={`dark ${fontVariables} h-full`}>
+    <html lang="fr" className={`${fontVariables} h-full`}>
       <body className="flex min-h-full flex-col">
         {children}
         <Toaster
           position="bottom-right"
-          theme="dark"
+          theme="light"
           closeButton
           style={
             {

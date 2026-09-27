@@ -480,7 +480,7 @@ export function Puce({
       className={cn(
         "focus-visible:ring-ring rounded-full border px-3 py-1.5 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50",
         actif
-          ? "border-ember bg-ember text-void font-medium"
+          ? "border-ember bg-ember text-primary-foreground font-medium"
           : "border-line bg-surface-1 hover:bg-surface-2",
         className,
       )}

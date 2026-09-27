@@ -788,7 +788,7 @@ function Coquille({ children }: { children: React.ReactNode }) {
             <span className="text-muted-foreground hidden text-sm sm:inline">
               Mélanie
             </span>
-            <span className="bg-ember text-void flex size-8 items-center justify-center rounded-full text-sm font-semibold">
+            <span className="bg-ember text-primary-foreground flex size-8 items-center justify-center rounded-full text-sm font-semibold">
               M
             </span>
           </div>
