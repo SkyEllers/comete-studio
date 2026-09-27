@@ -389,6 +389,7 @@ export type Database = {
           resume_envoye_le: string | null
           types_suivis: string[]
           updated_at: string
+          whatsapp_numero_id: string | null
         }
         Insert: {
           actif?: boolean
@@ -402,6 +403,7 @@ export type Database = {
           resume_envoye_le?: string | null
           types_suivis?: string[]
           updated_at?: string
+          whatsapp_numero_id?: string | null
         }
         Update: {
           actif?: boolean
@@ -415,6 +417,7 @@ export type Database = {
           resume_envoye_le?: string | null
           types_suivis?: string[]
           updated_at?: string
+          whatsapp_numero_id?: string | null
         }
         Relationships: [
           {

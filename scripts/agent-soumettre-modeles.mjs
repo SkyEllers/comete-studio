@@ -17,9 +17,9 @@ import { createClient } from "@supabase/supabase-js";
 import { env } from "./qa-commun.mjs";
 
 import { peggy } from "../src/tools/agent/profils/peggy.ts";
+import { LANGUE_MODELES, nomModeleMeta, VERSION_API } from "../src/tools/agent/whatsapp-regles.ts";
 
 const COMPTE_WHATSAPP = "1367595148781611";
-const PREFIXE = "diag_";
 const EXEMPLES = {
   prenom: "Camille",
   jour: "jeudi 8 octobre",
@@ -44,7 +44,7 @@ const modeles = Object.entries(peggy.modeles).map(([cle, m]) => {
       buttons: m.boutons.map((b) => ({ type: "QUICK_REPLY", text: b.texte })),
     });
   }
-  return { name: `${PREFIXE}${cle}`, language: "fr", category: "UTILITY", components: composants };
+  return { name: nomModeleMeta(cle), language: LANGUE_MODELES, category: "UTILITY", components: composants };
 });
 
 for (const m of modeles) {
@@ -72,7 +72,7 @@ if (!jeton) throw new Error("Jeton WhatsApp introuvable dans le Vault.");
 console.log("\nSoumission :");
 let refus = 0;
 for (const m of modeles) {
-  const reponse = await fetch(`https://graph.facebook.com/v25.0/${COMPTE_WHATSAPP}/message_templates`, {
+  const reponse = await fetch(`https://graph.facebook.com/${VERSION_API}/${COMPTE_WHATSAPP}/message_templates`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${jeton}`,

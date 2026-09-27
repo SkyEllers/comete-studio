@@ -143,6 +143,7 @@ async function appliquer(
   if (error || !reserve) return false;
 
   const resultat = await canal.envoyer({
+    organisationId: c.organization_id,
     telephone: c.telephone,
     texte,
     modele: { cle: action.modele, profil: profil.cle, valeurs },

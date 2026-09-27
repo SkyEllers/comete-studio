@@ -23,6 +23,8 @@ export async function recevoir(
   conversationId: string,
   texte: string,
   reel = Date.now(),
+  /** L'identifiant du message chez Meta : un webhook rejoué ne le note pas deux fois. */
+  idExterne: string | null = null,
 ): Promise<Lu> {
   const { data: c } = await admin
     .from("agent_conversations")
@@ -54,6 +56,7 @@ export async function recevoir(
       comprehension: { stop, sens },
       canal: c.simulation ? "simule" : reglages.canal === "whatsapp" ? "whatsapp" : "simule",
       statut: "recu",
+      id_externe: idExterne,
       created_at: maintenant,
     })
     .select("id")
