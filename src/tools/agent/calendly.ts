@@ -118,16 +118,7 @@ export async function reserver(jeton: string, r: Reservation): Promise<Reserve |
       resource: { uri: string; event: string; cancel_url?: string; reschedule_url?: string };
     };
 
-    // Le lien Zoom et l'heure de fin sont sur l'événement, pas sur l'invité.
-    const evenement = await fetch(resource.event, {
-      headers: ENTETES(jeton),
-      signal: AbortSignal.timeout(DELAI_MS),
-    });
-    const ev = evenement.ok
-      ? ((await evenement.json()) as {
-          resource: { start_time: string; end_time: string; location?: { join_url?: string } };
-        }).resource
-      : null;
+    const ev = await lireEvenement(jeton, resource.event);
 
     return {
       inviteeUri: resource.uri,
@@ -142,6 +133,40 @@ export async function reserver(jeton: string, r: Reservation): Promise<Reserve |
     console.error("Agent : Calendly n'a pas répondu (réservation)");
     return null;
   }
+}
+
+type Evenement = { start_time: string; end_time: string; location?: { join_url?: string } };
+
+const ESSAIS_LIEN = 5;
+const PAUSE_LIEN_MS = 1_500;
+
+/**
+ * Le lien Zoom et l'heure de fin sont sur l'événement, pas sur l'invité.
+ *
+ * Calendly pose le lien Zoom quelques secondes après la réservation : à
+ * l'essai réel du 27/09/2026, il manquait à la première lecture et était là
+ * à la suivante. On relit donc jusqu'à ce qu'il arrive, six secondes au plus ;
+ * sans lui, on rend l'événement tel quel plutôt que rien.
+ */
+export async function lireEvenement(
+  jeton: string,
+  uri: string,
+  attendre = (ms: number) => new Promise((r) => setTimeout(r, ms)),
+): Promise<Evenement | null> {
+  let ev: Evenement | null = null;
+  for (let essai = 0; essai < ESSAIS_LIEN; essai++) {
+    if (essai > 0) await attendre(PAUSE_LIEN_MS);
+    try {
+      const reponse = await fetch(uri, { headers: ENTETES(jeton), signal: AbortSignal.timeout(DELAI_MS) });
+      if (!reponse.ok) continue;
+      ev = ((await reponse.json()) as { resource: Evenement }).resource;
+      if (ev.location?.join_url) return ev;
+    } catch {
+      // Calendly n'a pas répondu : on retente au tour suivant.
+    }
+  }
+  if (ev) console.error("Agent : lien visio toujours absent après la réservation");
+  return ev;
 }
 
 /** Annuler l'ancien rendez-vous, une fois le nouveau pris. */
