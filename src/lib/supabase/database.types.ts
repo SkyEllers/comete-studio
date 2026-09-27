@@ -3498,7 +3498,12 @@ export type Database = {
       radar_commission_basis: "encaissement" | "ventes"
       radar_statement_status: "cloture" | "conteste" | "valide" | "paye"
       radar_status: "confirme" | "honore" | "annule" | "no_show"
-      radar_status_origin: "calendly" | "auto" | "client" | "admin"
+      radar_status_origin:
+        | "calendly"
+        | "auto"
+        | "client"
+        | "admin"
+        | "reservation"
       sas_realm: "pro" | "perso"
       sonde_event_kind: "pageview" | "cta" | "creneau"
       tool_kind: "internal" | "external"
@@ -3652,7 +3657,13 @@ export const Constants = {
       radar_commission_basis: ["encaissement", "ventes"],
       radar_statement_status: ["cloture", "conteste", "valide", "paye"],
       radar_status: ["confirme", "honore", "annule", "no_show"],
-      radar_status_origin: ["calendly", "auto", "client", "admin"],
+      radar_status_origin: [
+        "calendly",
+        "auto",
+        "client",
+        "admin",
+        "reservation",
+      ],
       sas_realm: ["pro", "perso"],
       sonde_event_kind: ["pageview", "cta", "creneau"],
       tool_kind: ["internal", "external"],

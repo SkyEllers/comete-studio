@@ -9,6 +9,7 @@ import { depotSupabase } from "@/tools/reservation/depot";
 import { identifiants } from "@/tools/reservation/google";
 import { reserver } from "@/tools/reservation/moteur";
 import { demandeSchema } from "@/tools/reservation/page";
+import { versRadar } from "@/tools/reservation/radar";
 
 /**
  * Réserver un diagnostic depuis la page du site du client.
@@ -24,6 +25,9 @@ import { demandeSchema } from "@/tools/reservation/page";
  * quand Google tarde à créer le Meet). Si l'écriture Google échoue, le
  * rendez-vous reste pris : il est dans la base, et sans lien de visio le mail
  * dit qu'il arrivera.
+ *
+ * Puis Radar : le rendez-vous y entre avec la personne qui le tient
+ * (`radar.ts`), comme le webhook Calendly l'y aurait mis.
  *
  * Le lien personnel pour annuler ou reporter est tiré ici, rendu une fois au
  * site, et seul son SHA-256 est gardé.
@@ -95,6 +99,9 @@ export async function POST(request: NextRequest) {
     } catch (erreur) {
       console.error("Réservation, écriture Google :", erreur instanceof Error ? erreur.message : erreur);
     }
+
+    // Radar, avec la bonne personne. Ne fait jamais échouer la réservation.
+    await versRadar(admin, prise.id);
 
     const { data: rdv } = await admin
       .from("reservation_rendez_vous")

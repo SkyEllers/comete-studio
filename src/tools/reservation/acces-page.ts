@@ -64,3 +64,42 @@ export const json = (corps: unknown, code = 200) =>
   });
 
 export const sansCorps = (code: number) => new Response(null, { status: code, headers: { "cache-control": "no-store" } });
+
+export type RdvCliente = {
+  id: string;
+  statut: "confirme" | "annule";
+  debut: string;
+  fin: string;
+  prenom: string | null;
+  email: string | null;
+  lien_visio: string | null;
+  fuseau_cliente: string;
+};
+
+/**
+ * Le rendez-vous désigné par le lien personnel de la cliente, chez ce client
+ * seulement. Le lien suit les reports (0042) : c'est toujours le dernier.
+ */
+export async function rdvDuLien(db: Admin, organizationId: string, lien: string): Promise<RdvCliente | null> {
+  if (!/^[0-9a-f]{64}$/.test(lien)) return null;
+  const empreinte = createHash("sha256").update(lien).digest("hex");
+  const { data } = await db
+    .from("reservation_rendez_vous")
+    .select("id, statut, debut, fin, prenom, email, lien_visio, fuseau_cliente")
+    .eq("organization_id", organizationId)
+    .eq("jeton_hash", empreinte)
+    .maybeSingle();
+  return data ? { ...data, statut: data.statut === "annule" ? "annule" : "confirme" } : null;
+}
+
+/** Ce que le site reçoit d'un rendez-vous : de quoi écrire le mail, rien de plus. */
+export const rdvPourSite = (r: RdvCliente) => ({
+  id: r.id,
+  statut: r.statut,
+  debut: new Date(r.debut).toISOString(),
+  fin: new Date(r.fin).toISOString(),
+  prenom: r.prenom,
+  email: r.email,
+  lienVisio: r.lien_visio,
+  fuseau: r.fuseau_cliente,
+});
