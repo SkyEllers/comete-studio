@@ -2468,6 +2468,327 @@ export type Database = {
           },
         ]
       }
+      reservation_absences: {
+        Row: {
+          au: string
+          created_at: string
+          du: string
+          id: string
+          organization_id: string
+          personne_id: string
+        }
+        Insert: {
+          au: string
+          created_at?: string
+          du: string
+          id?: string
+          organization_id: string
+          personne_id: string
+        }
+        Update: {
+          au?: string
+          created_at?: string
+          du?: string
+          id?: string
+          organization_id?: string
+          personne_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_absences_personne_id_organization_id_fkey"
+            columns: ["personne_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "reservation_personnes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      reservation_horaires: {
+        Row: {
+          created_at: string
+          debut: string
+          fin: string
+          id: string
+          jour: number
+          organization_id: string
+          personne_id: string
+        }
+        Insert: {
+          created_at?: string
+          debut: string
+          fin: string
+          id?: string
+          jour: number
+          organization_id: string
+          personne_id: string
+        }
+        Update: {
+          created_at?: string
+          debut?: string
+          fin?: string
+          id?: string
+          jour?: number
+          organization_id?: string
+          personne_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_horaires_personne_id_organization_id_fkey"
+            columns: ["personne_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "reservation_personnes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      reservation_personnes: {
+        Row: {
+          actif: boolean
+          created_at: string
+          fuseau: string
+          google_agenda: string
+          google_connecte_le: string | null
+          google_email: string | null
+          id: string
+          lien_visio: string | null
+          max_par_jour: number
+          organization_id: string
+          role: string
+          updated_at: string
+          user_id: string
+          visio: string
+        }
+        Insert: {
+          actif?: boolean
+          created_at?: string
+          fuseau?: string
+          google_agenda?: string
+          google_connecte_le?: string | null
+          google_email?: string | null
+          id?: string
+          lien_visio?: string | null
+          max_par_jour?: number
+          organization_id: string
+          role: string
+          updated_at?: string
+          user_id: string
+          visio?: string
+        }
+        Update: {
+          actif?: boolean
+          created_at?: string
+          fuseau?: string
+          google_agenda?: string
+          google_connecte_le?: string | null
+          google_email?: string | null
+          id?: string
+          lien_visio?: string | null
+          max_par_jour?: number
+          organization_id?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+          visio?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_personnes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_personnes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reservation_reglages: {
+        Row: {
+          actif: boolean
+          complet_depuis: string | null
+          created_at: string
+          duree_minutes: number
+          fenetre_jours: number
+          fenetre_max_jours: number
+          fenetre_pas_jours: number
+          fuseau: string
+          organization_id: string
+          pas_minutes: number
+          pause_minutes: number
+          periode_taux_jours: number
+          preavis_minutes: number
+          seuil_debutante: number
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          complet_depuis?: string | null
+          created_at?: string
+          duree_minutes?: number
+          fenetre_jours?: number
+          fenetre_max_jours?: number
+          fenetre_pas_jours?: number
+          fuseau?: string
+          organization_id: string
+          pas_minutes?: number
+          pause_minutes?: number
+          periode_taux_jours?: number
+          preavis_minutes?: number
+          seuil_debutante?: number
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          complet_depuis?: string | null
+          created_at?: string
+          duree_minutes?: number
+          fenetre_jours?: number
+          fenetre_max_jours?: number
+          fenetre_pas_jours?: number
+          fuseau?: string
+          organization_id?: string
+          pas_minutes?: number
+          pause_minutes?: number
+          periode_taux_jours?: number
+          preavis_minutes?: number
+          seuil_debutante?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_reglages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reservation_rendez_vous: {
+        Row: {
+          annule_le: string | null
+          annule_par: string | null
+          bloque_jusqu_a: string
+          created_at: string
+          debut: string
+          efface_le: string | null
+          email: string | null
+          fin: string
+          fuseau_cliente: string
+          google_event_id: string | null
+          id: string
+          jeton_hash: string | null
+          lien_visio: string | null
+          nom: string | null
+          organization_id: string
+          origine: string
+          personne_id: string
+          prenom: string | null
+          radar_booking_id: string | null
+          reponses: Json
+          reporte_de: string | null
+          statut: string
+          telephone: string | null
+          updated_at: string
+          utm: Json
+        }
+        Insert: {
+          annule_le?: string | null
+          annule_par?: string | null
+          bloque_jusqu_a: string
+          created_at?: string
+          debut: string
+          efface_le?: string | null
+          email?: string | null
+          fin: string
+          fuseau_cliente?: string
+          google_event_id?: string | null
+          id?: string
+          jeton_hash?: string | null
+          lien_visio?: string | null
+          nom?: string | null
+          organization_id: string
+          origine: string
+          personne_id: string
+          prenom?: string | null
+          radar_booking_id?: string | null
+          reponses?: Json
+          reporte_de?: string | null
+          statut?: string
+          telephone?: string | null
+          updated_at?: string
+          utm?: Json
+        }
+        Update: {
+          annule_le?: string | null
+          annule_par?: string | null
+          bloque_jusqu_a?: string
+          created_at?: string
+          debut?: string
+          efface_le?: string | null
+          email?: string | null
+          fin?: string
+          fuseau_cliente?: string
+          google_event_id?: string | null
+          id?: string
+          jeton_hash?: string | null
+          lien_visio?: string | null
+          nom?: string | null
+          organization_id?: string
+          origine?: string
+          personne_id?: string
+          prenom?: string | null
+          radar_booking_id?: string | null
+          reponses?: Json
+          reporte_de?: string | null
+          statut?: string
+          telephone?: string | null
+          updated_at?: string
+          utm?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_rendez_vous_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_rendez_vous_personne_id_organization_id_fkey"
+            columns: ["personne_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "reservation_personnes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "reservation_rendez_vous_radar_booking_id_fkey"
+            columns: ["radar_booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_rendez_vous_radar_booking_id_fkey"
+            columns: ["radar_booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_rendez_vous_reporte_de_fkey"
+            columns: ["reporte_de"]
+            isOneToOne: false
+            referencedRelation: "reservation_rendez_vous"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sas_boxes: {
         Row: {
           created_at: string
@@ -3011,6 +3332,29 @@ export type Database = {
           figees: number
           supprimees: number
         }[]
+      }
+      reservation_annuler: {
+        Args: { par: string; rendez_vous: string }
+        Returns: boolean
+      }
+      reservation_clear_secrets: { Args: { personne: string }; Returns: number }
+      reservation_est_a_moi: { Args: { personne: string }; Returns: boolean }
+      reservation_get_secret: {
+        Args: { kind: string; personne: string }
+        Returns: string
+      }
+      reservation_prendre: {
+        Args: { debut: string; donnees?: Json; personne: string }
+        Returns: string
+      }
+      reservation_purger: { Args: { anciennete?: string }; Returns: number }
+      reservation_reporter: {
+        Args: { ancien: string; debut: string; par: string; personne: string }
+        Returns: string
+      }
+      reservation_set_secret: {
+        Args: { kind: string; personne: string; value: string }
+        Returns: undefined
       }
       sas_compteurs: {
         Args: { org: string }
