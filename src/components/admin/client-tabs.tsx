@@ -23,23 +23,29 @@ export async function ClientTabs({
   sondeActif,
 }: {
   organizationId: string;
-  actif: "fiche" | "radar" | "sonde" | "finances";
+  actif: "fiche" | "radar" | "sonde" | "finances" | "reservation";
   radarActif: boolean;
   sondeActif?: boolean;
 }) {
   const supabase = await createClient();
-  const { data: horizon } = await supabase
-    .from("organization_tools")
-    .select("enabled, tools!inner(slug)")
-    .eq("organization_id", organizationId)
-    .eq("tools.slug", "finances")
-    .maybeSingle();
+  const [{ data: horizon }, { data: reservation }] = await Promise.all([
+    supabase
+      .from("organization_tools")
+      .select("enabled, tools!inner(slug)")
+      .eq("organization_id", organizationId)
+      .eq("tools.slug", "finances")
+      .maybeSingle(),
+    supabase.from("reservation_reglages").select("organization_id").eq("organization_id", organizationId).maybeSingle(),
+  ]);
 
   const onglets = [
     { cle: "fiche" as const, libelle: "Fiche", affiche: true },
     { cle: "radar" as const, libelle: "Radar", affiche: radarActif },
     { cle: "sonde" as const, libelle: "Sonde", affiche: Boolean(sondeActif) },
     { cle: "finances" as const, libelle: "Horizon", affiche: Boolean(horizon?.enabled) },
+    // La réservation suit Radar : ses rendez-vous y entreront. Un client
+    // sans Radar ne l'a que si elle a déjà été préparée.
+    { cle: "reservation" as const, libelle: "Réservation", affiche: radarActif || Boolean(reservation) },
   ].filter((onglet) => onglet.affiche);
 
   // Seule la fiche : il n'y a pas d'onglets, il y a une page.

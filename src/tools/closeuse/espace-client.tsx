@@ -12,6 +12,7 @@ import {
   Phone,
   ShoppingBag,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -136,6 +137,11 @@ export function EspaceCloseuseClient({
       <PageHeader
         title={prenom ? `Bonjour ${prenom}` : "Ton espace"}
         description="Tes rendez-vous, ce que tu as vendu, et ce que tu factures à la fin du mois."
+        action={
+          <Button asChild variant="outline">
+            <Link href={`/app/${orgSlug}/agenda`}>Mon agenda</Link>
+          </Button>
+        }
       />
 
       {vueDeLouis ? (

@@ -1,4 +1,4 @@
-import { LayoutGrid, PanelsTopLeft } from "lucide-react";
+import { CalendarDays, LayoutGrid, PanelsTopLeft } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
@@ -9,6 +9,7 @@ import { ToolCard } from "@/components/app/tool-card";
 import { requireMembership } from "@/lib/access";
 import { createClient } from "@/lib/supabase/server";
 import { getToolMeta } from "@/tools/registry";
+import { maFiche } from "@/tools/reservation/personne";
 
 /**
  * La garde a déjà tranché dans le layout et juste au-dessus : cette partie
@@ -97,6 +98,18 @@ export default async function EspacePage({
         title="Tes outils"
         description={`Ce que Louis a activé pour ${org.name}.`}
       />
+
+      {/* Elle prend des diagnostics ici : son agenda passe avant les outils. */}
+      {(await maFiche(orgSlug)) ? (
+        <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ToolCard
+            name="Mon agenda"
+            description="Tes horaires, tes absences et ton maximum de diagnostics par jour."
+            icon={CalendarDays}
+            href={`/app/${orgSlug}/agenda`}
+          />
+        </div>
+      ) : null}
 
       <Suspense fallback={<CardGridSkeleton />}>
         <ToolsGrid organizationId={org.id} orgSlug={orgSlug} />
