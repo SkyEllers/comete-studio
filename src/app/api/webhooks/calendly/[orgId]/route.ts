@@ -1,8 +1,9 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { agentRecoit } from "@/tools/agent/conversations";
+import { tournerTout } from "@/tools/agent/moteur";
 import { ancienDuReport, annuleParLeReport } from "@/tools/agent/radar";
 import {
   attribuer,
@@ -48,6 +49,8 @@ import {
  */
 
 export const runtime = "nodejs";
+// Le premier message de l'agent part après la réponse (`after`).
+export const maxDuration = 60;
 
 const identifiant = z.uuid();
 
@@ -115,8 +118,22 @@ export async function POST(request: NextRequest, contexte: Contexte) {
 
   const { orgId } = await contexte.params;
   try {
-    const issue = await agentRecoit(createAdminClient(), orgId, retenu.message);
-    return issue === "erreur" ? sansCorps(500) : reponse;
+    const admin = createAdminClient();
+    const issue = await agentRecoit(admin, orgId, retenu.message);
+    if (issue === "erreur") return sansCorps(500);
+    // Le premier message part tout de suite, sans attendre l'horloge (jusqu'à
+    // 5 minutes, vu à l'essai réel du 27/09/2026). Après la réponse à
+    // Calendly ; un doublon avec l'horloge est impossible (cle_envoi).
+    if (retenu.message.event === "invitee.created") {
+      after(async () => {
+        try {
+          await tournerTout(admin);
+        } catch {
+          console.error("Agent : premier message non parti depuis le webhook");
+        }
+      });
+    }
+    return reponse;
   } catch {
     return sansCorps(500);
   }
