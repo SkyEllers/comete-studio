@@ -142,7 +142,7 @@ async function appliquer(
   // Déjà pris par un autre passage : rien à faire, et surtout rien à renvoyer.
   if (error || !reserve) return false;
 
-  const resultat = await canal.envoyer({
+  const resultat = await canal.envoyer(admin, {
     organisationId: c.organization_id,
     telephone: c.telephone,
     texte,

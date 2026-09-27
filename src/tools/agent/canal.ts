@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { createAdminClient } from "@/lib/supabase/admin";
 
 import type { CleModele, ValeursModele } from "./profil.ts";
 import { profil as profilDe } from "./profils/index.ts";
@@ -23,11 +23,13 @@ export type Envoi = {
   modele?: { cle: CleModele; profil: string; valeurs: ValeursModele };
 };
 
+type Admin = ReturnType<typeof createAdminClient>;
+
 export type Resultat = { ok: true; idExterne: string | null } | { ok: false; erreur: string };
 
 export type Canal = {
   nom: "simule" | "whatsapp";
-  envoyer(envoi: Envoi): Promise<Resultat>;
+  envoyer(admin: Admin, envoi: Envoi): Promise<Resultat>;
 };
 
 /** La simulation : le message est déjà dans la base, Louis le lit dans le hub. */
@@ -48,10 +50,9 @@ const DELAI_MS = 15_000;
  */
 export const canalWhatsapp: Canal = {
   nom: "whatsapp",
-  async envoyer(envoi) {
+  async envoyer(admin, envoi) {
     if (!envoi.telephone) return { ok: false, erreur: "Aucun numéro où écrire." };
 
-    const admin = createAdminClient();
     const [{ data: reglages }, { data: jeton }] = await Promise.all([
       admin
         .from("agent_reglages")

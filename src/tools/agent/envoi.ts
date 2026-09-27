@@ -57,7 +57,7 @@ export async function envoyerLibre(
     .single();
   if (error || !reserve) return false;
 
-  const resultat = await canal.envoyer({ organisationId: c.organization_id, telephone: c.telephone, texte });
+  const resultat = await canal.envoyer(admin, { organisationId: c.organization_id, telephone: c.telephone, texte });
   if (!resultat.ok) {
     await admin
       .from("agent_messages")

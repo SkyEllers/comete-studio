@@ -7,8 +7,8 @@
  *     réservation Calendly ni rendez-vous Radar ; passe le canal de Peggy sur
  *     WhatsApp. Le réglage reste `actif` faux : aucune vraie réservation
  *     n'ouvre de conversation, seule celle-ci parle par WhatsApp.
- *     Le modèle de réservation est noté comme non envoyé (les modèles
- *     attendent la validation de Meta) : l'horloge ne le retente pas.
+ *     Le modèle de réservation est noté comme non envoyé, sauf avec
+ *     --avec-modele : il part alors pour de vrai, tout de suite.
  *   --etat : ce que la conversation d'essai contient (messages, statuts).
  *   --fermer : efface la conversation d'essai et remet le canal en simulé.
  *
@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import { env } from "./qa-commun.mjs";
 
 import { ouvrir } from "../src/tools/agent/conversations.ts";
+import { tournerConversation } from "../src/tools/agent/moteur.ts";
 import { peggy } from "../src/tools/agent/profils/peggy.ts";
 import { invitationCalendly, telephoneInternational } from "../src/tools/agent/reservation.ts";
 import { ajouterJours, instantLocal, jourLocal } from "../src/tools/agent/temps.ts";
@@ -76,7 +77,7 @@ if (arg("--ouvrir") !== null) {
   const [c] = await essais();
   if (!c) throw new Error("Conversation non ouverte.");
 
-  await admin.from("agent_messages").insert({
+  if (!process.argv.includes("--avec-modele")) await admin.from("agent_messages").insert({
     conversation_id: c.id,
     organization_id: org.id,
     sens: "sortant",
@@ -92,6 +93,10 @@ if (arg("--ouvrir") !== null) {
   const { data: rg } = await admin.from("agent_reglages").select("actif, canal").eq("organization_id", org.id).single();
   console.log(`Conversation d'essai ouverte (${c.etat}), rendez-vous fictif le ${c.rdv_debut}.`);
   console.log(`Réglage de Peggy : actif ${rg.actif}, canal ${rg.canal}.`);
+  if (process.argv.includes("--avec-modele")) {
+    const faits = await tournerConversation(admin, c.id);
+    console.log(`Tour de l'agent : ${faits} action(s).`);
+  }
   process.exit(0);
 }
 
