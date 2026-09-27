@@ -176,7 +176,7 @@ export async function getBoardData(
     labels: board.labels ?? [],
     members: (membres.data ?? []).map((m) => ({
       id: m.user_id,
-      name: m.profiles?.full_name || m.profiles?.email || "—",
+      name: m.profiles?.full_name || m.profiles?.email || "Sans nom",
       email: m.profiles?.email ?? "",
     })),
     checklistOwners,

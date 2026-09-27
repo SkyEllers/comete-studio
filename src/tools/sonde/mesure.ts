@@ -301,9 +301,9 @@ export function mesurer(lignes: LigneJour[], periode: Periode): Mesure {
   };
 }
 
-/** « 13,7 % », ou « — » quand il n'y a rien à diviser. */
+/** « 13,7 % », ou « - » quand il n'y a rien à diviser. */
 export function taux(numerateur: number, denominateur: number): string {
-  if (denominateur <= 0) return "—";
+  if (denominateur <= 0) return "-";
   return `${((numerateur / denominateur) * 100).toLocaleString("fr-FR", {
     maximumFractionDigits: 1,
   })} %`;

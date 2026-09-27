@@ -48,16 +48,15 @@ async function Reglages({ organizationId }: { organizationId: string }) {
             <p className="text-muted-foreground text-sm">
               Une vente appartient au mois où tu l&apos;as conclue, pas à celui du
               rendez-vous. Un diagnostic du 28 août vendu le 3 septembre est donc
-              facturé en septembre — et son relevé le dit, avec les deux dates.
+              facturé en septembre. Son relevé le dit, avec les deux dates.
             </p>
           </>
         ) : (
           <p className="text-muted-foreground text-sm">
             Comète est payé sur les séances qu&apos;il t&apos;apporte, jamais sur les
-            autres. Une séance entre dans le calcul si elle remplit les quatre
-            conditions à la fois : elle a eu lieu, elle a été payée, elle vient
-            d&apos;un canal Comète, et c&apos;est le mois de la séance qui compte —
-            pas celui de la réservation.
+            autres. Une séance entre dans le calcul si elle a eu lieu, si elle a
+            été payée et si elle vient d&apos;un canal Comète. C&apos;est le mois
+            de la séance qui compte, pas celui de la réservation.
           </p>
         )}
         <p className="text-muted-foreground text-sm">

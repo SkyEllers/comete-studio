@@ -16,7 +16,7 @@ import {
 import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Ton profil — Comète Studio",
+  title: "Ton profil · Comète Studio",
 };
 
 export default async function ProfilPage() {
@@ -32,7 +32,7 @@ export default async function ProfilPage() {
     >
       <PageHeader
         title="Ton profil"
-        description="Ton nom, ton mot de passe, et la sortie."
+        description="Ton nom, ton mot de passe et la déconnexion."
       />
 
       <div className="max-w-xl space-y-6">
@@ -65,7 +65,7 @@ export default async function ProfilPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Session</CardTitle>
+            <CardTitle>Se déconnecter</CardTitle>
             <CardDescription>
               Tu devras te reconnecter avec ton email et ton mot de passe.
             </CardDescription>

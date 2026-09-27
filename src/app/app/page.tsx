@@ -11,7 +11,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Ton espace — Comète Studio",
+  title: "Ton espace · Comète Studio",
 };
 
 /**

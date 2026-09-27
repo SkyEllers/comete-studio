@@ -68,7 +68,7 @@ export function NewFolderDialog({ orgSlug }: { orgSlug: string }) {
         <DialogHeader>
           <DialogTitle>Nouveau dossier</DialogTitle>
           <DialogDescription>
-            Un rangement par lot : « Photos octobre », « Logos », « Factures ».
+            Un dossier par lot, par exemple « Photos octobre » ou « Logos ».
           </DialogDescription>
         </DialogHeader>
 

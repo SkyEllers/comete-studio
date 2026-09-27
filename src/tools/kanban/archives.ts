@@ -59,7 +59,7 @@ export async function loadArchives(
     cards: (cartes.data ?? []).map((carte) => ({
       id: carte.id,
       title: carte.title,
-      listName: carte.lists?.name ?? "—",
+      listName: carte.lists?.name ?? "Liste inconnue",
       listArchived: carte.lists?.is_archived ?? false,
     })),
   });

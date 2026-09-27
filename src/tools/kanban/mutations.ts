@@ -93,7 +93,7 @@ export async function createBoard(input: {
   if (erreurListes) {
     await invalidateBoardList();
     return fail(
-      "Le tableau est créé, mais ses trois listes n'ont pas pu l'être. Tu peux les ajouter à la main.",
+      "Le tableau est créé, mais pas ses trois listes. Tu peux les ajouter à la main.",
     );
   }
 
@@ -183,7 +183,7 @@ export async function deleteBoard(boardId: string): Promise<ActionResult> {
 
   if (error) return fail("Impossible de supprimer ce tableau pour le moment.");
   if (!data || data.length === 0) {
-    return fail("Seul un responsable du client peut supprimer un tableau.");
+    return fail("Seul un responsable de l'espace peut supprimer un tableau.");
   }
 
   await invalidateBoardList();

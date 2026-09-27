@@ -115,7 +115,7 @@ const fontVariables = [
 ].join(" ");
 
 export const metadata: Metadata = {
-  title: "Comète Studio — Espace client",
+  title: "Comète Studio · Espace client",
   description: "Espace client de Comète Studio.",
   robots: { index: false, follow: false },
   icons: {

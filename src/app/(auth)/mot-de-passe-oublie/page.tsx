@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 
 export const metadata: Metadata = {
-  title: "Mot de passe oublié — Comète Studio",
+  title: "Mot de passe oublié · Comète Studio",
 };
 
 export default function MotDePasseOubliePage() {

@@ -11,7 +11,7 @@ import {
 import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Nouveau mot de passe — Comète Studio",
+  title: "Nouveau mot de passe · Comète Studio",
 };
 
 export default async function ReinitialiserPage() {
@@ -24,7 +24,7 @@ export default async function ReinitialiserPage() {
       <CardHeader>
         <CardTitle className="text-xl">Nouveau mot de passe</CardTitle>
         <CardDescription>
-          Choisis un mot de passe, et te voilà de retour dans ton espace.
+          Choisis un nouveau mot de passe pour retrouver ton espace.
         </CardDescription>
       </CardHeader>
 

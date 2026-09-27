@@ -178,7 +178,7 @@ async function TableauDeBord({
               {bilanDesAppels.sans_reponse.nonVenues > 1 ? "s" : ""},{" "}
               {bilanDesAppels.sans_reponse.annulees} annulée
               {bilanDesAppels.sans_reponse.annulees > 1 ? "s" : ""},{" "}
-              {bilanDesAppels.sans_reponse.aVenir} à venir. Ayant confirmé :{" "}
+              {bilanDesAppels.sans_reponse.aVenir} à venir. Confirmées à l&apos;appel :{" "}
               {bilanDesAppels.confirme.venues} venue{bilanDesAppels.confirme.venues > 1 ? "s" : ""},{" "}
               {bilanDesAppels.confirme.nonVenues} non venue
               {bilanDesAppels.confirme.nonVenues > 1 ? "s" : ""}.

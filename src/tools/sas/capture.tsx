@@ -140,7 +140,7 @@ export function Capture({ orgSlug, boites }: { orgSlug: string; boites: Boite[] 
             role={tropLong ? "alert" : undefined}
           >
             {longueur.toLocaleString("fr-FR")} / {LIMITE_CAPTURE.toLocaleString("fr-FR")}
-            {tropLong ? " — c'est trop long d'un coup." : null}
+            {tropLong ? ". C'est trop long d'un coup." : null}
           </p>
         ) : null}
       </div>

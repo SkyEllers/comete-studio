@@ -313,8 +313,8 @@ describe("taux", () => {
   });
 
   it("25. et il ne divise jamais par rien", () => {
-    assert.equal(taux(0, 0), "—");
-    assert.equal(taux(5, 0), "—");
+    assert.equal(taux(0, 0), "-");
+    assert.equal(taux(5, 0), "-");
   });
 });
 

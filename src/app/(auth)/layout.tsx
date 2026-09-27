@@ -16,10 +16,10 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
           ·
         </span>
         <a
-          href="https://louisgirault.fr"
+          href="https://cometestudio.fr"
           className="hover:text-foreground transition-colors"
         >
-          louisgirault.fr
+          cometestudio.fr
         </a>
         <span aria-hidden="true" className="text-line">
           ·

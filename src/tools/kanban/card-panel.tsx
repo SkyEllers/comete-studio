@@ -595,7 +595,7 @@ export function CardPanel({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="secondary" size="sm">
-                      {listeCourante?.name ?? "—"}
+                      {listeCourante?.name ?? "?"}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">

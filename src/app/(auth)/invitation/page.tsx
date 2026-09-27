@@ -11,7 +11,7 @@ import {
 import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Bienvenue — Comète Studio",
+  title: "Bienvenue · Comète Studio",
 };
 
 export default async function InvitationPage() {
@@ -25,7 +25,7 @@ export default async function InvitationPage() {
           Bienvenue, choisis ton mot de passe
         </CardTitle>
         <CardDescription>
-          Encore une étape et ton espace client Comète Studio est à toi.
+          Dernière étape avant d&apos;entrer dans ton espace client Comète Studio.
         </CardDescription>
       </CardHeader>
 

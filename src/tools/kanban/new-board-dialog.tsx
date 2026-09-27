@@ -81,7 +81,7 @@ export function NewBoardDialog({
         <DialogHeader>
           <DialogTitle>Nouveau tableau</DialogTitle>
           <DialogDescription>
-            Il démarre avec trois listes — À faire, En cours, Terminé — que tu
+            Il démarre avec trois listes (À faire, En cours, Terminé) que tu
             peux renommer ou supprimer.
           </DialogDescription>
         </DialogHeader>

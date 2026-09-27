@@ -58,7 +58,7 @@ export function Graphique({ jours }: { jours: (Compte & { jour: string })[] }) {
           return (
             <g key={jour.jour}>
               <title>
-                {`${etiquette(jour.jour, JOUR_LONG)} — ${jour.visiteurs} visiteur${jour.visiteurs > 1 ? "s" : ""}, ${jour.pagesVues} page${jour.pagesVues > 1 ? "s" : ""} vue${jour.pagesVues > 1 ? "s" : ""}, ${jour.clics} clic${jour.clics > 1 ? "s" : ""}`}
+                {`${etiquette(jour.jour, JOUR_LONG)} : ${jour.visiteurs} visiteur${jour.visiteurs > 1 ? "s" : ""}, ${jour.pagesVues} page${jour.pagesVues > 1 ? "s" : ""} vue${jour.pagesVues > 1 ? "s" : ""}, ${jour.clics} clic${jour.clics > 1 ? "s" : ""}`}
               </title>
 
               {/* Une bande transparente sur toute la hauteur : c'est elle qui

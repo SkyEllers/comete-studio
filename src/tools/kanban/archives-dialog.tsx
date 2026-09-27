@@ -159,7 +159,7 @@ function ContenuArchives({
                     titre={carte.title}
                     detail={
                       carte.listArchived
-                        ? `${carte.listName} — liste archivée`
+                        ? `${carte.listName} (liste archivée)`
                         : carte.listName
                     }
                   >
@@ -271,9 +271,11 @@ function ContenuArchives({
               Supprimer « {suppression?.nom} » ?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {suppression?.genre === "liste" && suppression.cardCount > 0
+              {suppression?.genre === "liste" && suppression.cardCount > 1
                 ? `Ses ${suppression.cardCount} cartes disparaissent avec elle, sans retour possible.`
-                : "Cette suppression est définitive, sans retour possible."}
+                : suppression?.genre === "liste" && suppression.cardCount === 1
+                  ? "Sa carte disparaît avec elle, sans retour possible."
+                  : "C'est définitif, sans retour possible."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

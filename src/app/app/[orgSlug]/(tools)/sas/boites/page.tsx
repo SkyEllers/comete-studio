@@ -90,7 +90,7 @@ export default async function BoitesPage({
 
       {!resultats && etageres.boites.length === 0 ? (
         <p className="text-muted-foreground mt-6 text-sm">
-          Aucune boîte pour l&apos;instant. Elles naissent toutes seules quand tu
+          Aucune boîte pour l&apos;instant. Elles se créent toutes seules quand tu
           ranges une idée au nom d&apos;un client, ou avec le bouton ci-dessus.
         </p>
       ) : null}
@@ -116,8 +116,8 @@ function Resultats({
           Rien qui contienne « {recherche.trim()} ».
         </p>
         <p className="text-muted-foreground mt-1.5 text-sm">
-          La recherche regarde les deux univers, toutes les boîtes, et les idées
-          archivées.
+          La recherche regarde partout : pro et perso, toutes les boîtes, les
+          idées archivées comprises.
         </p>
       </div>
     );
@@ -127,7 +127,7 @@ function Resultats({
     <div className="space-y-2">
       <p className="text-muted-foreground text-sm">
         {compteResultats(resultats.length)}
-        {resultats.length === 50 ? " ou plus — affine ta recherche." : ""}
+        {resultats.length === 50 ? " ou plus. Affine ta recherche." : ""}
       </p>
 
       <ul className="space-y-2">

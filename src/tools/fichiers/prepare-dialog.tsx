@@ -104,8 +104,9 @@ export function PrepareDialog({ orgSlug }: { orgSlug: string }) {
               : `Déposer ${preparation.entrees.length} fichiers`}
           </DialogTitle>
           <DialogDescription>
-            Donne-leur un nom qui se retrouve, choisis où les ranger, puis
-            envoie.
+            {preparation.entrees.length === 1
+              ? "Donne-lui un nom facile à retrouver, choisis où le ranger, puis envoie."
+              : "Donne-leur un nom facile à retrouver, choisis où les ranger, puis envoie."}
           </DialogDescription>
         </DialogHeader>
 
@@ -136,7 +137,7 @@ export function PrepareDialog({ orgSlug }: { orgSlug: string }) {
               className="h-8"
             />
             <p className="text-muted-foreground font-mono text-xs">
-              Optionnel — chaque fichier prend ce nom suivi de son numéro.
+              Facultatif : chaque fichier prend ce nom, suivi de son numéro.
             </p>
           </div>
         ) : null}

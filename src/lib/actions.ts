@@ -24,5 +24,5 @@ export function failFromZod<T = null>(error: {
   issues: { message: string; path: PropertyKey[] }[];
 }): ActionResult<T> {
   const issue = error.issues[0];
-  return fail(issue?.message ?? "Formulaire invalide.", String(issue?.path[0] ?? ""));
+  return fail(issue?.message ?? "Vérifie les champs du formulaire.", String(issue?.path[0] ?? ""));
 }

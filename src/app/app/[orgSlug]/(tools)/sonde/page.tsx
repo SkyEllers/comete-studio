@@ -141,7 +141,7 @@ async function Mesure({
         <p className="text-muted-foreground text-xs">
           Un visiteur est compté une fois par jour. Quelqu&apos;un qui revient
           mardi puis jeudi compte deux fois : sans cookie, rien ne permet de
-          savoir que c&apos;est la même personne — et c&apos;est le but.
+          savoir que c&apos;est la même personne. C&apos;est voulu.
           {tronquee ? " Cette période dépasse ce qu'on peut relire d'un coup : les derniers jours peuvent être incomplets." : ""}
         </p>
       </section>
@@ -196,7 +196,7 @@ async function Mesure({
         <Repartition
           vide={
             details.horsRetention
-              ? "Le détail par référent ne remonte pas au-delà de treize mois."
+              ? "Le détail par site ne remonte pas au-delà de treize mois."
               : "Personne n'est arrivé depuis un autre site sur cette période."
           }
           parts={details.referents.map((part) => ({

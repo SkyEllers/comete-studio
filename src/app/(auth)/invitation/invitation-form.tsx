@@ -74,7 +74,7 @@ export function InvitationForm({ defaultFullName }: { defaultFullName: string })
       <FieldError state={state} id="form-error" />
 
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Création…" : "Entrer dans mon espace"}
+        {pending ? "Enregistrement…" : "Entrer dans mon espace"}
       </Button>
     </form>
   );

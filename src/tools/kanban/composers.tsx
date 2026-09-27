@@ -104,7 +104,7 @@ export function Composer({
             setValeur("");
             setOuvert(false);
           }}
-          aria-label="Fermer le composeur"
+          aria-label="Annuler"
         >
           <X aria-hidden="true" />
         </Button>

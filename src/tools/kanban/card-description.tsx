@@ -79,7 +79,7 @@ export function CardDescription({
               }}
               maxLength={20000}
               aria-label="Description de la carte"
-              placeholder="Markdown accepté : **gras**, listes, liens…"
+              placeholder="Tu peux mettre du **gras**, des listes, des liens…"
               className="min-h-32"
             />
           )}

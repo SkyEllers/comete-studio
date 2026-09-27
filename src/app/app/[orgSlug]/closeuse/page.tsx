@@ -7,7 +7,7 @@ import { aujourdhuiAParis } from "@/tools/resultats/format";
 import { moisCourant } from "@/tools/resultats/mois";
 
 export const metadata: Metadata = {
-  title: "Mon espace — Comète Studio",
+  title: "Mon espace · Comète Studio",
 };
 
 /**

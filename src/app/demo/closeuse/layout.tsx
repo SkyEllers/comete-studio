@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Espace closeuse — Comète Studio",
+  title: "Espace closeuse · Comète Studio",
   robots: { index: false, follow: false },
 };
 

@@ -44,7 +44,7 @@ export function ResumeVente({
         Vente : {montant(rdv.sale_amount_cents, rdv.currency)}
       </span>{" "}
       le {dateDeVente(rdv.sale_date)}
-      {rdv.sale_note ? <span className="text-muted-foreground"> — {rdv.sale_note}</span> : null}
+      {rdv.sale_note ? <span className="text-muted-foreground"> · {rdv.sale_note}</span> : null}
     </p>
   );
 }

@@ -223,7 +223,7 @@ export async function enregistrer(
 
     if (!boite) {
       await defaire(supabase, creees);
-      return fail("Une des boîtes choisies n'existe plus. Reprends l'écran.");
+      return fail("Une des boîtes choisies n'existe plus. Revois tes choix.");
     }
 
     lignes.push({

@@ -375,7 +375,7 @@ function Ligne({
             <AlertDialogTitle>Supprimer cette idée ?</AlertDialogTitle>
             <AlertDialogDescription>
               « {note.content.slice(0, 120)}
-              {note.content.length > 120 ? "…" : ""} » — c&apos;est définitif. Pour
+              {note.content.length > 120 ? "…" : ""} ». C&apos;est définitif. Pour
               la garder sans l&apos;avoir sous les yeux, archive-la.
             </AlertDialogDescription>
           </AlertDialogHeader>

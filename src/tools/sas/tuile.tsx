@@ -52,7 +52,7 @@ export function Tuile({
           {compteIdees(compteur.notes)}
         </p>
         <p className="text-muted-foreground mt-2 font-mono text-xs">
-          {compteur.derniereLabel ? `Dernière ${compteur.derniereLabel}` : "—"}
+          {compteur.derniereLabel ? `Dernière ${compteur.derniereLabel}` : "-"}
         </p>
       </Link>
 

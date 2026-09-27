@@ -347,7 +347,7 @@ export async function toggleCardAssignee(input: {
         .eq("card_id", input.cardId)
         .eq("user_id", input.memberId);
 
-  if (error) return fail("Impossible de changer cette assignation.");
+  if (error) return fail("Impossible de changer les membres de cette carte.");
 
   await tracer(input.cardId, input.boardId, input.userId, "card.assigned", {
     member: input.memberName,
@@ -573,7 +573,7 @@ export async function updateComment(
 
   if (error) return fail("Impossible de modifier ce commentaire.");
   if (!data || data.length === 0) {
-    return fail("Un commentaire ne se modifie que par son auteur.");
+    return fail("Seul l'auteur d'un commentaire peut le modifier.");
   }
   return ok();
 }
@@ -590,7 +590,7 @@ export async function deleteComment(commentId: string): Promise<ActionResult> {
 
   if (error) return fail("Impossible de supprimer ce commentaire.");
   if (!data || data.length === 0) {
-    return fail("Un commentaire ne se supprime que par son auteur.");
+    return fail("Seul l'auteur d'un commentaire peut le supprimer.");
   }
   return ok();
 }

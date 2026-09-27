@@ -596,7 +596,7 @@ export async function notifyBatch(
     const entete = `${membre.org.name} · ${compteFichiers(lot.length)} ${ou} · ${tailleLisible(octets)}`;
     const suite = reste > 0 ? `\n… et ${compteFichiers(reste)} de plus.` : "";
 
-    const texte = `${entete}\n\n${noms.map((n) => `— ${n}`).join("\n")}${suite}\n\n${lien}`;
+    const texte = `${entete}\n\n${noms.map((n) => `- ${n}`).join("\n")}${suite}\n\n${lien}`;
 
     const html = [
       `<p>${echapper(entete)}</p>`,

@@ -343,7 +343,7 @@ function TableVie({ lignes, depense, budget }: { lignes: Ligne[]; depense: numbe
                   <TableCell className="whitespace-normal">{ligne.libelle}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{eur(ligne.centimes)}</TableCell>
                   <TableCell className="text-muted-foreground text-right font-mono tabular-nums">
-                    {ligne.budgetCentimes !== null ? eur(ligne.budgetCentimes) : "—"}
+                    {ligne.budgetCentimes !== null ? eur(ligne.budgetCentimes) : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <Ecart ecart={ecart} />
@@ -357,7 +357,7 @@ function TableVie({ lignes, depense, budget }: { lignes: Ligne[]; depense: numbe
               <TableCell>Total</TableCell>
               <TableCell className="text-right font-mono tabular-nums">{eur(depense)}</TableCell>
               <TableCell className="text-muted-foreground text-right font-mono tabular-nums">
-                {budget !== null ? eur(budget) : "—"}
+                {budget !== null ? eur(budget) : "-"}
               </TableCell>
               <TableCell className="text-right">
                 <Ecart ecart={budget !== null ? budget - depense : null} />
@@ -371,7 +371,7 @@ function TableVie({ lignes, depense, budget }: { lignes: Ligne[]; depense: numbe
 }
 
 function Ecart({ ecart }: { ecart: number | null }) {
-  if (ecart === null) return <span className="text-muted-foreground">—</span>;
+  if (ecart === null) return <span className="text-muted-foreground">-</span>;
   if (ecart === 0) return <span className="text-muted-foreground font-mono">pile</span>;
 
   const dessous = ecart > 0;

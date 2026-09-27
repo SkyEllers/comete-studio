@@ -34,7 +34,7 @@ export const TOOL_REGISTRY: Record<string, ToolMeta> = {
   kanban: {
     slug: "kanban",
     name: "Orbite",
-    description: "Tes tableaux de suivi : listes, cartes, avancement à plusieurs.",
+    description: "Tes tableaux de suivi, en listes et en cartes, pour avancer à plusieurs.",
     icon: SquareKanban,
     href: (orgSlug) => `/app/${orgSlug}/kanban`,
   },

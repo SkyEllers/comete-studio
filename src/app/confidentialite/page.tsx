@@ -5,7 +5,7 @@ import { LegalSection, LegalShell } from "@/components/app/legal-shell";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Politique de confidentialité — Comète Studio",
+  title: "Politique de confidentialité · Comète Studio",
 };
 
 /** Passage que Louis doit trancher ou faire valider avant la mise en ligne. */
@@ -82,8 +82,8 @@ export default function ConfidentialitePage() {
             <strong className="text-foreground font-medium">
               Ton mot de passe :
             </strong>{" "}
-            jamais stocké en clair. Il est haché par Supabase Auth, et personne —
-            Louis compris — ne peut le lire.
+            jamais stocké en clair. Il est haché par Supabase Auth, et personne,
+            Louis compris, ne peut le lire.
           </li>
           <li>
             <strong className="text-foreground font-medium">
@@ -146,11 +146,11 @@ export default function ConfidentialitePage() {
             <strong className="text-foreground font-medium">
               Vercel Inc.
             </strong>{" "}
-            (États-Unis) — hébergement de l&apos;application et journaux
+            (États-Unis) : hébergement de l&apos;application et journaux
             serveur.
           </li>
           <li>
-            <strong className="text-foreground font-medium">Supabase</strong> —
+            <strong className="text-foreground font-medium">Supabase</strong> :
             base de données, comptes et fichiers, hébergés en Irlande (Union
             européenne), région{" "}
             <span className="font-mono text-xs">eu-west-1</span>.
@@ -158,8 +158,8 @@ export default function ConfidentialitePage() {
           <li>
             <strong className="text-foreground font-medium">
               Un prestataire d&apos;envoi d&apos;emails
-            </strong>{" "}
-            — uniquement pour les emails d&apos;invitation et de
+            </strong>
+            {" "}: uniquement pour les emails d&apos;invitation et de
             réinitialisation de mot de passe.{" "}
             <AValider>
               Prestataire à arrêter (Resend ou Brevo) et à nommer ici, avec son
@@ -211,8 +211,8 @@ export default function ConfidentialitePage() {
           : réponse sous un mois.
         </p>
         <p>
-          Si la réponse ne te convient pas, tu peux saisir la CNIL —{" "}
-          <span className="font-mono text-xs">cnil.fr</span>.
+          Si la réponse ne te convient pas, tu peux saisir la CNIL (
+          <span className="font-mono text-xs">cnil.fr</span>).
         </p>
       </LegalSection>
 

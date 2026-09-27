@@ -47,7 +47,7 @@ function versFichier(
     width: ligne.width,
     height: ligne.height,
     durationSeconds: ligne.duration_seconds,
-    authorName: ligne.profiles?.full_name || ligne.profiles?.email || "—",
+    authorName: ligne.profiles?.full_name || ligne.profiles?.email || "Inconnu",
     createdLabel: tempsRelatif(ligne.created_at, maintenant),
     canDelete: peutToutSupprimer || ligne.uploaded_by === userId,
   };

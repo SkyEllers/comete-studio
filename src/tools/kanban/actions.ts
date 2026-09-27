@@ -65,7 +65,7 @@ export async function renormalizeList(
 
   for (const [id, position] of Object.entries(positions)) {
     const { error } = await supabase.from("cards").update({ position }).eq("id", id);
-    if (error) return fail("La renumérotation des cartes a échoué.");
+    if (error) return fail("Impossible de remettre les cartes dans l'ordre.");
   }
 
   return ok(positions);
@@ -91,7 +91,7 @@ export async function renormalizeBoardLists(
 
   for (const [id, position] of Object.entries(positions)) {
     const { error } = await supabase.from("lists").update({ position }).eq("id", id);
-    if (error) return fail("La renumérotation des listes a échoué.");
+    if (error) return fail("Impossible de remettre les listes dans l'ordre.");
   }
 
   return ok(positions);

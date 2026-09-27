@@ -222,7 +222,7 @@ async function Liste({
           title="Rien à afficher."
           description={
             recherche
-              ? "Aucun rendez-vous ne porte ce nom. Les séances reçues avant l'arrivée des noms n'en ont pas."
+              ? "Aucun rendez-vous ne porte ce nom. Les séances reçues avant que Radar enregistre les noms n'en ont pas."
               : toutes.length > 0
                 ? "Aucun rendez-vous ne correspond à ces filtres."
                 : `Aucun rendez-vous en ${libelleMois(mois)}.`

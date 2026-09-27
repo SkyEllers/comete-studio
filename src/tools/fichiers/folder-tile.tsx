@@ -201,7 +201,9 @@ export function FolderTile({
             <AlertDialogDescription>
               {folder.fileCount === 0
                 ? "Ce dossier est vide. Sa suppression est définitive."
-                : `Ses ${folder.fileCount} fichier${folder.fileCount > 1 ? "s" : ""} disparaissent avec lui, sans retour possible. Saisis le nom du dossier pour confirmer.`}
+                : folder.fileCount === 1
+                  ? "Son fichier disparaît avec lui, sans retour possible. Saisis le nom du dossier pour confirmer."
+                  : `Ses ${folder.fileCount} fichiers disparaissent avec lui, sans retour possible. Saisis le nom du dossier pour confirmer.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
 

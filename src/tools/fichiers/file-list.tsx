@@ -190,16 +190,16 @@ export function FileList({
 
           {avancement?.mode === "un-par-un" ? (
             <p className="text-muted-foreground w-full text-xs">
-              Ton navigateur ne sait pas écrire un zip sur le disque : les
-              fichiers arrivent un par un.
+              Ton navigateur ne sait pas les regrouper en un seul fichier : ils
+              arrivent un par un.
             </p>
           ) : null}
 
           {supprimables < selection.length ? (
             <p className="text-muted-foreground w-full text-xs">
-              {selection.length - supprimables} de ces fichiers ont été déposés
-              par quelqu&apos;un d&apos;autre : seul leur auteur ou un responsable
-              peut les supprimer.
+              {selection.length - supprimables === 1
+                ? "Un de ces fichiers a été déposé par quelqu'un d'autre : seul son auteur ou un responsable peut le supprimer."
+                : `${selection.length - supprimables} de ces fichiers ont été déposés par quelqu'un d'autre : seul leur auteur ou un responsable peut les supprimer.`}
             </p>
           ) : null}
         </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LegalSection, LegalShell } from "@/components/app/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Mentions légales — Comète Studio",
+  title: "Mentions légales · Comète Studio",
 };
 
 export default function MentionsLegalesPage() {
@@ -46,8 +46,20 @@ export default function MentionsLegalesPage() {
         </p>
         <p>
           La présentation publique de l&apos;activité se trouve sur{" "}
-          <span className="font-mono text-xs">louisgirault.fr</span>, qui a ses
-          propres mentions légales.
+          <a
+            href="https://cometestudio.fr"
+            className="text-foreground underline underline-offset-4"
+          >
+            cometestudio.fr
+          </a>
+          , qui a ses propres{" "}
+          <a
+            href="https://cometestudio.fr/mentions-legales"
+            className="text-foreground underline underline-offset-4"
+          >
+            mentions légales
+          </a>
+          .
         </p>
       </LegalSection>
 
@@ -56,16 +68,16 @@ export default function MentionsLegalesPage() {
           <strong className="text-foreground font-medium">
             Application :
           </strong>{" "}
-          Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis —{" "}
-          <span className="font-mono text-xs">vercel.com</span>.
+          Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis (
+          <span className="font-mono text-xs">vercel.com</span>).
         </p>
         <p>
           <strong className="text-foreground font-medium">
             Base de données, comptes et fichiers :
           </strong>{" "}
           Supabase, hébergement des données en Irlande (Union européenne),
-          région <span className="font-mono text-xs">eu-west-1</span> —{" "}
-          <span className="font-mono text-xs">supabase.com</span>. C&apos;est là
+          région <span className="font-mono text-xs">eu-west-1</span> (
+          <span className="font-mono text-xs">supabase.com</span>). C&apos;est là
           que vivent les comptes, les organisations et les contenus créés dans
           les outils.
         </p>
@@ -107,8 +119,8 @@ export default function MentionsLegalesPage() {
         </p>
         <p>
           Les applications livrées aux clientes de Comète Studio dans le cadre
-          des partenariats — notamment l&apos;app Foyer, qui traite des données
-          de santé relevant de l&apos;article 9 du RGPD — font l&apos;objet
+          des partenariats (notamment l&apos;app Foyer, qui traite des données
+          de santé relevant de l&apos;article 9 du RGPD) font l&apos;objet
           d&apos;une politique de confidentialité distincte, en cours de
           production avec un cabinet juridique spécialisé RGPD / santé. Elle sera
           publiée avant toute mise en production chez une cliente externe.

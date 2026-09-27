@@ -9,7 +9,7 @@
 const UNITES = ["Ko", "Mo", "Go", "To"] as const;
 
 export function tailleLisible(octets: number): string {
-  if (!Number.isFinite(octets) || octets < 0) return "—";
+  if (!Number.isFinite(octets) || octets < 0) return "?";
   if (octets < 1000) return `${octets} octet${octets > 1 ? "s" : ""}`;
 
   let valeur = octets / 1000;

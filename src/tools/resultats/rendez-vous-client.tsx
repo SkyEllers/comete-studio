@@ -164,7 +164,7 @@ function useNoterAppel(orgSlug: string) {
  * sera pas réinterrogé pour combler l'histoire. Ces séances-là resteront
  * anonymes ; le dire est plus honnête que de laisser croire à un bug.
  */
-const AVANT_IDENTITE = "Reçu avant l'identité";
+const AVANT_IDENTITE = "Reçu avant que Radar enregistre les noms";
 
 export function ListeRendezVous({
   orgSlug,
@@ -624,8 +624,8 @@ function FicheRendezVous({
         {moisCloture ? (
           <p className="border-line text-muted-foreground rounded-lg border border-dashed p-3 text-sm">
             Le relevé de ce mois est clôturé : les statuts n&apos;y changent plus.
-            Si quelque chose te semble faux, conteste le relevé — Louis corrigera
-            et le re-clôturera.
+            Si quelque chose te semble faux, conteste le relevé : Louis le corrigera
+            et le clôturera de nouveau.
           </p>
         ) : modifiable ? (
           /*

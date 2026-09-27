@@ -332,7 +332,7 @@ export function FichiersProvider({
         if (error || !data) {
           patcher(cle, {
             etat: "echec",
-            message: "Impossible d'inscrire ce fichier.",
+            message: "Impossible d'enregistrer ce fichier.",
           });
           demarrerSuivants();
           return;

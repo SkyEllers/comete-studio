@@ -195,7 +195,7 @@ function versReponses(r: Reponses): Pick<Rdv, "reponses" | "site"> {
           { q: Q_OBSTACLE, r: r.site.obstacle },
           { q: Q_DECISION, r: r.site.decision },
           { q: Q_INVEST, r: r.site.invest },
-          { q: Q_ATTENTE, r: r.site.attente || "—" },
+          { q: Q_ATTENTE, r: r.site.attente || "-" },
         ]
       : undefined,
   };
@@ -1604,9 +1604,9 @@ function FormAjout({
               reserveLe: new Date().toISOString(),
               ...versReponses({
                 tel: "06 •• •• •• ••",
-                pourquoi: motif.trim() || "—",
-                age: age.trim() || "—",
-                changer: "—",
+                pourquoi: motif.trim() || "-",
+                age: age.trim() || "-",
+                changer: "-",
                 connu: "Instagram",
                 budget,
               }),
