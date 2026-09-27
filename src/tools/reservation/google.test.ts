@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import { deballer, emballer, memeEtat, nouvelEtat } from "./etat.ts";
 import {
   adresseConsentement,
+  agendaExiste,
+  creerAgenda,
   corpsEvenement,
   creerEvenement,
   echangerCode,
@@ -44,7 +46,7 @@ describe("Google : connecter", () => {
       "openid",
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/calendar.freebusy",
-      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.app.created",
     ]);
   });
 
@@ -53,13 +55,14 @@ describe("Google : connecter", () => {
       {
         corps: {
           refresh_token: "1//r",
-          scope: "openid https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.freebusy",
+          access_token: "ya29.a",
+          scope: "openid https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.freebusy",
           id_token: jeton({ email: "closeuse@gmail.com" }),
         },
       },
     ]);
     const c = await echangerCode("code", "https://app.cometestudio.fr/r", ids, f);
-    assert.deepEqual(c, { jetonRafraichissement: "1//r", email: "closeuse@gmail.com", droitsManquants: [] });
+    assert.deepEqual(c, { jetonRafraichissement: "1//r", jetonAcces: "ya29.a", email: "closeuse@gmail.com", droitsManquants: [] });
     const corps = new URLSearchParams(String(appels[0].init?.body));
     assert.equal(corps.get("grant_type"), "authorization_code");
     assert.equal(corps.get("redirect_uri"), "https://app.cometestudio.fr/r");
@@ -68,7 +71,7 @@ describe("Google : connecter", () => {
   it("repère une case d'agenda décochée", async () => {
     const { f } = faux([{ corps: { refresh_token: "1//r", scope: "openid https://www.googleapis.com/auth/calendar.freebusy" } }]);
     const c = await echangerCode("code", "r", ids, f);
-    assert.deepEqual(c.droitsManquants, ["https://www.googleapis.com/auth/calendar.events"]);
+    assert.deepEqual(c.droitsManquants, ["https://www.googleapis.com/auth/calendar.app.created"]);
   });
 
   it("sans jeton de rafraîchissement, c'est une erreur", async () => {
@@ -112,6 +115,24 @@ describe("Google : l'occupé", () => {
   it("un agenda que Google n'a pas pu lire n'est pas un agenda libre", async () => {
     const { f } = faux([{ corps: { calendars: { primary: { errors: [{ reason: "notFound" }] } } } }]);
     await assert.rejects(occupe("a", "primary", 0, 1, f), /notFound/);
+  });
+});
+
+describe("Google : l'agenda « Diagnostics »", () => {
+  it("se crée à son fuseau, et rend son identifiant", async () => {
+    const { f, appels } = faux([{ corps: { id: "abc@group.calendar.google.com" } }]);
+    assert.equal(await creerAgenda("a", "America/Montreal", f), "abc@group.calendar.google.com");
+    assert.equal(appels[0].url, "https://www.googleapis.com/calendar/v3/calendars");
+    const corps = JSON.parse(String(appels[0].init?.body));
+    assert.equal(corps.summary, "Diagnostics");
+    assert.equal(corps.timeZone, "America/Montreal");
+  });
+
+  it("supprimé de son côté : il n'existe plus, on en refera un", async () => {
+    assert.equal(await agendaExiste("a", "x", faux([{ status: 404 }]).f), false);
+    assert.equal(await agendaExiste("a", "x", faux([{ status: 403 }]).f), false);
+    assert.equal(await agendaExiste("a", "x", faux([{ corps: { id: "x" } }]).f), true);
+    await assert.rejects(agendaExiste("a", "x", faux([{ status: 500, corps: {} }]).f), ErreurGoogle);
   });
 });
 

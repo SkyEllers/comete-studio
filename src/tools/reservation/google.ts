@@ -4,12 +4,19 @@
  *
  * Quatre gestes, et seulement ceux-là :
  * - connecter : l'écran de consentement de Google, puis l'échange du code
- *   contre un jeton de rafraîchissement (rangé dans le Vault, 0042) ;
- * - lire l'occupé : `freeBusy`, qui ne dit que « occupé de telle heure à
- *   telle heure », jamais le contenu des rendez-vous perso ;
- * - écrire le rendez-vous, avec un Google Meet créé tout seul ou le lien
- *   fixe de la personne ;
+ *   contre un jeton de rafraîchissement (rangé dans le Vault, 0042), et la
+ *   création d'un agenda « Diagnostics » dans son compte ;
+ * - lire l'occupé de son agenda principal : `freeBusy`, qui ne dit que
+ *   « occupé de telle heure à telle heure », jamais le contenu ;
+ * - écrire le rendez-vous dans l'agenda « Diagnostics », avec un Google Meet
+ *   créé tout seul ou le lien fixe de la personne ;
  * - effacer le rendez-vous (annulation, report).
+ *
+ * Deux droits d'agenda, tous deux « non sensibles » pour Google (lu dans la
+ * console le 27/09/2026) : `calendar.freebusy` et `calendar.app.created`,
+ * qui ne donne accès qu'aux agendas créés par l'outil. Avec
+ * `calendar.events`, sensible, Google affichait « Google n'a pas validé
+ * cette application » à chaque connexion.
  *
  * L'application Google est « Comète Studio », projet `comete-rapports`,
  * publiée en production le 27/09/2026. Identifiants dans Vercel :
@@ -20,13 +27,19 @@ export const DROITS = [
   "openid",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/calendar.freebusy",
-  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.app.created",
 ] as const;
 
 /** Les deux sans lesquels l'outil ne marche pas : la personne peut les décocher. */
 export const DROITS_AGENDA = DROITS.slice(2);
 
 export const CHEMIN_RETOUR = "/api/reservation/google/retour";
+
+/** Son agenda à elle, celui dont on lit l'occupé. */
+export const AGENDA_PRINCIPAL = "primary";
+
+/** Le nom de l'agenda que l'outil crée chez elle. */
+export const NOM_AGENDA = "Diagnostics";
 
 type Fetch = typeof fetch;
 
@@ -99,6 +112,8 @@ export function adresseConsentement(p: {
 
 export type Connexion = {
   jetonRafraichissement: string;
+  /** Valable une heure : sert à créer son agenda « Diagnostics » tout de suite. */
+  jetonAcces: string;
   email: string | null;
   droitsManquants: string[];
 };
@@ -146,6 +161,7 @@ export async function echangerCode(
   const accordes = new Set(String(corps.scope ?? "").split(" "));
   return {
     jetonRafraichissement: jeton,
+    jetonAcces: typeof corps.access_token === "string" ? corps.access_token : "",
     email: emailDuJeton(corps.id_token),
     droitsManquants: DROITS_AGENDA.filter((d) => !accordes.has(d)),
   };
@@ -208,6 +224,35 @@ export async function occupe(
     throw new ErreurGoogle(`lecture de l'occupé : ${cal?.errors?.map((e) => e.reason).join(", ") ?? "agenda absent de la réponse"}`, 200);
   }
   return (cal.busy ?? []).map((b) => ({ debut: Date.parse(b.start), fin: Date.parse(b.end) }));
+}
+
+// ------------------------ L'agenda « Diagnostics » -------------------------
+
+/** L'agenda créé par l'outil existe-t-il encore chez elle ? */
+export async function agendaExiste(acces: string, id: string, f: Fetch = fetch): Promise<boolean> {
+  const reponse = await f(`${API}/calendars/${encodeURIComponent(id)}`, {
+    headers: { authorization: `Bearer ${acces}` },
+  });
+  // Supprimé par elle, ou créé par une autre application : on en refait un.
+  if (reponse.status === 404 || reponse.status === 403) return false;
+  await lire(reponse, "lecture de l'agenda Diagnostics");
+  return true;
+}
+
+/** Créer l'agenda « Diagnostics » dans son compte, à son fuseau. */
+export async function creerAgenda(acces: string, fuseau: string, f: Fetch = fetch): Promise<string> {
+  const reponse = await f(`${API}/calendars`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${acces}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      summary: NOM_AGENDA,
+      description: "Les diagnostics réservés en ligne, ajoutés par l'outil de réservation.",
+      timeZone: fuseau,
+    }),
+  });
+  const corps = await lire(reponse, "création de l'agenda Diagnostics");
+  if (typeof corps.id !== "string") throw new ErreurGoogle("création de l'agenda Diagnostics : aucun identifiant rendu", 200);
+  return corps.id;
 }
 
 // ---------------------------- Écrire, effacer ------------------------------

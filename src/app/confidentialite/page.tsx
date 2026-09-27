@@ -195,7 +195,9 @@ export default function ConfidentialitePage() {
           connectes ton agenda Google. L&apos;outil y lit une seule chose : les
           moments où tu es occupée. Pas le titre de tes rendez-vous, pas leur
           contenu. Ça lui sert à ne proposer que des créneaux où tu es libre. Il
-          y écrit aussi chaque diagnostic réservé, avec son lien de visio.
+          crée aussi dans ton compte un agenda à part, « Diagnostics », où il
+          écrit chaque diagnostic réservé avec son lien de visio. Il n&apos;écrit
+          nulle part ailleurs.
         </p>
         <p>
           Il garde l&apos;adresse de ton compte Google et un jeton d&apos;accès,
@@ -217,8 +219,8 @@ export default function ConfidentialitePage() {
         <p>
           Tu peux retirer cet accès quand tu veux, avec le bouton « Déconnecter »
           de la page Mon agenda ou directement depuis ton compte Google. Le jeton
-          est alors effacé. Les diagnostics déjà écrits dans ton agenda, eux, y
-          restent.
+          est alors effacé. L&apos;agenda « Diagnostics » et ce qu&apos;il
+          contient restent dans ton compte : tu peux le supprimer toi-même.
         </p>
       </LegalSection>
 

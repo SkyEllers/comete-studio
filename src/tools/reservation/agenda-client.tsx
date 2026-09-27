@@ -21,7 +21,7 @@ import type { Issue } from "./etat";
 const MESSAGES: Record<Issue, { texte: string; bon: boolean }> = {
   ok: { texte: "C'est fait, ton agenda est connecté.", bon: true },
   refus: { texte: "Tu as refusé l'accès, donc rien n'est connecté.", bon: false },
-  droits: { texte: "Il manquait une case. Recommence en cochant les deux accès à l'agenda.", bon: false },
+  droits: { texte: "Il manquait une case. Recommence en cochant les deux.", bon: false },
   erreur: { texte: "La connexion n'a pas marché. Réessaie, et si ça recommence, écris à Louis.", bon: false },
   expire: { texte: "Le lien a expiré. Recommence.", bon: false },
 };
@@ -69,8 +69,9 @@ export function AgendaClient({
             Ton agenda Google est connecté{email ? ` (${email})` : ""}.
           </p>
           <p className="text-muted-foreground text-sm">
-            Chaque diagnostic réservé s&apos;y ajoute tout seul, et tes rendez-vous perso bloquent
-            les créneaux où tu es prise. L&apos;outil voit juste quand tu es occupée. Ce que tu as
+            Chaque diagnostic réservé s&apos;ajoute tout seul dans l&apos;agenda « Diagnostics »,
+            que l&apos;outil a créé dans ton Google Agenda. Tes rendez-vous perso bloquent les
+            créneaux où tu es prise. L&apos;outil voit juste quand tu es occupée. Ce que tu as
             noté, il ne le lit pas.
           </p>
           <Button variant="outline" onClick={() => setConfirmation(true)} disabled={enCours}>
@@ -80,15 +81,11 @@ export function AgendaClient({
       ) : (
         <section className="border-line space-y-4 rounded-lg border p-5">
           <p className="text-sm">
-            Connecte ton agenda Google pour recevoir des diagnostics. L&apos;outil y ajoute chaque
-            rendez-vous et bloque les créneaux où tu es déjà prise. Il voit juste quand tu es
-            occupée, pas le contenu de tes rendez-vous.
+            Connecte ton agenda Google pour recevoir des diagnostics. L&apos;outil crée dans ton
+            compte un agenda « Diagnostics » et y ajoute chaque rendez-vous. Dans ton agenda à toi,
+            il voit juste quand tu es occupée, pas le contenu de tes rendez-vous.
           </p>
-          <p className="text-muted-foreground text-sm">
-            Google va t&apos;afficher « Google n&apos;a pas validé cette application ». C&apos;est
-            normal : clique sur « Paramètres avancés », puis sur « Accéder à Comète Studio (non
-            sécurisé) ». Coche bien les deux cases de l&apos;agenda.
-          </p>
+          <p className="text-muted-foreground text-sm">Sur l&apos;écran de Google, coche bien les deux cases.</p>
           <Button asChild>
             <a href={connecter}>Connecter mon agenda Google</a>
           </Button>

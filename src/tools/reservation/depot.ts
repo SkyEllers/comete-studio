@@ -87,7 +87,9 @@ export function depotSupabase(db: Admin): Depot {
         role: p.role === "titulaire" ? "titulaire" : "closeuse",
         fuseau: p.fuseau,
         maxParJour: p.max_par_jour,
-        agendaConnecte: p.google_connecte_le !== null,
+        // Connectée, et son agenda « Diagnostics » créé : sans lui, on ne
+        // saurait pas où écrire le rendez-vous.
+        agendaConnecte: p.google_connecte_le !== null && p.google_agenda !== "primary",
         googleAgenda: p.google_agenda,
         plages: (horaires.data ?? [])
           .filter((h) => h.personne_id === p.id)

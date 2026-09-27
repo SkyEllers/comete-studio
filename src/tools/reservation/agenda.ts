@@ -3,6 +3,9 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import {
+  AGENDA_PRINCIPAL,
+  agendaExiste,
+  creerAgenda,
   creerEvenement,
   effacerEvenement,
   ErreurGoogle,
@@ -31,13 +34,28 @@ export async function lireJeton(db: Admin, personneId: string): Promise<string |
   return data ?? null;
 }
 
-/** Après l'écran de Google : le jeton au Vault, l'adresse et l'heure sur sa fiche. */
+/**
+ * Après l'écran de Google : son agenda « Diagnostics » (celui d'avant s'il
+ * existe encore, sinon un neuf), le jeton au Vault, l'adresse, l'agenda et
+ * l'heure sur sa fiche.
+ */
 export async function enregistrerConnexion(db: Admin, personneId: string, c: Connexion): Promise<void> {
+  const { data: fiche, error: lecture } = await db
+    .from("reservation_personnes")
+    .select("fuseau, google_agenda")
+    .eq("id", personneId)
+    .single();
+  if (lecture || !fiche) throw new Error(`fiche : ${lecture?.message ?? "introuvable"}`);
+
+  const ancien = fiche.google_agenda !== AGENDA_PRINCIPAL ? fiche.google_agenda : null;
+  const agenda =
+    ancien && (await agendaExiste(c.jetonAcces, ancien)) ? ancien : await creerAgenda(c.jetonAcces, fiche.fuseau);
+
   const pose = await db.rpc("reservation_set_secret", { personne: personneId, kind: TYPE, value: c.jetonRafraichissement });
   if (pose.error) throw new Error(`jeton Google : ${pose.error.message}`);
   const { error } = await db
     .from("reservation_personnes")
-    .update({ google_email: c.email, google_connecte_le: new Date().toISOString() })
+    .update({ google_email: c.email, google_agenda: agenda, google_connecte_le: new Date().toISOString() })
     .eq("id", personneId);
   if (error) throw new Error(`fiche : ${error.message}`);
 }
@@ -99,7 +117,9 @@ export function agendasGoogle(db: Admin, ids: Identifiants): Agendas {
   const jeton = porteJetons(db, ids);
   return {
     async occupe(p: PersonneLue, de: number, a: number) {
-      return occupe(await jeton(p.id), p.googleAgenda, de, a);
+      // L'occupé se lit dans son agenda à elle ; ses diagnostics, eux,
+      // viennent de la base (pause et maximum).
+      return occupe(await jeton(p.id), AGENDA_PRINCIPAL, de, a);
     },
   };
 }
@@ -139,6 +159,9 @@ export async function ecrireRendezVous(
 ): Promise<{ id: string; lienVisio: string | null }> {
   const rdv = await lireRdv(db, rdvId);
   if (rdv.google_event_id) return { id: rdv.google_event_id, lienVisio: null };
+  if (rdv.personne.google_agenda === AGENDA_PRINCIPAL) {
+    throw new Error(`rendez-vous ${rdv.id} : pas d'agenda « Diagnostics », la personne doit reconnecter Google`);
+  }
 
   const acces = await porteJetons(db, ids)(rdv.personne.id);
   const prenom = rdv.prenom?.trim() || "une cliente";
