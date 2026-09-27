@@ -134,7 +134,7 @@ if (process.argv.includes("--etat")) {
 
 if (arg("--envoyer") !== null) {
   const lignes = JSON.parse(readFileSync(arg("--envoyer"), "utf8"));
-  const EXPEDITEUR = "Peggy Girault <peggy@peggygirault.fr>";
+  const EXPEDITEUR = "Peggy Girault <info@peggygirault.fr>";
   const REPONSE = "girault.peggy@gmail.com";
   const jourSeul = (rdv) => rdv.split(" à ")[0];
   const heureSeule = (rdv) => rdv.split(" à ")[1] ?? "";
@@ -149,7 +149,7 @@ if (arg("--envoyer") !== null) {
     const texte = `${para.join("\n\n")}\n\nSi ça te va, c'est par ici : ${l.lien}\n\nÀ très vite,\nPeggy\n`;
     const html =
       para.map((p) => `<p>${echapper(p)}</p>`).join("") +
-      `<p>Si ça te va, c'est par ici : <a href="${echapper(l.lien)}">${echapper(l.lien)}</a></p><p>À très vite,<br>Peggy</p>`;
+      `<p>Si ça te va, c'est par ici : <a href="${echapper(l.lien)}">mes rappels sur WhatsApp</a></p><p>À très vite,<br>Peggy</p>`;
     return { sujet, texte, html };
   };
 
