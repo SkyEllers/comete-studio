@@ -22,7 +22,7 @@ import { depotSupabase } from "@/tools/reservation/depot";
 import { identifiants } from "@/tools/reservation/google";
 import { creneauxLibres, type Disponibilites } from "@/tools/reservation/moteur";
 
-import { AjouterPersonne, BasculerPersonne, PreparerBouton } from "./reservation-forms";
+import { AjouterPersonne, BasculerPersonne, CreerJeton, OuvrirBouton, PreparerBouton, RevoquerJeton } from "./reservation-forms";
 
 /**
  * La réservation d'un client, vue par Louis : qui prend des diagnostics,
@@ -66,7 +66,7 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
   const { data: org } = await admin.from("organizations").select("id, name, slug").eq("id", id).maybeSingle();
   if (!org) notFound();
 
-  const [radar, reglagesLus, personnesLues, horairesLus, rdvLus, membresLus] = await Promise.all([
+  const [radar, reglagesLus, personnesLues, horairesLus, rdvLus, membresLus, jetonsLus] = await Promise.all([
     admin
       .from("organization_tools")
       .select("enabled, tools!inner(slug)")
@@ -87,12 +87,18 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
       .eq("statut", "confirme")
       .gte("debut", new Date().toISOString()),
     admin.from("memberships").select("user_id, role, profiles(full_name, email)").eq("organization_id", org.id),
+    admin
+      .from("reservation_jetons")
+      .select("id, label, created_at, last_used_at, revoked_at")
+      .eq("organization_id", org.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const reglages = reglagesLus.data;
   const personnes = personnesLues.data ?? [];
   const horaires = horairesLus.data ?? [];
   const rdv = rdvLus.data ?? [];
+  const jetons = jetonsLus.data ?? [];
   const deja = new Set(personnes.map((p) => p.user_id));
   const candidates = (membresLus.data ?? [])
     .filter((m) => !deja.has(m.user_id))
@@ -134,11 +140,12 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
         <div className="space-y-10">
           <section className="space-y-2 text-sm">
             <h2 className="text-lg">Réglages</h2>
-            <p>
+            <div className="flex flex-wrap items-center gap-3">
               <Badge variant={reglages.actif ? "default" : "secondary"}>
                 {reglages.actif ? "Ouverte au public" : "Fermée : la page ne propose rien"}
               </Badge>
-            </p>
+              <OuvrirBouton organizationId={org.id} actif={reglages.actif} nomClient={org.name} />
+            </div>
             <p className="text-muted-foreground">
               {reglages.duree_minutes} min, {reglages.pause_minutes} min de pause, un créneau toutes les{" "}
               {reglages.pas_minutes} min, préavis de {reglages.preavis_minutes} min. Fenêtre de {reglages.fenetre_jours}{" "}
@@ -193,6 +200,32 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               </div>
             )}
             <AjouterPersonne organizationId={org.id} candidates={candidates} />
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg">La page du site</h2>
+            <p className="text-muted-foreground text-sm">
+              Le serveur du site appelle le hub avec un de ces jetons (variable <code>COMETE_RESERVATION_TOKEN</code>{" "}
+              dans Vercel). Un jeton ne réserve que chez ce client.
+            </p>
+            {jetons.length > 0 ? (
+              <ul className="space-y-1 text-sm">
+                {jetons.map((j) => (
+                  <li key={j.id} className={`flex flex-wrap items-center gap-3 ${j.revoked_at ? "opacity-60" : ""}`}>
+                    <span className="font-medium">{j.label}</span>
+                    <span className="text-muted-foreground font-mono text-xs">
+                      créé le {new Date(j.created_at).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
+                      {j.last_used_at
+                        ? `, servi le ${new Date(j.last_used_at).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })}`
+                        : ", jamais servi"}
+                      {j.revoked_at ? ", révoqué" : ""}
+                    </span>
+                    {j.revoked_at ? null : <RevoquerJeton organizationId={org.id} jetonId={j.id} />}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <CreerJeton organizationId={org.id} />
           </section>
 
           <section className="space-y-3">

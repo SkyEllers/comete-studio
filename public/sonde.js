@@ -4,7 +4,8 @@
  *     <script src="https://app.cometestudio.fr/sonde.js" data-site="JETON" defer></script>
  *
  * Trois événements, pas un de plus : une page vue à l'arrivée, un clic quand le
- * visiteur part vers Calendly, un créneau quand il en choisit un.
+ * visiteur part vers Calendly, un créneau quand il en choisit un (dans
+ * Calendly, ou sur un élément marqué `data-sonde="creneau"`).
  *
  * Aucun cookie, aucun stockage, aucun identifiant : il ne garde rien entre
  * deux pages et ne peut pas savoir qui vous êtes. Les visiteurs uniques se
@@ -182,6 +183,11 @@
 
       // Le repère posé à la main, quand le bouton n'est pas un lien.
       if (cible.closest('[data-sonde="cta"]')) return reserver();
+
+      // Le créneau choisi sur une page de réservation maison (l'outil de
+      // réservation du hub) : un repère posé à la main, puisqu'aucun Calendly
+      // n'est là pour l'annoncer par message.
+      if (cible.closest('[data-sonde="creneau"]')) return choisir();
 
       var lien = cible.closest("a[href]");
       if (lien && versCalendly(lien.getAttribute("href"))) reserver();

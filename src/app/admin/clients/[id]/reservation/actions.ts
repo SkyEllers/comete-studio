@@ -1,5 +1,7 @@
 "use server";
 
+import { createHash, randomBytes } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -88,6 +90,83 @@ export async function basculerPersonne(input: unknown): Promise<ActionResult> {
     .eq("id", personneId)
     .eq("organization_id", organizationId);
   if (error) return fail(`Mise à jour : ${error.message}`);
+
+  rafraichir(organizationId);
+  return ok();
+}
+
+const ouvertureSchema = z.object({ organizationId: organisation, actif: z.boolean() });
+
+/**
+ * Ouvrir ou fermer la réservation. Fermée, la page du site ne propose rien
+ * (`{ etat: "ferme" }`). Chez Peggy, elle ne s'ouvre qu'à la bascule.
+ */
+export async function ouvrirReservation(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = ouvertureSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+  const { organizationId, actif } = parsed.data;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("reservation_reglages")
+    .update({ actif })
+    .eq("organization_id", organizationId)
+    .select("organization_id");
+  if (error) return fail(`Réglages : ${error.message}`);
+  if (!data || data.length === 0) return fail("Réglages introuvables : prépare d'abord la réservation.");
+
+  rafraichir(organizationId);
+  return ok();
+}
+
+const jetonSchema = z.object({
+  organizationId: organisation,
+  label: z.string().trim().min(1, { error: "Donne-lui un nom." }).max(60, { error: "60 caractères au plus." }),
+});
+
+/**
+ * Un jeton pour le serveur du site (0045). Rendu une seule fois : seul son
+ * SHA-256 est gardé. Il se range dans les variables de Vercel du site
+ * (`COMETE_RESERVATION_TOKEN`), jamais dans le code.
+ */
+export async function creerJetonPage(input: unknown): Promise<ActionResult<{ jeton: string }>> {
+  await requireAdmin();
+  const parsed = jetonSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+  const { organizationId, label } = parsed.data;
+
+  const jeton = randomBytes(32).toString("hex");
+  const admin = createAdminClient();
+  const { error } = await admin.from("reservation_jetons").insert({
+    organization_id: organizationId,
+    label,
+    token_hash: createHash("sha256").update(jeton).digest("hex"),
+  });
+  if (error) return fail(`Jeton : ${error.message}`);
+
+  rafraichir(organizationId);
+  return ok({ jeton });
+}
+
+const revocationSchema = z.object({ organizationId: organisation, jetonId: z.uuid() });
+
+export async function revoquerJetonPage(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = revocationSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+  const { organizationId, jetonId } = parsed.data;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("reservation_jetons")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", jetonId)
+    .eq("organization_id", organizationId)
+    .is("revoked_at", null)
+    .select("id");
+  if (error) return fail(`Révocation : ${error.message}`);
+  if (!data || data.length === 0) return fail("Ce jeton est déjà révoqué.");
 
   rafraichir(organizationId);
   return ok();
