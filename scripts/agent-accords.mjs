@@ -11,10 +11,18 @@
  *     Note `envoye_le` pour les liens du fichier, une fois les mails partis.
  *   --etat
  *     Combien de liens, d'envoyés, d'accords, de conversations ouvertes.
- *
- * Aucun mail ne part d'ici.
+ *   --envoyer <fichier.json> [--essai] [--test <adresse>]
+ *     Envoie le mail d'accord (texte validé par Louis le 27/09/2026, passé
+ *     par humaniseur-fr) depuis l'adresse de Peggy, par son compte Resend.
+ *     La clé est lue dans %USERPROFILE%\.cometeesend-peggy.env
+ *     (RESEND_API_KEY=…), rangée par Louis, jamais affichée. --essai montre
+ *     le premier mail sans rien envoyer ; --test envoie ce premier mail à
+ *     l'adresse donnée seulement. Sinon, un mail toutes les 2 secondes, et
+ *     `envoye_le` noté à chaque envoi réussi. Louis lance, pas Claude.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -124,4 +132,65 @@ if (process.argv.includes("--etat")) {
   process.exit(0);
 }
 
-console.log("Usage : --preparer --sortie <fichier.json> | --envoyes <fichier.json> | --etat");
+if (arg("--envoyer") !== null) {
+  const lignes = JSON.parse(readFileSync(arg("--envoyer"), "utf8"));
+  const EXPEDITEUR = "Peggy Girault <peggy@peggygirault.fr>";
+  const REPONSE = "girault.peggy@gmail.com";
+  const jourSeul = (rdv) => rdv.split(" à ")[0];
+  const heureSeule = (rdv) => rdv.split(" à ")[1] ?? "";
+  const echapper = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const mail = (l) => {
+    const sujet = `Ton diagnostic du ${jourSeul(l.rdv)} : tes rappels sur WhatsApp ?`;
+    const para = [
+      `Bonjour ${l.prenom},`,
+      `Ton diagnostic est prévu ${jourSeul(l.rdv)} à ${heureSeule(l.rdv)}.`,
+      "Pour que tu ne le rates pas, mon assistante peut t'envoyer tes rappels et le lien de la visio sur WhatsApp. Elle t'enverra aussi des articles et des recettes adaptés à toi. Et si tu dois déplacer ton rendez-vous, tu pourras simplement lui écrire.",
+    ];
+    const texte = `${para.join("\n\n")}\n\nSi ça te va, c'est par ici : ${l.lien}\n\nÀ très vite,\nPeggy\n`;
+    const html =
+      para.map((p) => `<p>${echapper(p)}</p>`).join("") +
+      `<p>Si ça te va, c'est par ici : <a href="${echapper(l.lien)}">${echapper(l.lien)}</a></p><p>À très vite,<br>Peggy</p>`;
+    return { sujet, texte, html };
+  };
+
+  if (!lignes.length) throw new Error("Fichier vide.");
+  if (process.argv.includes("--essai")) {
+    const m = mail(lignes[0]);
+    console.log(`${lignes.length} mails prêts. Premier, pour ${lignes[0].prenom} :\n\nObjet : ${m.sujet}\n\n${m.texte}`);
+    process.exit(0);
+  }
+
+  const fichierCle = join(homedir(), ".comete", "resend-peggy.env");
+  const cle = /^RESEND_API_KEY=(.+)$/m.exec(readFileSync(fichierCle, "utf8"))?.[1]?.trim();
+  if (!cle) throw new Error(`RESEND_API_KEY absente de ${fichierCle}.`);
+
+  const test = arg("--test");
+  const cibles = test ? [{ ...lignes[0], email: test }] : lignes;
+  let partis = 0;
+  for (const l of cibles) {
+    const m = mail(l);
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cle}`, "Content-Type": "application/json", "User-Agent": "comete-hub-agent/1.0" },
+      body: JSON.stringify({ from: EXPEDITEUR, to: [l.email], reply_to: REPONSE, subject: m.sujet, text: m.texte, html: m.html }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      console.log(`REFUS ${r.status} pour ${l.prenom} : ${e.name ?? ""} ${e.message ?? ""}`);
+      continue;
+    }
+    partis++;
+    if (!test) {
+      await admin
+        .from("agent_accords")
+        .update({ envoye_le: new Date().toISOString() })
+        .eq("organization_id", org.id)
+        .eq("invitee_uri", l.invitee_uri);
+    }
+    await new Promise((ok) => setTimeout(ok, 2000));
+  }
+  console.log(test ? `Mail de test : ${partis ? "parti" : "refusé"}.` : `${partis} mails partis sur ${cibles.length}.`);
+  process.exit(0);
+}
+
+console.log("Usage : --preparer --sortie <f.json> | --envoyer <f.json> [--essai] [--test <adresse>] | --envoyes <f.json> | --etat");
