@@ -138,11 +138,13 @@ export const peggy: Profil = {
     // avant la soumission à Meta, en catégorie Marketing.
     contenu: {
       corps:
-        "Bonjour {{1}}, en attendant ton diagnostic, Peggy a choisi ceci pour toi : {{2}}\n" +
+        "Bonjour {{1}}, en attendant ton diagnostic, voici un article de Peggy qui devrait te parler : {{2}}\n" +
         "{{3}}\n" +
-        "Si tu ne veux plus recevoir ces messages, réponds STOP.",
+        "Tu me dis ce que tu en penses ?",
       variables: ["prenom", "titreContenu", "lienContenu"],
-      boutons: [],
+      // Le moyen de ne plus recevoir, exigé pour un message commercial : un
+      // bouton plutôt qu'une phrase (Louis, 27/09/2026). Lu comme un STOP.
+      boutons: [{ texte: "Ne plus recevoir", sens: "stop" }],
       categorie: "MARKETING",
     },
   },

@@ -15,7 +15,8 @@ import type { Profil, SensBouton } from "./profil.ts";
  * demande de désinscription, c'est un empêchement : l'agent doit y répondre.
  */
 export function estStop(texte: string): boolean {
-  return /^\s*(stop|arr[eê]te?r?|arr[eê]t)\s*[.!]*\s*$/i.test(texte);
+  // « Ne plus recevoir » : le bouton du modèle de contenu (Louis, 27/09/2026).
+  return /^\s*(stop|arr[eê]te?r?|arr[eê]t|ne plus recevoir)\s*[.!]*\s*$/i.test(texte);
 }
 
 /** Le sens d'un bouton, retrouvé par son libellé dans les modèles du profil. */

@@ -6,7 +6,7 @@ import { peggy } from "./profils/peggy.ts";
 
 describe("estStop", () => {
   it("reconnaît STOP et ses variantes seules", () => {
-    for (const t of ["STOP", "stop", " Stop. ", "Arrête", "arret", "ARRÊT !"]) {
+    for (const t of ["STOP", "stop", " Stop. ", "Arrête", "arret", "ARRÊT !", "Ne plus recevoir"]) {
       assert.equal(estStop(t), true, t);
     }
   });
