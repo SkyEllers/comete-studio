@@ -27,8 +27,8 @@ export type Signature = {
 const LARGEUR = 595.28;
 const HAUTEUR = 841.89;
 const MARGE = 56;
-const ENCRE = rgb(0.13, 0.12, 0.11);
-const GRIS = rgb(0.42, 0.4, 0.38);
+export const ENCRE = rgb(0.13, 0.12, 0.11);
+export const GRIS = rgb(0.42, 0.4, 0.38);
 
 const GESTES: Record<string, string> = {
   cree: "Devis créé",
@@ -55,7 +55,8 @@ export function lisible(texte: string): string {
     .replace(/[^\x20-\x7e -ÿŒœ€•…‰ŠšŸŽž‹›‚„ˆ˜™]/gu, "?");
 }
 
-class Ecrivain {
+/** Écrit un PDF page après page : titres, paragraphes, puces, retours à la page seuls. */
+export class Ecrivain {
   page!: PDFPage;
   y = 0;
   doc: PDFDocument;

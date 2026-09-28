@@ -51,6 +51,7 @@ import { noterSansEnregistrement } from "@/tools/resultats/enregistrement-action
 import type { Enregistrement, ResumeDiagnostic } from "@/tools/resultats/enregistrement-format";
 import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
 import { BlocDevis } from "@/tools/devis/bloc-client";
+import { BlocMesFactures } from "./factures-client";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
 import { libelleMois, moisPrecedent, moisSuivant } from "@/tools/resultats/mois";
 import { LIBELLES_MOTIF, MOTIFS, type Motif, type Raison } from "@/tools/resultats/non-vente";
@@ -241,7 +242,12 @@ export function EspaceCloseuseClient({
       ) : null}
       {onglet === "ventes" ? <OngletVentes espace={espace} m7={m7} mois={mois} aujourdhui={aujourdhui} /> : null}
       {onglet === "commission" ? (
-        <OngletCommission releve={releve} mois={mois} moisDuJour={moisDuJour} onFacture={() => setFacture(true)} />
+        <div className="space-y-6">
+          {/* Les factures se font seules (autofacturation, P16) : le bloc ne
+              s'affiche que pour la closeuse elle-même. */}
+          <BlocMesFactures orgSlug={orgSlug} />
+          <OngletCommission releve={releve} mois={mois} moisDuJour={moisDuJour} onFacture={() => setFacture(true)} />
+        </div>
       ) : null}
       {onglet === "regles" ? <OngletRegles espace={espace} /> : null}
 
@@ -762,7 +768,7 @@ function OngletRegles({ espace }: { espace: EspaceCloseuse }) {
     },
     {
       titre: "Ta facture",
-      texte: "Tu es indépendante : à la fin du mois, tu factures ta commission. Le détail est prêt dans « Ma commission ».",
+      texte: "Tu es indépendante, mais tu n'as pas de facture à faire : l'app la prépare le 1er du mois, à ton nom. Tu l'acceptes d'un clic dans « Ma commission », et elle t'est payée.",
     },
   ];
 

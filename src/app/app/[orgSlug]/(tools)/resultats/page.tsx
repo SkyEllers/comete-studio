@@ -46,6 +46,7 @@ import {
   parCanal,
   sansCommission,
 } from "@/tools/resultats/queries";
+import { BlocDuAuxCloseuses } from "@/tools/closeuse/factures-client";
 import { ARecontacter } from "@/tools/resultats/non-vente-client";
 import {
   AppelsDeDemain,
@@ -218,6 +219,12 @@ async function TableauDeBord({
           ) : null}
         </section>
       ) : null}
+
+      {/* Les factures des closeuses à payer (autofacturation, P16) : rien
+          tant qu'il n'y en a pas. */}
+      <div className="mb-8 empty:hidden">
+        <BlocDuAuxCloseuses orgSlug={orgSlug} />
+      </div>
 
       {recontacts && recontacts.lignes.length > 0 ? (
         <section className="mb-8 space-y-3">
