@@ -276,7 +276,7 @@ export async function signer(
 
   await rangerPdf(admin, p, { ...signe, empreinte_contenu: e, statut: "signe" });
 
-  const { data: radar, error: erreurRadar } = await admin.rpc("devis_vers_radar" as never, { devis: d.id } as never);
+  const { data: radar, error: erreurRadar } = await admin.rpc("devis_vers_radar", { devis_cible: d.id });
   if (erreurRadar || radar === false) {
     console.error("Devis : la vente n'a pas pu s'inscrire dans Radar", erreurRadar?.message ?? "refusée");
   }

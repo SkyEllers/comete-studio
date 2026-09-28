@@ -69,7 +69,7 @@ const demande = (bookingId, closeuseId, surcharge = {}) => ({
 });
 
 try {
-  for (const qui of ["p", "c1", "c2", "b"]) comptes[qui] = (await creerCompte(mail(qui))).id;
+  for (const qui of ["p", "c1", "c2", "b"]) comptes[qui] = await creerCompte(mail(qui));
   orgs.a = await creer("organizations", { name: "ZZ QA Devis A", slug: `zz-qa-devis-a-${marque}` });
   orgs.b = await creer("organizations", { name: "ZZ QA Devis B", slug: `zz-qa-devis-b-${marque}` });
   await creer("memberships", { organization_id: orgs.a.id, user_id: comptes.p, role: "owner" });

@@ -983,6 +983,150 @@ export type Database = {
           },
         ]
       }
+      closeuse_facturation: {
+        Row: {
+          adresse: string
+          mandat_accepte_le: string
+          mandat_agent: string | null
+          mandat_ip: string | null
+          mandat_version: string
+          mention_tva: string
+          nom_legal: string
+          organization_id: string
+          siren: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresse: string
+          mandat_accepte_le?: string
+          mandat_agent?: string | null
+          mandat_ip?: string | null
+          mandat_version: string
+          mention_tva?: string
+          nom_legal: string
+          organization_id: string
+          siren: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresse?: string
+          mandat_accepte_le?: string
+          mandat_agent?: string | null
+          mandat_ip?: string | null
+          mandat_version?: string
+          mention_tva?: string
+          nom_legal?: string
+          organization_id?: string
+          siren?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closeuse_facturation_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "closeuse_facturation_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      closeuse_factures: {
+        Row: {
+          acceptee_agent: string | null
+          acceptee_ip: string | null
+          acceptee_le: string | null
+          acheteur: Json
+          creee_le: string
+          empreinte_pdf: string | null
+          id: string
+          lignes: Json
+          mois: string
+          numero: string
+          organization_id: string
+          payee_le: string | null
+          pdf_chemin: string | null
+          rang: number
+          relance_le: string | null
+          relances: number
+          statut: string
+          total_cents: number
+          updated_at: string
+          user_id: string
+          vendeur: Json
+        }
+        Insert: {
+          acceptee_agent?: string | null
+          acceptee_ip?: string | null
+          acceptee_le?: string | null
+          acheteur: Json
+          creee_le?: string
+          empreinte_pdf?: string | null
+          id?: string
+          lignes: Json
+          mois: string
+          numero: string
+          organization_id: string
+          payee_le?: string | null
+          pdf_chemin?: string | null
+          rang: number
+          relance_le?: string | null
+          relances?: number
+          statut?: string
+          total_cents: number
+          updated_at?: string
+          user_id: string
+          vendeur: Json
+        }
+        Update: {
+          acceptee_agent?: string | null
+          acceptee_ip?: string | null
+          acceptee_le?: string | null
+          acheteur?: Json
+          creee_le?: string
+          empreinte_pdf?: string | null
+          id?: string
+          lignes?: Json
+          mois?: string
+          numero?: string
+          organization_id?: string
+          payee_le?: string | null
+          pdf_chemin?: string | null
+          rang?: number
+          relance_le?: string | null
+          relances?: number
+          statut?: string
+          total_cents?: number
+          updated_at?: string
+          user_id?: string
+          vendeur?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closeuse_factures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "closeuse_factures_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
           board_id: string
@@ -1031,6 +1175,226 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devis: {
+        Row: {
+          adresse: string | null
+          booking_id: string | null
+          closeuse_id: string | null
+          created_at: string
+          cree_par: string | null
+          demarrage_immediat: boolean | null
+          devise: string
+          duree_mois: number
+          email: string
+          empreinte_contenu: string | null
+          empreinte_pdf: string | null
+          envoye_le: string
+          id: string
+          investigation_cents: number
+          jeton_hash: string
+          mensualite_cents: number
+          nom: string | null
+          organization_id: string
+          ouvert_le: string | null
+          paiement: string
+          paiement_lien_le: string | null
+          paye_le: string | null
+          pdf_chemin: string | null
+          prenom: string
+          relance_le: string | null
+          relances: number
+          remise_une_fois_cents: number
+          signature_agent: string | null
+          signature_ip: string | null
+          signe_le: string | null
+          statut: string
+          stripe_session: string | null
+          telephone: string | null
+          total_cents: number
+          updated_at: string
+          valide_jusqu_au: string
+          vendeur: Json
+          version_texte: string
+        }
+        Insert: {
+          adresse?: string | null
+          booking_id?: string | null
+          closeuse_id?: string | null
+          created_at?: string
+          cree_par?: string | null
+          demarrage_immediat?: boolean | null
+          devise?: string
+          duree_mois: number
+          email: string
+          empreinte_contenu?: string | null
+          empreinte_pdf?: string | null
+          envoye_le?: string
+          id?: string
+          investigation_cents: number
+          jeton_hash: string
+          mensualite_cents: number
+          nom?: string | null
+          organization_id: string
+          ouvert_le?: string | null
+          paiement: string
+          paiement_lien_le?: string | null
+          paye_le?: string | null
+          pdf_chemin?: string | null
+          prenom: string
+          relance_le?: string | null
+          relances?: number
+          remise_une_fois_cents?: number
+          signature_agent?: string | null
+          signature_ip?: string | null
+          signe_le?: string | null
+          statut?: string
+          stripe_session?: string | null
+          telephone?: string | null
+          total_cents: number
+          updated_at?: string
+          valide_jusqu_au: string
+          vendeur: Json
+          version_texte: string
+        }
+        Update: {
+          adresse?: string | null
+          booking_id?: string | null
+          closeuse_id?: string | null
+          created_at?: string
+          cree_par?: string | null
+          demarrage_immediat?: boolean | null
+          devise?: string
+          duree_mois?: number
+          email?: string
+          empreinte_contenu?: string | null
+          empreinte_pdf?: string | null
+          envoye_le?: string
+          id?: string
+          investigation_cents?: number
+          jeton_hash?: string
+          mensualite_cents?: number
+          nom?: string | null
+          organization_id?: string
+          ouvert_le?: string | null
+          paiement?: string
+          paiement_lien_le?: string | null
+          paye_le?: string | null
+          pdf_chemin?: string | null
+          prenom?: string
+          relance_le?: string | null
+          relances?: number
+          remise_une_fois_cents?: number
+          signature_agent?: string | null
+          signature_ip?: string | null
+          signe_le?: string | null
+          statut?: string
+          stripe_session?: string | null
+          telephone?: string | null
+          total_cents?: number
+          updated_at?: string
+          valide_jusqu_au?: string
+          vendeur?: Json
+          version_texte?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devis_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devis_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devis_closeuse_id_fkey"
+            columns: ["closeuse_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devis_cree_par_fkey"
+            columns: ["cree_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devis_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devis_evenements: {
+        Row: {
+          agent: string | null
+          details: Json
+          devis_id: string
+          genre: string
+          id: number
+          ip: string | null
+          le: string
+        }
+        Insert: {
+          agent?: string | null
+          details?: Json
+          devis_id: string
+          genre: string
+          id?: never
+          ip?: string | null
+          le?: string
+        }
+        Update: {
+          agent?: string | null
+          details?: Json
+          devis_id?: string
+          genre?: string
+          id?: never
+          ip?: string | null
+          le?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devis_evenements_devis_id_fkey"
+            columns: ["devis_id"]
+            isOneToOne: false
+            referencedRelation: "devis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devis_liens: {
+        Row: {
+          devis_id: string
+          lien: string
+        }
+        Insert: {
+          devis_id: string
+          lien: string
+        }
+        Update: {
+          devis_id?: string
+          lien?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devis_liens_devis_id_fkey"
+            columns: ["devis_id"]
+            isOneToOne: true
+            referencedRelation: "devis"
             referencedColumns: ["id"]
           },
         ]
@@ -3452,6 +3816,7 @@ export type Database = {
       can_access_sas: { Args: { org: string }; Returns: boolean }
       can_access_sonde: { Args: { org: string }; Returns: boolean }
       can_access_temps: { Args: { org: string }; Returns: boolean }
+      devis_vers_radar: { Args: { devis_cible: string }; Returns: boolean }
       est_auteur_objet: {
         Args: { owner: string; owner_id: string }
         Returns: boolean
