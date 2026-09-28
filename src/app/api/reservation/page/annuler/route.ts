@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { outilVersAgent } from "@/tools/agent/outil";
 import { accesPage, json, rdvDuLien, rdvPourSite, sansCorps } from "@/tools/reservation/acces-page";
 import { effacerRendezVous } from "@/tools/reservation/agenda";
 import { identifiants } from "@/tools/reservation/google";
@@ -49,6 +50,8 @@ export async function POST(request: NextRequest) {
     }
   }
   await annulerDansRadar(admin, rdv.id, { reprogramme: false, par: "cliente" });
+  // L'agent se tait : plus de rappel pour un rendez-vous annulé.
+  await outilVersAgent(admin, acces.organizationId, { type: "annule", rdvId: rdv.id });
 
   return json({ ...rdvPourSite(rdv), statut: "annule" });
 }

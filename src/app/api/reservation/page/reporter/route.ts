@@ -1,13 +1,14 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { horlogeAgent, outilVersAgent } from "@/tools/agent/outil";
 import { accesPage, json, rdvDuLien, rdvPourSite, sansCorps } from "@/tools/reservation/acces-page";
-import { agendasGoogle, ecrireRendezVous, effacerRendezVous } from "@/tools/reservation/agenda";
+import { agendasGoogle } from "@/tools/reservation/agenda";
 import { depotSupabase } from "@/tools/reservation/depot";
 import { identifiants } from "@/tools/reservation/google";
 import { reporter } from "@/tools/reservation/moteur";
-import { annulerDansRadar, versRadar } from "@/tools/reservation/radar";
+import { suivreReport } from "@/tools/reservation/suites";
 
 /**
  * La cliente déplace son rendez-vous depuis son lien personnel.
@@ -63,20 +64,11 @@ export async function POST(request: NextRequest) {
       return json({ raison: "erreur" }, 500);
     }
 
-    try {
-      await effacerRendezVous(admin, ancien.id, ids);
-    } catch (erreur) {
-      console.error("Réservation, effacement Google :", erreur instanceof Error ? erreur.message : "erreur");
-    }
-    const { data: orga } = await admin.from("organizations").select("slug").eq("id", org).single();
-    const racine = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.cometestudio.fr").replace(/\/+$/, "");
-    try {
-      await ecrireRendezVous(admin, prise.id, ids, `${racine}/app/${orga?.slug ?? ""}/agenda`);
-    } catch (erreur) {
-      console.error("Réservation, écriture Google :", erreur instanceof Error ? erreur.message : "erreur");
-    }
-    await annulerDansRadar(admin, ancien.id, { reprogramme: true, par: "cliente" });
-    await versRadar(admin, prise.id);
+    await suivreReport(admin, org, ancien.id, prise.id, ids, "cliente");
+
+    // L'agent WhatsApp suit le nouveau créneau et repart de cette date.
+    await outilVersAgent(admin, org, { type: "reporte", ancienId: ancien.id, rdvId: prise.id, jeton: corps.data.lien });
+    after(() => horlogeAgent(admin));
 
     const nouveau = await rdvDuLien(admin, org, corps.data.lien);
     if (!nouveau) return json({ raison: "erreur" }, 500);

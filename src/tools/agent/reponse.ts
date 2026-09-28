@@ -8,6 +8,8 @@ import { choisirCreneaux } from "./creneaux.ts";
 import { envoyerLibre, maintenantDe } from "./envoi.ts";
 import { mettreEnFile as mettreDansLaFile } from "./file.ts";
 import { demanderDecision, lireTarifs } from "./ia.ts";
+import { creneauxOutil, reporterParAgent } from "./outil.ts";
+import { estDeLOutil, idOutil, uriOutil } from "./outil-regles.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import {
   consignesStables,
@@ -80,8 +82,13 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   // maintenant, pour que l'IA propose de vrais créneaux.
   let creneaux: CreneauxDuMoment = null;
   if (c.report_demande_le && c.reports_agent < 1 && c.creneaux_proposes.length === 0) {
-    const jeton = await jetonAgent(admin, c.organization_id);
-    const libres = jeton && typeUri ? await creneauxLibres(jeton, typeUri, maintenant) : null;
+    let libres: string[] | null;
+    if (estDeLOutil(c.invitee_uri) && !c.simulation) {
+      libres = await creneauxOutil(admin, c.organization_id, maintenant);
+    } else {
+      const jeton = await jetonAgent(admin, c.organization_id);
+      libres = jeton && typeUri ? await creneauxLibres(jeton, typeUri, maintenant) : null;
+    }
     creneaux = libres ? choisirCreneaux(libres, c.rdv_debut, c.fuseau, maintenant) : "illisibles";
   }
 
@@ -158,7 +165,7 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
       if (!(await envoyerLibre(admin, c.id, profil.textes.creneauPris, { reel, cle }))) return "rien";
       await admin.from("agent_conversations").update({ creneaux_proposes: [] }).eq("id", c.id);
       await mettreEnFile(admin, c, dernier.id, "incertain", {
-        question: "Le créneau qu'elle a choisi n'a pas pu être réservé dans Calendly : à toi de voir avec elle.",
+        question: "Le créneau qu'elle a choisi n'a pas pu être réservé dans l'agenda : à toi de voir avec elle.",
         brouillon: null,
         maintenant,
       });
@@ -242,6 +249,35 @@ async function deplacerRendezVous(
       })
       .eq("id", c.id);
     return !error;
+  }
+
+  // Un rendez-vous de l'outil maison : le moteur déplace, sans Calendly ni
+  // webhook. La conversation suit ici même ; le lien de report ne change pas
+  // (le lien personnel suit le rendez-vous).
+  const ancienOutil = idOutil(c.invitee_uri);
+  if (ancienOutil) {
+    const nouveau = await reporterParAgent(admin, c.organization_id, ancienOutil, choisi);
+    if (!nouveau) return false;
+    const { error } = await admin
+      .from("agent_conversations")
+      .update({
+        ...commun,
+        invitee_uri: uriOutil(nouveau.rdvId),
+        invites_precedents: [...c.invites_precedents, c.invitee_uri],
+        event_uri: uriOutil(nouveau.rdvId),
+        booking_id: nouveau.bookingId,
+        rdv_debut: nouveau.debut,
+        rdv_fin: nouveau.fin,
+        lien_visio: nouveau.lienVisio,
+        report_attendu: null,
+        efface_apres: effaceApres(nouveau.fin),
+      })
+      .eq("id", c.id);
+    // Le rendez-vous est déplacé quoi qu'il arrive : une conversation mal
+    // mise à jour se relit dans l'admin, elle ne doit pas faire croire à la
+    // cliente que son créneau a été refusé.
+    if (error) console.error("Agent : conversation non mise à jour après un report de l'outil", error.code);
+    return true;
   }
 
   const jeton = await jetonAgent(admin, c.organization_id);

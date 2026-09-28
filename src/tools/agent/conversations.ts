@@ -3,6 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import type { MessageCalendly } from "@/tools/resultats/calendly";
 
+import { estDeLOutil } from "./outil-regles.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import type { Profil } from "./profil.ts";
 import {
@@ -49,6 +50,30 @@ export async function agentRecoit(
   orgId: string,
   message: MessageCalendly,
 ): Promise<Issue> {
+  const lu = invitationCalendly.safeParse(message.payload);
+  if (!lu.success) return "ok"; // Radar a déjà noté la forme inattendue.
+
+  const evenement =
+    message.event === "invitee.canceled" ? "annulee" : message.event === "invitee.created" ? "creee" : null;
+  if (!evenement) return "ok";
+
+  return agentRecoitInvitation(admin, orgId, evenement, lu.data, message.created_at ?? new Date().toISOString());
+}
+
+/**
+ * Le cœur de `agentRecoit`, sur une invitation déjà lue : celle d'un message
+ * Calendly, ou celle que l'outil de réservation maison traduit d'un de ses
+ * rendez-vous (`outil.ts`). Un rendez-vous de l'outil (`reservation:<id>`)
+ * est toujours un diagnostic : il passe sans le filtre des types suivis,
+ * qui ne connaît que ceux de Calendly.
+ */
+export async function agentRecoitInvitation(
+  admin: Admin,
+  orgId: string,
+  evenement: "creee" | "annulee",
+  invite: InvitationCalendly,
+  recuLe: string,
+): Promise<Issue> {
   const reglages = await reglagesDe(admin, orgId);
   // Pas d'agent, ou pas encore lancé : les vraies réservations ne le
   // concernent pas. La simulation, elle, n'arrive jamais par ici.
@@ -60,17 +85,12 @@ export async function agentRecoit(
     return "ok";
   }
 
-  const lu = invitationCalendly.safeParse(message.payload);
-  if (!lu.success) return "ok"; // Radar a déjà noté la forme inattendue.
-  const invite = lu.data;
-
-  if (message.event === "invitee.canceled") return annulation(admin, orgId, invite);
-  if (message.event !== "invitee.created") return "ok";
+  if (evenement === "annulee") return annulation(admin, orgId, invite);
 
   const type = invite.scheduled_event.event_type;
-  if (!type || !reglages.types_suivis.includes(type)) return "ok";
+  const suivi = estDeLOutil(invite.uri) || (type !== null && type !== undefined && reglages.types_suivis.includes(type));
+  if (!suivi) return "ok";
 
-  const recuLe = message.created_at ?? new Date().toISOString();
   const deplacee = await retrouverDeplacement(admin, orgId, invite);
   if (deplacee === "erreur") return "erreur";
   if (deplacee) return deplacer(admin, orgId, deplacee, invite);

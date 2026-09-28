@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { horlogeAgent, outilVersAgent } from "@/tools/agent/outil";
 import { accesPage, json, sansCorps } from "@/tools/reservation/acces-page";
 import { agendasGoogle, ecrireRendezVous } from "@/tools/reservation/agenda";
 import { depotSupabase } from "@/tools/reservation/depot";
@@ -27,7 +28,8 @@ import { versRadar } from "@/tools/reservation/radar";
  * dit qu'il arrivera.
  *
  * Puis Radar : le rendez-vous y entre avec la personne qui le tient
- * (`radar.ts`), comme le webhook Calendly l'y aurait mis.
+ * (`radar.ts`), comme le webhook Calendly l'y aurait mis. Puis l'agent
+ * WhatsApp (`agent/outil.ts`), qui ouvre sa conversation.
  *
  * Le lien personnel pour annuler ou reporter est tiré ici, rendu une fois au
  * site, et seul son SHA-256 est gardé.
@@ -102,6 +104,12 @@ export async function POST(request: NextRequest) {
 
     // Radar, avec la bonne personne. Ne fait jamais échouer la réservation.
     await versRadar(admin, prise.id);
+
+    // L'agent WhatsApp, après Radar (il s'y relie) et après Google (le lien
+    // de visio du matin même). Son premier message part après la réponse au
+    // site, sans attendre l'horloge, comme depuis le webhook Calendly.
+    await outilVersAgent(admin, org, { type: "reserve", rdvId: prise.id, jeton });
+    after(() => horlogeAgent(admin));
 
     const { data: rdv } = await admin
       .from("reservation_rendez_vous")

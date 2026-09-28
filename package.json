@@ -31,6 +31,7 @@
     "qa:agent-file": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-file.mjs",
     "qa:agent": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent.mjs",
     "qa:reservation": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-reservation.mjs",
+    "qa:agent-outil": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-outil.mjs",
     "qa:automatisations": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-automatisations.mjs",
     "rapport:entonnoir": "node scripts/rapports/entonnoir-ga4.mjs"
   },
