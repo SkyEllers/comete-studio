@@ -37,7 +37,7 @@ const quand = (iso: string) =>
     minute: "2-digit",
   }).format(new Date(iso));
 
-/** Le jour de Paris, pour préremplir l'envoi de test du mail du matin. */
+/** Le jour de Paris, pour préremplir l'envoi de test du mail de la veille. */
 const aujourdhuiAParis = () => jourLocal(Date.now(), "Europe/Paris");
 
 export default async function AgentPage() {

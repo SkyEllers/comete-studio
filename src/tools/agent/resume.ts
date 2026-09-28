@@ -9,13 +9,14 @@ import { ajouterJours, instantLocal, jourLocal } from "./temps.ts";
 type Admin = ReturnType<typeof createAdminClient>;
 
 /**
- * Le mail du matin : chacune reçoit ses diagnostics du jour (Louis,
- * 25/09/2026). Le client reçoit les siens ; chaque closeuse, les rendez-vous
+ * Le mail de la veille : chacune reçoit ses diagnostics du lendemain (Louis,
+ * 25/09/2026 ; la veille à 18h au lieu du jour même à 8h depuis le 28/09). Le client reçoit les siens ; chaque closeuse, les rendez-vous
  * que Radar lui attribue, les jours où elle en a. Une closeuse retirée du
  * client rend ses rendez-vous au client.
  *
- * L'horloge passe toutes les 5 minutes ; le premier passage après 8h (heure
- * de Paris) réserve la journée dans `resume_envoye_le` avant d'envoyer. Deux
+ * L'horloge passe toutes les 5 minutes ; le premier passage après 18h (heure
+ * de Paris) réserve le lendemain dans `resume_envoye_le` avant d'envoyer
+ * ses diagnostics. Deux
  * passages simultanés n'envoient donc qu'une fois. Si aucun mail n'est parti
  * (Resend en panne), la réservation est rendue et le passage suivant
  * réessaie ; si une partie seulement est partie, on ne renvoie pas à celles
@@ -144,16 +145,22 @@ export async function envoyerResumes(admin: Admin, reel = Date.now()): Promise<n
     .eq("actif", true)
     .eq("resume_actif", true);
 
+  // `resume_envoye_le` porte le jour des diagnostics couverts (le lendemain
+  // de l'envoi). Avant le 28/09/2026, il portait le jour d'envoi du mail de
+  // 8h, qui couvrait le jour même : le premier passage de 18h qui suit la
+  // mise en ligne voit une date plus petite que demain et envoie bien.
+  const demain = ajouterJours(jour, 1);
+
   let partis = 0;
   for (const client of clients ?? []) {
-    if (client.resume_envoye_le && client.resume_envoye_le >= jour) continue;
+    if (client.resume_envoye_le && client.resume_envoye_le >= demain) continue;
 
     // Réserver la journée : un seul passage gagne.
     const { data: reserve } = await admin
       .from("agent_reglages")
-      .update({ resume_envoye_le: jour })
+      .update({ resume_envoye_le: demain })
       .eq("organization_id", client.organization_id)
-      .or(`resume_envoye_le.is.null,resume_envoye_le.lt.${jour}`)
+      .or(`resume_envoye_le.is.null,resume_envoye_le.lt.${demain}`)
       .select("organization_id")
       .maybeSingle();
     if (!reserve) continue;
@@ -162,12 +169,12 @@ export async function envoyerResumes(admin: Admin, reel = Date.now()): Promise<n
       admin,
       client.organization_id,
       client.resume_destinataires,
-      await diagnosticsDuJour(admin, client.organization_id, jour, false),
+      await diagnosticsDuJour(admin, client.organization_id, demain, false),
     );
 
     let partisIci = 0;
     for (const e of envois) {
-      const mail = mailDuResume({ jour, fuseau: PARIS, diagnostics: e.diagnostics });
+      const mail = mailDuResume({ jour: demain, fuseau: PARIS, diagnostics: e.diagnostics });
       if (mail && (await envoyer({ ...mail, a: e.a }))) partisIci++;
     }
     partis += partisIci;

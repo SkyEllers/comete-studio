@@ -20,7 +20,7 @@ export type Courriel = {
   sujet: string;
   texte: string;
   html: string;
-  /** Louis par défaut. Le mail du matin de l'agent part chez le client. */
+  /** Louis par défaut. Le mail de la veille de l'agent part chez le client. */
   a?: string[];
 };
 

@@ -1,14 +1,17 @@
 /**
- * Le mail du matin (P12, « Le résumé pour Peggy avant son Zoom ») : un seul
- * mail à 8h, les diagnostics de la journée, trois lignes chacun. Lecture
- * facultative : s'il n'est pas ouvert, rien ne casse.
+ * Le mail de la veille (P12, « Le résumé pour Peggy avant son Zoom ») : un
+ * seul mail à 18h, les diagnostics du lendemain, trois lignes chacun. Peggy
+ * prépare ses rendez-vous la veille (P16, Louis, 28/09/2026 : il remplace le
+ * mail de 8h). Ce qui se réserve après 18h pour le lendemain, elle le voit
+ * dans son agenda Google. Lecture facultative : s'il n'est pas ouvert, rien
+ * ne casse.
  *
  * Ce fichier ne fait que l'écrire. Il se teste sans base.
  */
 
 import { heureEnMots, jourEnMots } from "./temps.ts";
 
-export const HEURE_DU_RESUME = 8;
+export const HEURE_DU_RESUME = 18;
 
 export type DiagnosticDuJour = {
   rdv_debut: string;
@@ -33,7 +36,7 @@ export function etatEnMots(d: DiagnosticDuJour): string {
   const suite = d.confirme_le
     ? "confirmé"
     : d.sans_reponse_veille
-      ? "sans réponse depuis la veille. Le lien Zoom lui part ce matin"
+      ? "sans réponse au rappel de la veille. Le lien de la visio lui part le matin"
       : "pas encore confirmé";
   const phrase = d.reports_agent > 0 || d.deplace ? `reporté, puis ${suite}` : suite;
   return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}.`;
@@ -65,7 +68,8 @@ function echapper(texte: string): string {
 }
 
 /**
- * Le mail. Rien quand la journée est vide : un mail pour dire « rien »,
+ * Le mail. `jour` est le jour des diagnostics (le lendemain de l'envoi).
+ * Rien quand la journée est vide : un mail pour dire « rien »,
  * c'est un mail de trop.
  */
 export function mailDuResume(q: {
@@ -82,9 +86,10 @@ export function mailDuResume(q: {
   // Midi, pour que le jour ne glisse pas d'un fuseau à l'autre.
   const date = jourEnMots(`${q.jour}T12:00:00Z`, q.fuseau);
   const prefixe = q.test ? (q.pour ? `[Test pour ${q.pour}] ` : "[Test] ") : "";
-  const sujet = `${prefixe}${n === 1 ? "Ton diagnostic" : `Tes ${n} diagnostics`} du ${date}`;
-  const intro = `Aujourd'hui, ${n === 1 ? "1 diagnostic" : `${n} diagnostics`} :`;
-  const pied = "Rien à faire de ton côté. C'est juste pour que tu saches, avant chaque Zoom, où elle en est.";
+  const sujet = `${prefixe}${n === 1 ? "Ton diagnostic" : `Tes ${n} diagnostics`} de demain, ${date}`;
+  const intro = `Demain, ${n === 1 ? "1 diagnostic" : `${n} diagnostics`} :`;
+  const pied =
+    "Rien à faire de ton côté. C'est juste pour que tu saches, avant chaque visio, où elle en est. Un rendez-vous pris ce soir pour demain n'y est pas : il est dans ton agenda.";
 
   const blocs = [...q.diagnostics]
     .sort((a, b) => Date.parse(a.rdv_debut) - Date.parse(b.rdv_debut))

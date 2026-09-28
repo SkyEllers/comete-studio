@@ -28,7 +28,7 @@ describe("où en est le rendez-vous", () => {
   it("sans réponse à la veille", () =>
     assert.equal(
       etatEnMots(diag({ sans_reponse_veille: true })),
-      "Sans réponse depuis la veille. Le lien Zoom lui part ce matin.",
+      "Sans réponse au rappel de la veille. Le lien de la visio lui part le matin.",
     ));
   it("pas encore confirmé", () => assert.equal(etatEnMots(diag()), "Pas encore confirmé."));
   it("STOP : le rendez-vous tient", () => assert.match(etatEnMots(diag({ etat: "stop" })), /Le rendez-vous tient/));
@@ -47,7 +47,7 @@ describe("ce qu'elle a dit", () => {
     assert.equal(notesEnMots(["Veut comprendre pourquoi elle stagne ?", "Budget serré."]), "veut comprendre pourquoi elle stagne ? Budget serré."));
 });
 
-describe("le mail du matin", () => {
+describe("le mail de la veille", () => {
   it("rien quand la journée est vide", () => {
     assert.equal(mailDuResume({ jour: "2026-10-02", fuseau: P, diagnostics: [] }), null);
   });
@@ -62,15 +62,21 @@ describe("le mail du matin", () => {
       ],
     });
     assert.ok(m);
-    assert.equal(m.sujet, "Tes 2 diagnostics du vendredi 2 octobre");
+    assert.equal(m.sujet, "Tes 2 diagnostics de demain, vendredi 2 octobre");
     assert.ok(m.texte.indexOf("10h · Sandrine") < m.texte.indexOf("15h30 · Nadia"));
     assert.match(m.texte, /Ce qu'elle a dit : hypothyroïdie, renvoyée vers son médecin\./);
     assert.match(m.texte, /15h30 · Nadia\nCe qu'elle a dit : rien de particulier\.\nConfirmé\./);
   });
 
+  it("dit « demain » et renvoie à l'agenda pour ce qui arrive après 18h", () => {
+    const m = mailDuResume({ jour: "2026-10-02", fuseau: P, diagnostics: [diag()] });
+    assert.match(m?.texte ?? "", /^Bonjour,\n\nDemain, 1 diagnostic :/);
+    assert.match(m?.texte ?? "", /il est dans ton agenda/);
+  });
+
   it("au singulier pour un seul", () => {
     const m = mailDuResume({ jour: "2026-10-02", fuseau: P, diagnostics: [diag()] });
-    assert.equal(m?.sujet, "Ton diagnostic du vendredi 2 octobre");
+    assert.equal(m?.sujet, "Ton diagnostic de demain, vendredi 2 octobre");
   });
 
   it("le test se voit, la simulation aussi", () => {

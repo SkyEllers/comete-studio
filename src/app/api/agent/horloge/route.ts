@@ -21,7 +21,7 @@ import { entretenirEnregistrements } from "@/tools/resultats/enregistrement-asse
  * `AGENT_HORLOGE_SECRET` de Vercel. Sans la variable, la route répond 503 et
  * ne fait rien.
  *
- * Le même passage envoie le mail du matin, une fois par jour après 8h
+ * Le même passage envoie le mail de la veille, une fois par jour après 18h
  * (`resume.ts`), et ouvre la conversation des clientes qui ont donné leur
  * accord par mail avant le lancement (`accords.ts`, 0046), et demande au site
  * le mail de la veille pour celles qui ont dit STOP (`outil.ts`, 0048). Et

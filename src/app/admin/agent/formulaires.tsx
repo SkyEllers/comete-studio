@@ -144,7 +144,7 @@ export function FormulaireSimulation({ clients }: { clients: Client[] }) {
 }
 
 /**
- * Le mail du matin d'un client : qui le reçoit, s'il part, et un envoi de
+ * Le mail de la veille d'un client : qui le reçoit, s'il part, et un envoi de
  * test chez Louis seul pour un jour choisi (simulations comprises).
  */
 export function FormulaireResume({
@@ -166,7 +166,7 @@ export function FormulaireResume({
         <input type="hidden" name="organization_id" value={organisationId} />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="resume_actif" defaultChecked={actif} className="accent-ember" />
-          Mail du matin (8h) : les diagnostics du jour
+          Mail de la veille (18h) : les diagnostics du lendemain
         </label>
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-56 flex-1">
@@ -194,7 +194,7 @@ export function FormulaireResume({
         <input type="hidden" name="organization_id" value={organisationId} />
         <div>
           <Label htmlFor={`jour-${organisationId}`} className="mb-1 text-xs">
-            M&apos;envoyer celui du
+            M&apos;envoyer les diagnostics du
           </Label>
           <Input id={`jour-${organisationId}`} name="jour" type="date" defaultValue={aujourdhui} />
         </div>

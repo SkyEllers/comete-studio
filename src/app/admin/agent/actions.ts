@@ -335,7 +335,7 @@ export async function retirerReponseFixe(
   return ok();
 }
 
-// --------------------------- Le mail du matin ------------------------------
+// --------------------------- Le mail de la veille ---------------------------
 
 const schemaResume = z.object({
   organization_id: z.uuid(),
@@ -345,7 +345,7 @@ const schemaResume = z.object({
     .max(5, "Cinq adresses au plus."),
 });
 
-/** Qui reçoit le mail du matin, et s'il part. */
+/** Qui reçoit le mail de la veille, et s'il part. */
 export async function reglerResume(
   _precedent: ActionResult | null,
   formData: FormData,
@@ -382,7 +382,7 @@ const schemaResumeTest = z.object({
   jour: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choisis un jour."),
 });
 
-/** Le mail du matin d'un jour choisi, simulations comprises, chez Louis seul. */
+/** Le mail de la veille pour les diagnostics d'un jour choisi, simulations comprises, chez Louis seul. */
 export async function testerResume(
   _precedent: ActionResult | null,
   formData: FormData,
