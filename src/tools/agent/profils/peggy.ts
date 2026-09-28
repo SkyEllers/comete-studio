@@ -96,7 +96,8 @@ export const peggy: Profil = {
         "C'est réservé : ton diagnostic offert a lieu {{2}} à {{3}}, en visio (45 minutes).\n" +
         "Pour qu'il te serve vraiment : qu'est-ce que tu aimerais avoir compris à la fin ?",
       variables: ["prenom", "jour", "heure"],
-      boutons: [{ texte: "Je dois changer", sens: "changer" }],
+      // Sans bouton (Louis, 28/09/2026) : on attend sa réponse en mots.
+      boutons: [],
     },
     rappel: {
       corps:
