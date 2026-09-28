@@ -84,10 +84,13 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   // maintenant, pour que l'IA propose de vrais créneaux.
   let creneaux: CreneauxDuMoment = null;
   if (c.report_demande_le && c.reports_agent < 1 && c.creneaux_proposes.length === 0) {
-    let libres: string[] | null;
-    if (estDeLOutil(c.invitee_uri) && !c.simulation) {
-      libres = await creneauxOutil(admin, c.organization_id, maintenant);
-    } else {
+    // L'outil maison d'abord : pour ses rendez-vous, et en simulation chez un
+    // client qui l'a (c'est ce que vivront les vraies clientes). Calendly sinon.
+    let libres: string[] | null = null;
+    if (estDeLOutil(c.invitee_uri) || c.simulation) {
+      libres = await creneauxOutil(admin, c.organization_id, maintenant, { ignorerActif: c.simulation });
+    }
+    if (libres === null && !estDeLOutil(c.invitee_uri)) {
       const jeton = await jetonAgent(admin, c.organization_id);
       libres = jeton && typeUri ? await creneauxLibres(jeton, typeUri, maintenant) : null;
     }

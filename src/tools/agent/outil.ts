@@ -90,12 +90,21 @@ export async function horlogeAgent(admin: Admin): Promise<void> {
   }
 }
 
-/** Les débuts de créneaux libres, lus par le moteur sur toute la fenêtre, pour proposer un report. */
-export async function creneauxOutil(admin: Admin, org: string, maintenant: number): Promise<string[] | null> {
+/**
+ * Les débuts de créneaux libres, lus par le moteur sur toute la fenêtre, pour
+ * proposer un report. Null si le client n'a pas l'outil, ou s'il est fermé
+ * (sauf `ignorerActif` : une simulation lit l'agenda réel avant l'ouverture).
+ */
+export async function creneauxOutil(
+  admin: Admin,
+  org: string,
+  maintenant: number,
+  options: { ignorerActif?: boolean } = {},
+): Promise<string[] | null> {
   const ids = identifiants();
   if (!ids) return null;
   try {
-    const d = await creneauxLibres(org, maintenant, fenetreEntiere(depotSupabase(admin)), agendasGoogle(admin, ids));
+    const d = await creneauxLibres(org, maintenant, fenetreEntiere(depotSupabase(admin)), agendasGoogle(admin, ids), options);
     if (d.etat === "ferme") return null;
     return d.creneaux.map((c) => c.debut);
   } catch (erreur) {

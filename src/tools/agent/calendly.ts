@@ -39,25 +39,46 @@ export async function jetonAgent(admin: Admin, orgId: string): Promise<string | 
   return data ?? null;
 }
 
-/** Les débuts de créneaux libres, sur au plus 31 jours (limite de Calendly). */
+/**
+ * Les débuts de créneaux libres, sur `jours` jours.
+ *
+ * Par tranches de 7 jours : la documentation de Calendly dit tantôt 7,
+ * tantôt 31 jours au plus par demande, et 7 marche dans les deux cas. Le
+ * début est pris une minute dans le futur : Calendly refuse un `start_time`
+ * déjà passé quand la demande lui arrive (simulation du 28/09/2026, créneaux
+ * « illisibles »). Une tranche illisible rend tout illisible : mieux vaut ne
+ * rien proposer qu'une liste trouée.
+ */
 export async function creneauxLibres(
   jeton: string,
   typeUri: string,
   depuis: number,
   jours = 30,
 ): Promise<string[] | null> {
-  const fin = depuis + Math.min(jours, 31) * JOUR_MS - 60_000;
-  const url =
-    `${API}/event_type_available_times?event_type=${encodeURIComponent(typeUri)}` +
-    `&start_time=${new Date(depuis).toISOString()}&end_time=${new Date(fin).toISOString()}`;
+  const debut = Math.max(depuis, Date.now()) + 60_000;
+  const fin = debut + Math.min(jours, 31) * JOUR_MS;
+  const tranches: [number, number][] = [];
+  for (let a = debut; a < fin; a += 7 * JOUR_MS) tranches.push([a, Math.min(a + 7 * JOUR_MS, fin)]);
+
   try {
-    const reponse = await fetch(url, { headers: ENTETES(jeton), signal: AbortSignal.timeout(DELAI_MS) });
-    if (!reponse.ok) {
-      console.error("Agent : créneaux Calendly illisibles", reponse.status);
-      return null;
-    }
-    const corps = (await reponse.json()) as { collection?: { status?: string; start_time: string }[] };
-    return (corps.collection ?? []).filter((c) => c.status !== "unavailable").map((c) => c.start_time);
+    const lues = await Promise.all(
+      tranches.map(async ([a, b]) => {
+        const url =
+          `${API}/event_type_available_times?event_type=${encodeURIComponent(typeUri)}` +
+          `&start_time=${new Date(a).toISOString()}&end_time=${new Date(b).toISOString()}`;
+        const reponse = await fetch(url, { headers: ENTETES(jeton), signal: AbortSignal.timeout(DELAI_MS) });
+        if (!reponse.ok) {
+          // La raison donnée par Calendly, jamais une donnée personnelle (proposition 199).
+          const corps = (await reponse.json().catch(() => null)) as { message?: string } | null;
+          console.error("Agent : créneaux Calendly illisibles", reponse.status, corps?.message ?? "");
+          return null;
+        }
+        const corps = (await reponse.json()) as { collection?: { status?: string; start_time: string }[] };
+        return (corps.collection ?? []).filter((c) => c.status !== "unavailable").map((c) => c.start_time);
+      }),
+    );
+    if (lues.some((l) => l === null)) return null;
+    return lues.flat() as string[];
   } catch {
     console.error("Agent : Calendly n'a pas répondu (créneaux)");
     return null;
