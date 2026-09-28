@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   aRecontacter,
+  attenteExpiree,
   derniereRaison,
   LIBELLES_MOTIF,
   MOTIFS,
@@ -198,5 +199,28 @@ describe("« En attente » : le jour exact choisi au calendrier (28/09/2026)", (
     const dues = aRecontacter(etats, "2026-10-01", "2026-10-03").map((due) => due.id);
     assert.deepEqual(dues, ["c", "b"]);
     assert.equal(nombrePlusTard(etats, "2026-10-01", "2026-10-03"), 1);
+  });
+});
+
+describe("« En attente » sans date : « Pas de vente » 14 jours après le clic", () => {
+  const attente = (noteeLe: string, recontacterLe: string | null = null) => ({
+    motif: "pas_encore" as const,
+    recontacter: recontacterLe ? `${recontacterLe.slice(0, 7)}-01` : null,
+    recontacterLe,
+    noteeLe,
+  });
+
+  it("reste en attente jusqu'au 13e jour, passe au 14e", () => {
+    assert.equal(attenteExpiree(attente("2026-09-28T14:00:00Z"), "2026-10-11"), false);
+    assert.equal(attenteExpiree(attente("2026-09-28T14:00:00Z"), "2026-10-12"), true);
+  });
+
+  it("une attente avec une date ne passe jamais en « Pas de vente » toute seule", () => {
+    assert.equal(attenteExpiree(attente("2026-09-28T14:00:00Z", "2026-10-06"), "2026-12-01"), false);
+  });
+
+  it("un vrai refus n'est pas concerné", () => {
+    const refus = { motif: "argent" as const, recontacter: null, recontacterLe: null, noteeLe: "2026-09-01T10:00:00Z" };
+    assert.equal(attenteExpiree(refus, "2026-12-01"), false);
   });
 });

@@ -125,6 +125,23 @@ export function etatsParRendezVous(
 }
 
 /**
+ * Sans date de relance, une attente ne dure pas : 14 jours après le clic sur
+ * « En attente », sans réponse, elle se lit « Pas de vente » (Louis,
+ * 28/09/2026). Rien ne s'écrit en base : c'est la lecture qui change. Pour le
+ * relevé, rien ne bouge, une attente comptait déjà comme une séance sans vente.
+ */
+export const DELAI_ATTENTE_JOURS = 14;
+
+/** Vrai si l'attente, notée sans date, a passé ses 14 jours. `aujourdhui` : « AAAA-MM-JJ ». */
+export function attenteExpiree(raison: Raison, aujourdhui: string): boolean {
+  if (raison.motif !== "pas_encore") return false;
+  if (raison.recontacter !== null || raison.recontacterLe !== null) return false;
+  const notee = Date.parse(`${raison.noteeLe.slice(0, 10)}T00:00:00Z`);
+  const jour = Date.parse(`${aujourdhui}T00:00:00Z`);
+  return jour - notee >= DELAI_ATTENTE_JOURS * 86_400_000;
+}
+
+/**
  * Le moment de la recontacter est-il arrivé ? Le jour exact quand il a été
  * choisi au calendrier (0038, « En attente »), sinon le mois. Sans `aujourdhui`,
  * seul le mois compte, comme avant la date exacte.

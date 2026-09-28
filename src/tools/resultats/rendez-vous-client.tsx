@@ -35,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
+  aujourdhuiAParis,
   bilanPossible,
   dateHeure,
   heure,
@@ -49,7 +50,12 @@ import {
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
 import { BlocEnregistrement, useSuiviTranscriptions } from "./enregistrement-client";
 import type { Enregistrement } from "./enregistrement-format";
-import { etatsParRendezVous, type EtatRecontact, type Motif } from "./non-vente";
+import {
+  attenteExpiree,
+  etatsParRendezVous,
+  type EtatRecontact,
+  type Motif,
+} from "./non-vente";
 import {
   FormulaireEnAttente,
   FormulaireNonVente,
@@ -439,7 +445,7 @@ function FicheRendezVous({
   reponseAppel: ReponseAppel | null;
   onAppel: (bookingId: string, reponse: ReponseAppel) => void;
   onRaison: (bookingId: string, motif: Motif, recontacter: string | null, apres?: () => void) => void;
-  onAttente: (bookingId: string, recontacterLe: string, apres?: () => void) => void;
+  onAttente: (bookingId: string, recontacterLe: string | null, apres?: () => void) => void;
   onRefuser: (bookingId: string) => void;
 }) {
   const [saisie, setSaisie] = useState(false);
@@ -598,7 +604,8 @@ function FicheRendezVous({
               }
               onAnnuler={() => setRaisonOuverte(false)}
             />
-          ) : etatNonVente?.raison.motif === "pas_encore" ? (
+          ) : etatNonVente?.raison.motif === "pas_encore" &&
+            !attenteExpiree(etatNonVente.raison, aujourdhuiAParis()) ? (
             /* En attente : elle peut encore acheter (« Vente conclue » reste
                plus haut) ou dire non ; la date se déplace. */
             <div className="flex flex-wrap items-center gap-2">
@@ -610,7 +617,7 @@ function FicheRendezVous({
                 onClick={() => setAttenteOuverte(true)}
               >
                 <Pencil aria-hidden="true" />
-                Changer la date
+                Modifier
               </Button>
               <Button
                 variant="ghost"

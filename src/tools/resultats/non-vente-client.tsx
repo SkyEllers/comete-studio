@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { aujourdhuiAParis, jour, nomComplet } from "./format";
 import { libelleMois, moisCourant } from "./mois";
 import {
+  attenteExpiree,
+  DELAI_ATTENTE_JOURS,
   LIBELLES_MOTIF,
   MOTIFS_REFUS,
   moisProposes,
@@ -57,8 +59,11 @@ export function useNonVente(orgSlug: string) {
       router.refresh();
     });
 
-  /** « En attente » : elle n'a pas encore répondu, et on la recontacte le jour dit. */
-  const mettreEnAttente = (bookingId: string, recontacterLe: string, apres?: () => void) =>
+  /**
+   * « En attente » : elle n'a pas encore répondu. Avec un jour, on la
+   * recontacte ce jour-là ; sans jour, 14 jours plus tard elle se lit « Pas de vente ».
+   */
+  const mettreEnAttente = (bookingId: string, recontacterLe: string | null, apres?: () => void) =>
     startTransition(async () => {
       const resultat = await noterNonVente(orgSlug, {
         bookingId,
@@ -116,6 +121,9 @@ function quandRecontacter(raison: Raison): string | null {
  * bien sans vente pour le relevé, mais ce qu'on lit ici, c'est une attente.
  */
 export function texteRaison(raison: Raison, fait = false): string {
+  if (attenteExpiree(raison, aujourdhuiAParis())) {
+    return `Pas de vente · sans réponse sous ${DELAI_ATTENTE_JOURS} jours`;
+  }
   return [
     raison.motif === "pas_encore" ? "En attente de sa réponse" : "Pas de vente",
     raison.motif === "pas_encore" ? null : LIBELLES_MOTIF[raison.motif],
@@ -215,10 +223,10 @@ export function FormulaireNonVente({
 }
 
 /**
- * « En attente » : elle n'a dit ni oui ni non, et on choisit au calendrier le
- * jour où la recontacter. Elle revient dans « À recontacter » ce jour-là.
- * La date est obligatoire : une attente sans date de relance, c'est une
- * réponse qu'on ne va plus chercher.
+ * « En attente » : elle n'a dit ni oui ni non. Le jour où la recontacter se
+ * choisit au calendrier, s'il y en a un : elle revient dans « À recontacter »
+ * ce jour-là. Sans jour, 14 jours après ce clic sans réponse, elle se lit
+ * « Pas de vente » (Louis, 28/09/2026).
  */
 export function FormulaireEnAttente({
   raison,
@@ -228,7 +236,7 @@ export function FormulaireEnAttente({
 }: {
   raison: Raison | null;
   enCours: boolean;
-  onEnregistrer: (recontacterLe: string) => void;
+  onEnregistrer: (recontacterLe: string | null) => void;
   onAnnuler: () => void;
 }) {
   const aujourdhui = aujourdhuiAParis();
@@ -246,12 +254,12 @@ export function FormulaireEnAttente({
     <form
       onSubmit={(evenement) => {
         evenement.preventDefault();
-        if (date) onEnregistrer(date);
+        onEnregistrer(date || null);
       }}
       className="border-line bg-surface-2 space-y-3 rounded-lg border p-3"
     >
       <div className="space-y-1.5">
-        <Label>Elle réfléchit. La recontacter le</Label>
+        <Label>Elle réfléchit. La recontacter le (facultatif)</Label>
         <Popover open={ouvert} onOpenChange={setOuvert}>
           <PopoverTrigger asChild>
             <Button
@@ -261,7 +269,7 @@ export function FormulaireEnAttente({
               disabled={enCours}
             >
               <CalendarCheck2 aria-hidden="true" />
-              {date ? dateLongue(date) : "Choisir une date"}
+              {date ? dateLongue(date) : "Pas de date"}
             </Button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-auto p-2">
@@ -276,12 +284,31 @@ export function FormulaireEnAttente({
                 setOuvert(false);
               }}
             />
+            {date ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-1 w-full justify-start"
+                onClick={() => {
+                  setDate("");
+                  setOuvert(false);
+                }}
+              >
+                Pas de date
+              </Button>
+            ) : null}
           </PopoverContent>
         </Popover>
+        {date ? null : (
+          <p className="text-muted-foreground text-xs">
+            Sans date, sans réponse sous {DELAI_ATTENTE_JOURS} jours, elle passe en « Pas de vente ».
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" size="sm" disabled={enCours || !date}>
+        <Button type="submit" size="sm" disabled={enCours}>
           Enregistrer
         </Button>
         <Button type="button" variant="ghost" size="sm" disabled={enCours} onClick={onAnnuler}>
