@@ -49,7 +49,7 @@ const modeles = Object.entries(peggy.modeles).filter(([cle]) => !seulement || cl
       buttons: m.boutons.map((b) => ({ type: "QUICK_REPLY", text: b.texte })),
     });
   }
-  return { name: nomModeleMeta(cle), language: LANGUE_MODELES, category: m.categorie ?? "UTILITY", components: composants };
+  return { name: nomModeleMeta(cle, m), language: LANGUE_MODELES, category: m.categorie ?? "UTILITY", components: composants };
 });
 
 for (const m of modeles) {

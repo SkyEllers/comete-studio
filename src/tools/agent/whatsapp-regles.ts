@@ -15,8 +15,8 @@ import type { CleModele, Modele, ValeursModele } from "./profil.ts";
 export const VERSION_API = "v25.0";
 export const LANGUE_MODELES = "fr";
 
-export function nomModeleMeta(cle: CleModele): string {
-  return `diag_${cle}`;
+export function nomModeleMeta(cle: CleModele, modele?: Pick<Modele, "nomMeta">): string {
+  return modele?.nomMeta ?? `diag_${cle}`;
 }
 
 /** « +33612345678 » pour nous, « 33612345678 » pour Meta, dans les deux sens. */
@@ -31,7 +31,7 @@ export function corpsModele(telephone: string, cle: CleModele, modele: Modele, v
     to: versMeta(telephone),
     type: "template",
     template: {
-      name: nomModeleMeta(cle),
+      name: nomModeleMeta(cle, modele),
       language: { code: LANGUE_MODELES },
       components: [
         {

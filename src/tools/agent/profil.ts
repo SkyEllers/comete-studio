@@ -31,6 +31,12 @@ export type Modele = {
   boutons: { texte: string; sens: SensBouton }[];
   /** Chez Meta. Utilité par défaut ; le contenu est du Marketing. */
   categorie?: "UTILITY" | "MARKETING";
+  /**
+   * Son nom chez Meta, quand ce n'est plus `diag_<clé>` : un texte changé se
+   * soumet sous un nouveau nom, l'ancien restant en service jusqu'à la
+   * validation du nouveau.
+   */
+  nomMeta?: string;
 };
 
 /** Un contenu que l'agent peut proposer, puis envoyer sur un oui. */
@@ -81,6 +87,11 @@ export type Profil = {
   urlTarifs: string | null;
   /** La page pour reprendre un rendez-vous, donnée après une annulation. */
   urlReservation: string | null;
+  /**
+   * Les boutons d'anciens textes de modèles, retirés depuis : un message déjà
+   * parti les porte encore, et elle peut appuyer dessus des jours plus tard.
+   */
+  boutonsAnciens?: { texte: string; sens: SensBouton }[];
 };
 
 export type ValeursModele = Record<VariableModele, string>;

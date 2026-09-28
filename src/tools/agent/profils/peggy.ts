@@ -81,19 +81,22 @@ export const peggy: Profil = {
   catalogue: articlesPeggy,
   urlTarifs: "https://www.peggygirault.fr/tarifs/",
   urlReservation: "https://www.peggygirault.fr/rdv-diagnostic/",
+  // Le premier message d'avant le 28/09/2026 (`diag_reservation`).
+  boutonsAnciens: [{ texte: "Oui, c'est bon", sens: "confirme" }],
 
   modeles: {
+    // Validé par Louis le 28/09/2026 (humaniseur-fr) : on ne lui demande plus de
+    // confirmer un créneau qu'elle vient de choisir, on lance la préparation
+    // (ce qu'elle attend du rendez-vous) ; la confirmation vient aux rappels.
+    // Nouveau nom chez Meta : `diag_reservation` part jusqu'à sa validation.
     reservation: {
+      nomMeta: "diag_reservation_v2",
       corps:
         "Bonjour {{1}}, ici l'assistante de Peggy Girault. Je suis une IA, je m'occupe de ton rendez-vous jusqu'au jour J.\n" +
         "C'est réservé : ton diagnostic offert a lieu {{2}} à {{3}}, en visio (45 minutes).\n" +
-        "Le créneau te va bien ?\n" +
-        "Si tu préfères parler à quelqu'un de l'équipe, dis-le-moi ici.",
+        "Pour qu'il te serve vraiment : qu'est-ce que tu aimerais avoir compris à la fin ?",
       variables: ["prenom", "jour", "heure"],
-      boutons: [
-        { texte: "Oui, c'est bon", sens: "confirme" },
-        { texte: "Je dois changer", sens: "changer" },
-      ],
+      boutons: [{ texte: "Je dois changer", sens: "changer" }],
     },
     rappel: {
       corps:

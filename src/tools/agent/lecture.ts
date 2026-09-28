@@ -25,5 +25,5 @@ export function sensDuBouton(profil: Profil, libelle: string): SensBouton | null
     const bouton = modele.boutons.find((b) => b.texte === libelle);
     if (bouton) return bouton.sens;
   }
-  return null;
+  return profil.boutonsAnciens?.find((b) => b.texte === libelle)?.sens ?? null;
 }
