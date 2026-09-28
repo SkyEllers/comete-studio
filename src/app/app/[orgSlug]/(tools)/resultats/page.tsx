@@ -22,7 +22,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireMembership } from "@/lib/access";
 import { montant } from "@/tools/resultats/format";
-import { libelleMois, moisDemande, moisPrecedent } from "@/tools/resultats/mois";
+import {
+  libelleMois,
+  moisDemande,
+  moisPrecedent,
+} from "@/tools/resultats/mois";
 import {
   aVendre,
   aVerifier,
@@ -40,9 +44,13 @@ import {
   getVentesDuMois,
   getVentesRefusees,
   parCanal,
+  sansCommission,
 } from "@/tools/resultats/queries";
 import { ARecontacter } from "@/tools/resultats/non-vente-client";
-import { AppelsDeDemain, AVerifier } from "@/tools/resultats/rendez-vous-client";
+import {
+  AppelsDeDemain,
+  AVerifier,
+} from "@/tools/resultats/rendez-vous-client";
 import {
   comparer,
   comparerMontant,
@@ -84,6 +92,7 @@ async function TableauDeBord({
   ]);
 
   const surLesVentes = reglages.commission_basis === "ventes";
+  const avecCommission = sansCommission(reglages) === false;
 
   /*
    * En mode « ventes », l'argent du mois ne se lit pas sur les séances du mois :
@@ -92,7 +101,9 @@ async function TableauDeBord({
    * continuent de parler de l'agenda.
    */
   const [ventesDuMois, refusees, precedentBilan, releve] = await Promise.all([
-    surLesVentes ? getVentesDuMois(organizationId, mois) : Promise.resolve(undefined),
+    surLesVentes
+      ? getVentesDuMois(organizationId, mois)
+      : Promise.resolve(undefined),
     surLesVentes
       ? getVentesRefusees(lignes.map((ligne) => ligne.id))
       : Promise.resolve(new Set<string>()),
@@ -106,7 +117,12 @@ async function TableauDeBord({
     getReleve(organizationId, mois),
   ]);
 
-  const courant = bilan(lignes, reglages.commission_rate, reglages.currency, ventesDuMois);
+  const courant = bilan(
+    lignes,
+    reglages.commission_rate,
+    reglages.currency,
+    ventesDuMois,
+  );
 
   const avant = moisPrecedent(mois);
   const parts = parCanal(lignes, canaux);
@@ -122,9 +138,14 @@ async function TableauDeBord({
   const aRegarder = surLesVentes
     ? [
         ...new Map(
-          [...aVerifier(lignes), ...aVendre(lignes, refusees)].map((rdv) => [rdv.id, rdv]),
+          [...aVerifier(lignes), ...aVendre(lignes, refusees)].map((rdv) => [
+            rdv.id,
+            rdv,
+          ]),
         ).values(),
-      ].sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start))
+      ].sort(
+        (a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start),
+      )
     : aVerifier(lignes);
 
   /*
@@ -144,7 +165,9 @@ async function TableauDeBord({
    * Les personnes venues sans acheter qui ont dit quand en reparler : la liste
    * suit le calendrier, pas le mois affiché, comme les appels de demain.
    */
-  const recontacts = surLesVentes ? await getARecontacter(organizationId) : null;
+  const recontacts = surLesVentes
+    ? await getARecontacter(organizationId)
+    : null;
 
   return (
     <>
@@ -158,16 +181,24 @@ async function TableauDeBord({
         <section className="mb-8 space-y-3">
           <div>
             <div className="flex items-center gap-2">
-              <PhoneCall aria-hidden="true" className="text-muted-foreground size-4" />
-              <h2 className="text-sm">Appels de la veille : les rendez-vous de demain</h2>
+              <PhoneCall
+                aria-hidden="true"
+                className="text-muted-foreground size-4"
+              />
+              <h2 className="text-sm">
+                Appels de la veille : les rendez-vous de demain
+              </h2>
             </div>
             <p className="text-muted-foreground mt-1 text-sm">
-              Note ce que chaque appel a donné. Sans réponse, garde le rendez-vous : c&apos;est
-              ce qui dira combien de ces personnes viennent quand même.
+              Note ce que chaque appel a donné. Sans réponse, garde le
+              rendez-vous : c&apos;est ce qui dira combien de ces personnes
+              viennent quand même.
             </p>
           </div>
           <AppelsDeDemain orgSlug={orgSlug} lignes={demain} appels={appels} />
-          {bilanDesAppels && bilanDesAppels.sans_reponse.total + bilanDesAppels.confirme.total > 0 ? (
+          {bilanDesAppels &&
+          bilanDesAppels.sans_reponse.total + bilanDesAppels.confirme.total >
+            0 ? (
             <p className="text-muted-foreground text-sm">
               Sur 30 jours, sans réponse à l&apos;appel :{" "}
               <span className="text-foreground">
@@ -178,8 +209,9 @@ async function TableauDeBord({
               {bilanDesAppels.sans_reponse.nonVenues > 1 ? "s" : ""},{" "}
               {bilanDesAppels.sans_reponse.annulees} annulée
               {bilanDesAppels.sans_reponse.annulees > 1 ? "s" : ""},{" "}
-              {bilanDesAppels.sans_reponse.aVenir} à venir. Confirmées à l&apos;appel :{" "}
-              {bilanDesAppels.confirme.venues} venue{bilanDesAppels.confirme.venues > 1 ? "s" : ""},{" "}
+              {bilanDesAppels.sans_reponse.aVenir} à venir. Confirmées à
+              l&apos;appel : {bilanDesAppels.confirme.venues} venue
+              {bilanDesAppels.confirme.venues > 1 ? "s" : ""},{" "}
               {bilanDesAppels.confirme.nonVenues} non venue
               {bilanDesAppels.confirme.nonVenues > 1 ? "s" : ""}.
             </p>
@@ -191,12 +223,16 @@ async function TableauDeBord({
         <section className="mb-8 space-y-3">
           <div>
             <div className="flex items-center gap-2">
-              <MessageCircleHeart aria-hidden="true" className="text-muted-foreground size-4" />
+              <MessageCircleHeart
+                aria-hidden="true"
+                className="text-muted-foreground size-4"
+              />
               <h2 className="text-sm">À recontacter</h2>
             </div>
             <p className="text-muted-foreground mt-1 text-sm">
-              Elles sont venues sans acheter et t&apos;ont dit quand en reparler. Ce mois est
-              arrivé : un message de ta part, puis « C&apos;est fait ».
+              Elles sont venues sans acheter et t&apos;ont dit quand en
+              reparler. Ce mois est arrivé : un message de ta part, puis «
+              C&apos;est fait ».
             </p>
           </div>
           <ARecontacter orgSlug={orgSlug} donnees={recontacts} />
@@ -220,13 +256,21 @@ async function TableauDeBord({
               icon={CalendarClock}
               label="Rendez-vous"
               valeur={String(courant.rendezVous)}
-              comparaison={comparer(courant.rendezVous, precedentBilan.rendezVous, avant)}
+              comparaison={comparer(
+                courant.rendezVous,
+                precedentBilan.rendezVous,
+                avant,
+              )}
             />
             <Tuile
               icon={CalendarCheck2}
               label="Honorés"
               valeur={String(courant.honores)}
-              comparaison={comparer(courant.honores, precedentBilan.honores, avant)}
+              comparaison={comparer(
+                courant.honores,
+                precedentBilan.honores,
+                avant,
+              )}
             />
             {/* Deux échecs, deux tuiles. Une annulation se voit venir et se
                 remplace ; une personne qui ne vient pas laisse un créneau
@@ -235,13 +279,21 @@ async function TableauDeBord({
               icon={CalendarX2}
               label="Annulés"
               valeur={String(courant.annules)}
-              comparaison={comparer(courant.annules, precedentBilan.annules, avant)}
+              comparaison={comparer(
+                courant.annules,
+                precedentBilan.annules,
+                avant,
+              )}
             />
             <Tuile
               icon={UserX}
               label="Non venus"
               valeur={String(courant.noShows)}
-              comparaison={comparer(courant.noShows, precedentBilan.noShows, avant)}
+              comparaison={comparer(
+                courant.noShows,
+                precedentBilan.noShows,
+                avant,
+              )}
             />
             <Tuile
               icon={Wallet}
@@ -256,48 +308,58 @@ async function TableauDeBord({
             />
           </div>
 
-          <section className="border-line bg-surface-1 rounded-lg border p-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Coins aria-hidden="true" className="text-muted-foreground size-4" />
-                <h2 className="text-sm">
-                  {releve ? "Commission du mois" : "Commission estimée"}
-                </h2>
+          {avecCommission ? (
+            <section className="border-line bg-surface-1 rounded-lg border p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Coins
+                    aria-hidden="true"
+                    className="text-muted-foreground size-4"
+                  />
+                  <h2 className="text-sm">
+                    {releve ? "Commission du mois" : "Commission estimée"}
+                  </h2>
+                </div>
+                {releve ? (
+                  <Badge
+                    variant={releve.status === "paye" ? "default" : "outline"}
+                  >
+                    {ETATS_RELEVE[releve.status] ?? releve.status}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">Brouillon</Badge>
+                )}
               </div>
+
+              <p className="font-display mt-3 text-3xl font-semibold tabular-nums">
+                {montant(
+                  releve ? releve.commission_cents : courant.commission,
+                  courant.devise,
+                )}
+              </p>
+
+              <p className="text-muted-foreground mt-2 text-sm">
+                {releve
+                  ? `${Number(releve.commission_rate)} % de ${montant(releve.base_cents, courant.devise)} ${
+                      surLesVentes
+                        ? "de ventes déclarées, sur des rendez-vous venus des canaux Comète."
+                        : "de séances honorées et payées, venues des canaux Comète."
+                    }`
+                  : `${reglages.commission_rate} % de ${montant(courant.chiffreAffaires, courant.devise)}. Ce chiffre bouge encore : il se fige quand Louis clôture le mois.`}
+              </p>
+
               {releve ? (
-                <Badge variant={releve.status === "paye" ? "default" : "outline"}>
-                  {ETATS_RELEVE[releve.status] ?? releve.status}
-                </Badge>
-              ) : (
-                <Badge variant="outline">Brouillon</Badge>
-              )}
-            </div>
-
-            <p className="font-display mt-3 text-3xl font-semibold tabular-nums">
-              {montant(
-                releve ? releve.commission_cents : courant.commission,
-                courant.devise,
-              )}
-            </p>
-
-            <p className="text-muted-foreground mt-2 text-sm">
-              {releve
-                ? `${Number(releve.commission_rate)} % de ${montant(releve.base_cents, courant.devise)} ${
-                    surLesVentes
-                      ? "de ventes déclarées, sur des rendez-vous venus des canaux Comète."
-                      : "de séances honorées et payées, venues des canaux Comète."
-                  }`
-                : `${reglages.commission_rate} % de ${montant(courant.chiffreAffaires, courant.devise)}. Ce chiffre bouge encore : il se fige quand Louis clôture le mois.`}
-            </p>
-
-            {releve ? (
-              <Button asChild variant="outline" size="sm" className="mt-4">
-                <Link href={`/app/${orgSlug}/resultats/releves/${releve.id}`} prefetch>
-                  Voir le relevé
-                </Link>
-              </Button>
-            ) : null}
-          </section>
+                <Button asChild variant="outline" size="sm" className="mt-4">
+                  <Link
+                    href={`/app/${orgSlug}/resultats/releves/${releve.id}`}
+                    prefetch
+                  >
+                    Voir le relevé
+                  </Link>
+                </Button>
+              ) : null}
+            </section>
+          ) : null}
 
           {aRegarder.length > 0 ? (
             <section className="space-y-3">
@@ -320,10 +382,12 @@ async function TableauDeBord({
             </section>
           ) : null}
 
-          <section className="space-y-3">
-            <h2 className="text-sm">D&apos;où viennent tes rendez-vous</h2>
-            <RepartitionCanaux parts={parts} devise={courant.devise} />
-          </section>
+          {avecCommission ? (
+            <section className="space-y-3">
+              <h2 className="text-sm">D&apos;où viennent tes rendez-vous</h2>
+              <RepartitionCanaux parts={parts} devise={courant.devise} />
+            </section>
+          ) : null}
         </div>
       )}
     </>
@@ -338,12 +402,20 @@ export default async function RadarPage({
   const { mois } = await searchParams;
   // Garde hors `<Suspense>` : c'est elle qui décide du statut de la réponse.
   const { org } = await requireMembership(orgSlug);
+  // Un espace sans commission (Peggy, P16 du 28/09/2026) n'a ni relevé, ni
+  // réglages de commission, ni répartition par canal à lire : Louis les lit
+  // de son côté.
+  const avecCommission = sansCommission(await getReglages(org.id)) === false;
 
   return (
     <>
       <PageHeader
         title="Radar"
-        description="Tes rendez-vous, d'où ils viennent, et le relevé du mois."
+        description={
+          avecCommission
+            ? "Tes rendez-vous, d'où ils viennent, et le relevé du mois."
+            : "Tes rendez-vous, et ce qu'ils ont donné."
+        }
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline">
@@ -358,18 +430,22 @@ export default async function RadarPage({
                 Rendez-vous
               </Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href={`/app/${orgSlug}/resultats/releves`} prefetch>
-                <FileText aria-hidden="true" />
-                Relevés
-              </Link>
-            </Button>
-            <Button asChild variant="ghost">
-              <Link href={`/app/${orgSlug}/resultats/reglages`} prefetch>
-                <SlidersHorizontal aria-hidden="true" />
-                Réglages
-              </Link>
-            </Button>
+            {avecCommission ? (
+              <>
+                <Button asChild variant="outline">
+                  <Link href={`/app/${orgSlug}/resultats/releves`} prefetch>
+                    <FileText aria-hidden="true" />
+                    Relevés
+                  </Link>
+                </Button>
+                <Button asChild variant="ghost">
+                  <Link href={`/app/${orgSlug}/resultats/reglages`} prefetch>
+                    <SlidersHorizontal aria-hidden="true" />
+                    Réglages
+                  </Link>
+                </Button>
+              </>
+            ) : null}
           </div>
         }
       />

@@ -404,6 +404,15 @@ export async function getReglages(organizationId: string): Promise<Reglages> {
 }
 
 /**
+ * Un espace à 0 % : le client ne paie aucune commission (Peggy). Son Radar
+ * ne montre ni commission, ni relevés, ni répartition par canal (P16, Louis,
+ * 28/09/2026).
+ */
+export function sansCommission(reglages: Pick<Reglages, "commission_rate">): boolean {
+  return reglages.commission_rate === 0;
+}
+
+/**
  * La dernière réponse à l'appel de la veille de chaque rendez-vous demandé.
  *
  * Comme « pas de vente », elle vit dans les activités : on la relit là où elle
