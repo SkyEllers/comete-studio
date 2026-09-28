@@ -153,6 +153,16 @@ describe("Google : écrire le rendez-vous", () => {
     assert.equal(c.location, undefined);
   });
 
+  it("une notification 5 min avant, pour lancer l'enregistrement du diagnostic", () => {
+    const c = corpsEvenement({
+      id: "abc12", debut: "d", fin: "f", titre: "t", description: "x",
+      visio: { type: "meet", cle: RDV },
+    });
+    const rappels = c.reminders as { useDefault: boolean; overrides: { method: string; minutes: number }[] };
+    assert.equal(rappels.useDefault, false);
+    assert.ok(rappels.overrides.some((r) => r.method === "popup" && r.minutes === 5));
+  });
+
   it("avec un lien fixe : le lien en lieu et dans la description, pas de Meet", () => {
     const c = corpsEvenement({
       id: "abc12", debut: "d", fin: "f", titre: "t", description: "x",

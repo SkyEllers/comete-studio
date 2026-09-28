@@ -30,6 +30,7 @@ export default async function CloseusePage({
   return (
     <EspaceCloseuseClient
       orgSlug={orgSlug}
+      organizationId={org.id}
       espace={espace}
       moisDuJour={moisCourant()}
       aujourdhui={aujourdhui}

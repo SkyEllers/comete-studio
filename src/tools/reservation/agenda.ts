@@ -169,8 +169,9 @@ export async function ecrireRendezVous(
     id: idEvenement(rdv.id),
     debut: rdv.debut,
     fin: rdv.fin,
-    titre: `Diagnostic · ${prenom}`,
-    description: `Diagnostic réservé en ligne par ${prenom}.\nSes réponses aux questions de réservation sont dans ton espace : ${lienEspace}`,
+    // Le titre porte le rappel : c'est lui que la notification affiche (Louis, 28/09/2026).
+    titre: `Diagnostic · ${prenom} · lance l'enregistrement`,
+    description: `Diagnostic réservé en ligne par ${prenom}.\nPense à lancer l'enregistrement de l'appel dès le début : tu déposeras la vidéo sur la fiche du rendez-vous.\nSes réponses aux questions de réservation sont dans ton espace : ${lienEspace}`,
     visio:
       rdv.personne.visio === "lien" && rdv.personne.lien_visio
         ? { type: "lien", lien: rdv.personne.lien_visio }

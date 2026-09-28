@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { getEnregistrements } from "@/tools/resultats/enregistrement";
+import type { Enregistrement } from "@/tools/resultats/enregistrement-format";
 import { etatsParRendezVous, TYPES_NON_VENTE, type Raison } from "@/tools/resultats/non-vente";
 
 import { calculer, type Grille, type Incident, type Vente } from "./commission";
@@ -33,6 +35,8 @@ export type EspaceCloseuse = {
   rdvs: RdvCloseuse[];
   commission: ReturnType<typeof calculer>;
   incidents: Incident[];
+  /** L'enregistrement de chaque diagnostic tenu, ou son résumé écrit (0049). */
+  enregistrements: Record<string, Enregistrement>;
 };
 
 export const GRILLE_PAR_DEFAUT: Grille = { taux: 15, tauxPalier: 18, palierApres: 5 };
@@ -64,9 +68,9 @@ export async function getEspaceCloseuse(
 
   const ids = (lignes ?? []).map((l) => l.id).filter((id): id is string => Boolean(id));
 
-  const [{ data: premiers }, { data: activites }, { data: reponses }, { data: incidents }] =
+  const [{ data: premiers }, { data: activites }, { data: reponses }, { data: incidents }, enregistrements] =
     ids.length === 0
-      ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]
+      ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, {}]
       : await Promise.all([
           supabase.from("radar_bookings").select("id, sale_premier_cents, agent_suivi").in("id", ids),
           supabase
@@ -79,6 +83,7 @@ export async function getEspaceCloseuse(
             .from("radar_encaissement_incidents")
             .select("booking_id, numero, type")
             .in("booking_id", ids),
+          getEnregistrements(ids),
         ]);
 
   const premierPar = new Map((premiers ?? []).map((p) => [p.id, p.sale_premier_cents]));
@@ -149,5 +154,6 @@ export async function getEspaceCloseuse(
     rdvs,
     commission: calculer(ventes, listeIncidents, grille, aujourdhui),
     incidents: listeIncidents,
+    enregistrements,
   };
 }

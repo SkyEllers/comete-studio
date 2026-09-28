@@ -57,6 +57,35 @@ async function viderStockage(admin: Admin, organizationId: string): Promise<bool
   }
 }
 
+/**
+ * Les enregistrements de diagnostic (0049) : un dossier par rendez-vous sous
+ * celui du client, donc deux niveaux à parcourir.
+ */
+async function viderDiagnostics(admin: Admin, organizationId: string): Promise<boolean> {
+  const stockage = admin.storage.from("diagnostics");
+  for (;;) {
+    const { data: dossiers, error } = await stockage.list(organizationId, { limit: PAGE });
+    if (error) return false;
+    if (!dossiers?.length) return true;
+
+    const chemins: string[] = [];
+    for (const dossier of dossiers) {
+      const prefixe = `${organizationId}/${dossier.name}`;
+      if (dossier.id !== null) {
+        chemins.push(prefixe);
+        continue;
+      }
+      const { data: fichiers, error: erreurListe } = await stockage.list(prefixe, { limit: PAGE });
+      if (erreurListe) return false;
+      for (const f of fichiers ?? []) if (f.id !== null) chemins.push(`${prefixe}/${f.name}`);
+    }
+
+    if (chemins.length === 0) return true;
+    const { error: erreurSuppression } = await stockage.remove(chemins);
+    if (erreurSuppression) return false;
+  }
+}
+
 export type Suppression =
   | { ok: true; avertissement: string | null }
   | { ok: false; error: string };
@@ -65,7 +94,7 @@ export async function supprimerOrganisation(
   admin: Admin,
   organizationId: string,
 ): Promise<Suppression> {
-  if (!(await viderStockage(admin, organizationId))) {
+  if (!(await viderStockage(admin, organizationId)) || !(await viderDiagnostics(admin, organizationId))) {
     return { ok: false, error: "Impossible de supprimer les fichiers de ce client. Rien n'a été supprimé." };
   }
 

@@ -2199,6 +2199,89 @@ export type Database = {
           },
         ]
       }
+      radar_diagnostic_enregistrements: {
+        Row: {
+          booking_id: string
+          chemin: string | null
+          depose_le: string
+          depose_par: string | null
+          nom_fichier: string | null
+          organization_id: string
+          resume: Json | null
+          sans_enregistrement: boolean
+          taille: number | null
+          transcription: Json | null
+          transcription_erreur: string | null
+          transcription_etat: string
+          transcription_id: string | null
+          transcription_le: string | null
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          chemin?: string | null
+          depose_le?: string
+          depose_par?: string | null
+          nom_fichier?: string | null
+          organization_id: string
+          resume?: Json | null
+          sans_enregistrement?: boolean
+          taille?: number | null
+          transcription?: Json | null
+          transcription_erreur?: string | null
+          transcription_etat?: string
+          transcription_id?: string | null
+          transcription_le?: string | null
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          chemin?: string | null
+          depose_le?: string
+          depose_par?: string | null
+          nom_fichier?: string | null
+          organization_id?: string
+          resume?: Json | null
+          sans_enregistrement?: boolean
+          taille?: number | null
+          transcription?: Json | null
+          transcription_erreur?: string | null
+          transcription_etat?: string
+          transcription_id?: string | null
+          transcription_le?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_diagnostic_enregistrements_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_diagnostic_enregistrements_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_diagnostic_enregistrements_depose_par_fkey"
+            columns: ["depose_par"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_diagnostic_enregistrements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_encaissement_incidents: {
         Row: {
           booking_id: string
@@ -3389,6 +3472,15 @@ export type Database = {
         Returns: undefined
       }
       radar_decline_sale: { Args: { booking_id: string }; Returns: boolean }
+      radar_diagnostic_chemin_ok: { Args: { chemin: string }; Returns: boolean }
+      radar_diagnostic_deposer: {
+        Args: { booking_id: string; chemin: string; nom: string; taille: number }
+        Returns: string
+      }
+      radar_diagnostic_sans: {
+        Args: { booking_id: string; resume: Json }
+        Returns: undefined
+      }
       radar_get_secret: { Args: { kind: string; org: string }; Returns: string }
       radar_mois: { Args: { quand: string }; Returns: string }
       radar_note_appel: {

@@ -4,6 +4,7 @@ import { fr } from "date-fns/locale";
 import {
   CalendarCheck2,
   Check,
+  FileVideo,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -40,6 +41,14 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { libelleSuivi } from "@/tools/agent/suivi";
+import {
+  BlocEnregistrement,
+  FormulaireResume,
+  RESUME_VIDE,
+  resumeRempli,
+} from "@/tools/resultats/enregistrement-client";
+import { noterSansEnregistrement } from "@/tools/resultats/enregistrement-actions";
+import type { Enregistrement, ResumeDiagnostic } from "@/tools/resultats/enregistrement-format";
 import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
 import { libelleMois, moisPrecedent, moisSuivant } from "@/tools/resultats/mois";
 import { LIBELLES_MOTIF, MOTIFS, type Motif, type Raison } from "@/tools/resultats/non-vente";
@@ -103,12 +112,14 @@ function telephone(r: RdvCloseuse): string | null {
 
 export function EspaceCloseuseClient({
   orgSlug,
+  organizationId,
   espace,
   moisDuJour,
   aujourdhui,
   vueDeLouis,
 }: {
   orgSlug: string;
+  organizationId: string;
   espace: EspaceCloseuse;
   moisDuJour: string;
   aujourdhui: string;
@@ -118,6 +129,7 @@ export function EspaceCloseuseClient({
   const [mois, setMois] = useState(moisDuJour);
   const [aNoterRdv, setANoterRdv] = useState<RdvCloseuse | null>(null);
   const [facture, setFacture] = useState(false);
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [maintenant] = useState(() => Date.now());
 
   const prenom = espace.nom.split(" ")[0] || "";
@@ -131,6 +143,7 @@ export function EspaceCloseuseClient({
     .filter((p) => p.etat !== "impaye")
     .reduce((s, p) => s + p.montantCents, 0);
   const taux = tenus.length ? Math.round((ventesDuMois.length / tenus.length) * 100) : null;
+  const sansVideo = tenus.filter((r) => espace.enregistrements[r.id]?.sansEnregistrement).length;
 
   return (
     <>
@@ -186,6 +199,14 @@ export function EspaceCloseuseClient({
         />
       </div>
 
+      {sansVideo > 0 ? (
+        <p className="text-muted-foreground -mt-5 mb-8 text-xs">
+          {sansVideo === 1
+            ? "1 diagnostic sans enregistrement ce mois-ci."
+            : `${sansVideo} diagnostics sans enregistrement ce mois-ci.`}
+        </p>
+      ) : null}
+
       <div role="tablist" className="border-line mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b">
         {ONGLETS.map((o) => (
           <button
@@ -209,6 +230,7 @@ export function EspaceCloseuseClient({
         <OngletRdv
           orgSlug={orgSlug}
           rdvs={espace.rdvs}
+          enregistrements={espace.enregistrements}
           maintenant={maintenant}
           moisDuJour={moisDuJour}
           aujourdhui={aujourdhui}
@@ -221,14 +243,28 @@ export function EspaceCloseuseClient({
       ) : null}
       {onglet === "regles" ? <OngletRegles espace={espace} /> : null}
 
-      <Dialog open={aNoterRdv !== null} onOpenChange={(o) => (o ? null : setANoterRdv(null))}>
-        <DialogContent>
+      <Dialog
+        open={aNoterRdv !== null}
+        onOpenChange={(o) => {
+          if (o) return;
+          // Fermer couperait l'envoi de la vidéo.
+          if (envoiEnCours) {
+            toast.error("Attends la fin de l'envoi de la vidéo, ou arrête-le.");
+            return;
+          }
+          setANoterRdv(null);
+        }}
+      >
+        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
           {aNoterRdv ? (
             <FormResultat
               key={aNoterRdv.id}
               orgSlug={orgSlug}
+              organizationId={organizationId}
               rdv={aNoterRdv}
+              enregistrement={espace.enregistrements[aNoterRdv.id]}
               aujourdhui={aujourdhui}
+              onEnvoi={setEnvoiEnCours}
               onFini={() => setANoterRdv(null)}
             />
           ) : null}
@@ -249,6 +285,7 @@ export function EspaceCloseuseClient({
 function OngletRdv({
   orgSlug,
   rdvs,
+  enregistrements,
   maintenant,
   moisDuJour,
   aujourdhui,
@@ -256,6 +293,7 @@ function OngletRdv({
 }: {
   orgSlug: string;
   rdvs: RdvCloseuse[];
+  enregistrements: Record<string, Enregistrement>;
   maintenant: number;
   moisDuJour: string;
   aujourdhui: string;
@@ -320,6 +358,7 @@ function OngletRdv({
                 </span>
                 <span className="w-36 shrink-0 font-medium">{r.prenom}</span>
                 <BadgeResultat rdv={r} />
+                <BadgeEnregistrement rdv={r} enregistrement={enregistrements[r.id]} />
                 {r.statut !== "annule" ? (
                   <button
                     className="text-muted-foreground hover:text-foreground ml-auto text-xs underline-offset-4 hover:underline"
@@ -462,6 +501,25 @@ function BadgeResultat({ rdv }: { rdv: RdvCloseuse }) {
     <Badge variant="secondary">
       Pas de vente{rdv.raison ? ` · ${LIBELLES_MOTIF[rdv.raison.motif]}` : ""}
     </Badge>
+  );
+}
+
+/** Sur un diagnostic tenu : la vidéo est-elle là, ou seulement un résumé ? */
+function BadgeEnregistrement({ rdv, enregistrement }: { rdv: RdvCloseuse; enregistrement: Enregistrement | undefined }) {
+  if (rdv.statut === "annule" || rdv.statut === "no_show") return null;
+  if (!enregistrement) {
+    return (
+      <Badge variant="outline" className="border-warning text-warning">
+        Enregistrement à déposer
+      </Badge>
+    );
+  }
+  if (enregistrement.sansEnregistrement) return <Badge variant="outline">Sans enregistrement</Badge>;
+  return (
+    <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+      <FileVideo aria-hidden="true" className="size-3.5" />
+      {enregistrement.transcriptionEtat === "faite" ? "Vidéo et transcription" : "Vidéo"}
+    </span>
   );
 }
 
@@ -726,13 +784,19 @@ const FOIS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
 function FormResultat({
   orgSlug,
+  organizationId,
   rdv,
+  enregistrement,
   aujourdhui,
+  onEnvoi,
   onFini,
 }: {
   orgSlug: string;
+  organizationId: string;
   rdv: RdvCloseuse;
+  enregistrement: Enregistrement | undefined;
   aujourdhui: string;
+  onEnvoi: (enCours: boolean) => void;
   onFini: () => void;
 }) {
   const router = useRouter();
@@ -749,10 +813,35 @@ function FormResultat({
   const [motif, setMotif] = useState<Motif>(rdv.raison?.motif ?? "argent");
   const [recontacterLe, setRecontacterLe] = useState<string>(rdv.raison?.recontacterLe ?? "");
   const [calendrier, setCalendrier] = useState(false);
+  const [sansVideo, setSansVideo] = useState(false);
+  const [resume, setResume] = useState<ResumeDiagnostic>(enregistrement?.resume ?? RESUME_VIDE);
+  const [envoiVideo, setEnvoiVideo] = useState(false);
   const dernierJour = plusMois(aujourdhui, 24);
+
+  /*
+   * L'enregistrement du diagnostic (0049) : exigé la première fois qu'on note
+   * ce qui s'est passé à un rendez-vous tenu. Une vidéo déposée, ou « je n'en
+   * ai pas » avec le résumé écrit.
+   */
+  const dejaNote = Boolean(rdv.vente || rdv.declinee || rdv.raison);
+  const tenu = type !== "absente";
+  const regle = Boolean(enregistrement) || (sansVideo && resumeRempli(resume));
+  const bloque = tenu && !dejaNote && !regle;
+
+  const suivreEnvoi = (enCours: boolean) => {
+    setEnvoiVideo(enCours);
+    onEnvoi(enCours);
+  };
 
   const envoyer = () =>
     startTransition(async () => {
+      if (tenu && !enregistrement && sansVideo) {
+        const r = await noterSansEnregistrement(orgSlug, { bookingId: rdv.id, resume });
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+      }
       const resultat =
         type === "vente"
           ? await noterVente(orgSlug, { bookingId: rdv.id, montant: montantSaisi, date, fois, premier })
@@ -782,6 +871,37 @@ function FormResultat({
           {majuscule(jour(rdv.debut))}, {heure(rdv.debut)}
         </DialogDescription>
       </DialogHeader>
+
+      {tenu ? (
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium">L&apos;enregistrement du diagnostic</h3>
+          {enregistrement || !sansVideo ? (
+            <BlocEnregistrement
+              orgSlug={orgSlug}
+              organizationId={organizationId}
+              bookingId={rdv.id}
+              enregistrement={enregistrement}
+              titreCopie={`Diagnostic de ${rdv.prenom}, ${jour(rdv.debut)}`}
+              onEnvoi={suivreEnvoi}
+            />
+          ) : (
+            <FormulaireResume valeur={resume} onChange={setResume} />
+          )}
+          {!enregistrement && !envoiVideo ? (
+            <button
+              className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+              onClick={() => setSansVideo((v) => !v)}
+            >
+              {sansVideo ? "Finalement, j'ai la vidéo" : "Je n'ai pas d'enregistrement"}
+            </button>
+          ) : null}
+          {sansVideo && !enregistrement ? (
+            <p className="text-muted-foreground text-xs">
+              Écris ce que tu retiens de l&apos;appel : c&apos;est ce qui servira à préparer le dossier.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="grid grid-cols-3 gap-2">
         {choix.map((c) => (
@@ -891,7 +1011,11 @@ function FormResultat({
         <Button variant="outline" onClick={onFini} disabled={enCours}>
           Annuler
         </Button>
-        <Button onClick={envoyer} disabled={enCours || (type === "vente" && !montantSaisi.trim())}>
+        <Button
+          onClick={envoyer}
+          disabled={enCours || envoiVideo || bloque || (type === "vente" && !montantSaisi.trim())}
+          title={bloque ? "Dépose la vidéo, ou dis que tu n'en as pas et écris le résumé." : undefined}
+        >
           Enregistrer
         </Button>
       </DialogFooter>

@@ -6,6 +6,7 @@ import {
   CalendarX2,
   Check,
   CircleSlash,
+  FileVideo,
   Pencil,
   PhoneCall,
   PhoneMissed,
@@ -46,6 +47,8 @@ import {
   venteEncoreImpossible,
 } from "./format";
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
+import { BlocEnregistrement, useSuiviTranscriptions } from "./enregistrement-client";
+import type { Enregistrement } from "./enregistrement-format";
 import { etatsParRendezVous, type EtatRecontact, type Motif } from "./non-vente";
 import {
   FormulaireEnAttente,
@@ -89,6 +92,9 @@ const LIBELLES_ACTIVITE: Record<string, string> = {
   "call.no_answer": "Appel de la veille : sans réponse",
   "sale.reason": "Raison notée",
   "recontact.done": "Recontactée",
+  "recording.added": "Enregistrement déposé",
+  "recording.replaced": "Enregistrement remplacé",
+  "recording.missing": "Pas d'enregistrement, résumé écrit",
 };
 
 /** Le libellé d'une activité ; une raison de non-vente dit laquelle. */
@@ -174,6 +180,8 @@ const AVANT_IDENTITE = "Reçu avant que Radar enregistre les noms";
 
 export function ListeRendezVous({
   orgSlug,
+  organizationId,
+  enregistrements = {},
   rendezVous,
   canaux,
   activites,
@@ -182,6 +190,9 @@ export function ListeRendezVous({
   suiviAppel = false,
 }: {
   orgSlug: string;
+  organizationId: string;
+  /** L'enregistrement de chaque diagnostic, ou son résumé écrit (0049). */
+  enregistrements?: Record<string, Enregistrement>;
   rendezVous: RendezVous[];
   canaux: Canal[];
   activites: Record<string, Activite[]>;
@@ -204,6 +215,9 @@ export function ListeRendezVous({
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
   const sources = new Map(Object.entries(sourcesAttribution));
   const choisi = rendezVous.find((rdv) => rdv.id === ouvert) ?? null;
+  useSuiviTranscriptions(
+    choisi === null && Object.values(enregistrements).some((e) => e.transcriptionEtat === "en_cours"),
+  );
 
   const changer = (bookingId: string, statut: string) =>
     startTransition(async () => {
@@ -303,6 +317,16 @@ export function ListeRendezVous({
                               Vente
                             </Badge>
                           ) : null}
+                          {enregistrements[rdv.id] ? (
+                            enregistrements[rdv.id].sansEnregistrement ? (
+                              <Badge variant="outline">Sans enregistrement</Badge>
+                            ) : (
+                              <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+                                <FileVideo aria-hidden="true" className="size-3.5" />
+                                Enregistrement
+                              </span>
+                            )
+                          ) : null}
                           {suiviAppel &&
                           derniereReponse(activites[rdv.id] ?? []) === "sans_reponse" ? (
                             <Badge variant="outline">Sans réponse à l&apos;appel</Badge>
@@ -347,6 +371,9 @@ export function ListeRendezVous({
         <SheetContent side="bottom" className="max-h-[88svh] overflow-y-auto">
           {choisi ? (
             <FicheRendezVous
+              orgSlug={orgSlug}
+              organizationId={organizationId}
+              enregistrement={enregistrements[choisi.id]}
               rdv={choisi}
               canal={choisi.channel_id ? (parCanal.get(choisi.channel_id) ?? null) : null}
               activites={activites[choisi.id] ?? []}
@@ -379,6 +406,9 @@ function Ligne({ label, valeur }: { label: string; valeur: React.ReactNode }) {
 }
 
 function FicheRendezVous({
+  orgSlug,
+  organizationId,
+  enregistrement,
   rdv,
   canal,
   activites,
@@ -394,6 +424,9 @@ function FicheRendezVous({
   onAttente,
   onRefuser,
 }: {
+  orgSlug: string;
+  organizationId: string;
+  enregistrement: Enregistrement | undefined;
   rdv: RendezVous;
   canal: Canal | null;
   activites: Activite[];
@@ -636,6 +669,21 @@ function FicheRendezVous({
               </Button>
             </div>
           )
+        ) : null}
+
+        {/* L'enregistrement du diagnostic : la vidéo, sa transcription, ou le
+            résumé écrit à sa place. Dès que la séance a pu avoir lieu. */}
+        {enregistrement || (vendable && bilanPossible(rdv.scheduled_start)) ? (
+          <section className="space-y-2">
+            <h3 className="text-muted-foreground text-xs">L&apos;enregistrement du diagnostic</h3>
+            <BlocEnregistrement
+              orgSlug={orgSlug}
+              organizationId={organizationId}
+              bookingId={rdv.id}
+              enregistrement={enregistrement}
+              titreCopie={`Diagnostic de ${nom ?? "l'invitée"}, ${jour(rdv.scheduled_start)}`}
+            />
+          </section>
         ) : null}
 
         {/* Avant le détail : c'est la question du test, et elle se pose la

@@ -284,7 +284,19 @@ export function corpsEvenement(e: Evenement): Record<string, unknown> {
     // Pas d'invitée dans l'événement : l'invitation part de l'adresse du
     // client (étape 5). Google n'écrit à personne, et l'adresse Gmail de la
     // closeuse n'est jamais montrée à la cliente.
-    reminders: { useDefault: true },
+    /*
+     * Une notification 5 min avant, en plus de la sienne : le rappel de lancer
+     * l'enregistrement du diagnostic (0049). Google ne garde les rappels par
+     * défaut de la personne que si l'on n'en fixe aucun : on remet donc les
+     * deux usuels à côté.
+     */
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: "popup", minutes: 5 },
+        { method: "popup", minutes: 30 },
+      ],
+    },
     transparency: "opaque",
     extendedProperties: { private: { comete: "reservation" } },
   };

@@ -39,6 +39,29 @@ async function sortirDAbsente(supabase: Awaited<ReturnType<typeof createClient>>
 
 const idSchema = z.uuid({ error: "Rendez-vous introuvable." });
 
+/**
+ * L'enregistrement du diagnostic est réglé (0049, Louis, 28/09/2026) : une
+ * vidéo déposée, ou « pas d'enregistrement » avec son résumé. Exigé la
+ * première fois qu'on note l'issue d'un rendez-vous tenu ; corriger une issue
+ * déjà notée ne le redemande pas.
+ */
+async function diagnosticRegle(supabase: Awaited<ReturnType<typeof createClient>>, bookingId: string) {
+  const [{ data: enregistrement }, { data: rdv }, { data: activites }] = await Promise.all([
+    supabase.from("radar_diagnostic_enregistrements").select("booking_id").eq("booking_id", bookingId).maybeSingle(),
+    supabase.from("radar_bookings").select("sale_amount_cents").eq("id", bookingId).maybeSingle(),
+    supabase
+      .from("radar_booking_activities")
+      .select("id")
+      .eq("booking_id", bookingId)
+      .in("type", ["sale.declined", "sale.reason"])
+      .limit(1),
+  ]);
+  return Boolean(enregistrement) || rdv?.sale_amount_cents != null || (activites?.length ?? 0) > 0;
+}
+
+const SANS_ENREGISTREMENT =
+  "Dépose l'enregistrement du diagnostic, ou dis que tu n'en as pas et écris le résumé.";
+
 const venteSchema = z.object({
   bookingId: idSchema,
   montant: z.string().trim().min(1, { error: "Écris le montant total." }).max(20),
@@ -64,6 +87,7 @@ export async function noterVente(orgSlug: string, input: unknown): Promise<Actio
   }
 
   const supabase = await createClient();
+  if (!(await diagnosticRegle(supabase, bookingId))) return fail(SANS_ENREGISTREMENT);
   await sortirDAbsente(supabase, bookingId);
   const vente = await supabase.rpc("radar_set_sale", {
     booking_id: bookingId,
@@ -103,6 +127,7 @@ export async function noterNonVente(orgSlug: string, input: unknown): Promise<Ac
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = await createClient();
+  if (!(await diagnosticRegle(supabase, parsed.data.bookingId))) return fail(SANS_ENREGISTREMENT);
 
   // Une vente ou une absence notée par erreur s'enlève d'abord : Radar refuse
   // un motif de non-vente sur l'une comme sur l'autre.

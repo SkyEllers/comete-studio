@@ -21,6 +21,7 @@ import {
   getRendezVous,
   getSourcesAttribution,
 } from "@/tools/resultats/queries";
+import { getEnregistrements } from "@/tools/resultats/enregistrement";
 import { nettoyerRecherche } from "@/tools/resultats/recherche";
 import { ListeRendezVous } from "@/tools/resultats/rendez-vous-client";
 import { SelecteurMois } from "@/tools/resultats/tuiles";
@@ -136,10 +137,11 @@ async function Liste({
       (!venteFiltre || (venteFiltre === "avec" ? ligne.has_sale : !ligne.has_sale)),
   );
 
-  const [activites, sources, reglages] = await Promise.all([
+  const [activites, sources, reglages, enregistrements] = await Promise.all([
     getActivitesDuMois(lignes.map((ligne) => ligne.id)),
     getSourcesAttribution(lignes),
     getReglages(organizationId),
+    getEnregistrements(lignes.map((ligne) => ligne.id)),
   ]);
 
   /*
@@ -231,6 +233,8 @@ async function Liste({
       ) : (
         <ListeRendezVous
           orgSlug={orgSlug}
+          organizationId={organizationId}
+          enregistrements={enregistrements}
           rendezVous={lignes}
           canaux={canaux}
           activites={activites}
