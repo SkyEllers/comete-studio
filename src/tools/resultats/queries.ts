@@ -10,7 +10,7 @@ import {
   type BilanAppel,
   type ReponseAppel,
 } from "./appel-veille";
-import { bilanPossible } from "./format";
+import { aujourdhuiAParis, bilanPossible } from "./format";
 import { moisCourant, moisPrecedent } from "./mois";
 import {
   aRecontacter,
@@ -512,8 +512,9 @@ export async function getARecontacter(organizationId: string): Promise<ARecontac
 
   const etats = etatsParRendezVous(activites ?? []);
   const courant = moisCourant();
-  const dues = aRecontacter(etats, courant);
-  const plusTard = nombrePlusTard(etats, courant);
+  const aujourdhui = aujourdhuiAParis();
+  const dues = aRecontacter(etats, courant, aujourdhui);
+  const plusTard = nombrePlusTard(etats, courant, aujourdhui);
   if (dues.length === 0) return { lignes: [], plusTard };
 
   const { data: rendezVous } = await supabase

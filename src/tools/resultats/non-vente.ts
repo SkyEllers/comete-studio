@@ -35,6 +35,13 @@ export const MOTIFS: readonly Motif[] = [
   "autre",
 ];
 
+/**
+ * Les motifs du formulaire « Pas de vente ». `pas_encore` en sort depuis que
+ * « En attente » a son propre bouton (28/09/2026) : caché derrière « Pas de
+ * vente », personne ne le trouvait, et une attente n'est pas un refus.
+ */
+export const MOTIFS_REFUS: readonly Motif[] = MOTIFS.filter((motif) => motif !== "pas_encore");
+
 export const LIBELLES_MOTIF: Record<Motif, string> = {
   pas_encore: "Elle n'a pas encore répondu",
   argent: "L'argent",
@@ -118,31 +125,47 @@ export function etatsParRendezVous(
 }
 
 /**
- * Qui recontacter maintenant : le mois prévu est arrivé (ou passé), et
- * personne n'a encore dit « c'est fait ». Du plus ancien rappel au plus
+ * Le moment de la recontacter est-il arrivé ? Le jour exact quand il a été
+ * choisi au calendrier (0038, « En attente »), sinon le mois. Sans `aujourdhui`,
+ * seul le mois compte, comme avant la date exacte.
+ */
+export function rappelArrive(raison: Raison, moisCourant: string, aujourdhui?: string): boolean {
+  if (raison.recontacterLe && aujourdhui) return raison.recontacterLe <= aujourdhui;
+  return raison.recontacter !== null && raison.recontacter <= moisCourant;
+}
+
+/**
+ * Qui recontacter maintenant : le jour ou le mois prévu est arrivé (ou passé),
+ * et personne n'a encore dit « c'est fait ». Du plus ancien rappel au plus
  * récent : celui qui attend depuis le plus longtemps d'abord.
  */
 export function aRecontacter(
   etats: Record<string, EtatRecontact>,
   moisCourant: string,
+  aujourdhui?: string,
 ): { id: string; raison: Raison }[] {
+  const cle = (raison: Raison) => raison.recontacterLe ?? raison.recontacter ?? "";
   return Object.entries(etats)
-    .filter(
-      ([, etat]) =>
-        !etat.fait && etat.raison.recontacter !== null && etat.raison.recontacter <= moisCourant,
-    )
+    .filter(([, etat]) => !etat.fait && rappelArrive(etat.raison, moisCourant, aujourdhui))
     .map(([id, etat]) => ({ id, raison: etat.raison }))
     .sort(
       (a, b) =>
-        (a.raison.recontacter ?? "").localeCompare(b.raison.recontacter ?? "") ||
+        cle(a.raison).localeCompare(cle(b.raison)) ||
         a.raison.noteeLe.localeCompare(b.raison.noteeLe),
     );
 }
 
-/** Combien sont prévues pour un mois à venir : le tableau de bord le dit en une ligne. */
-export function nombrePlusTard(etats: Record<string, EtatRecontact>, moisCourant: string): number {
+/** Combien sont prévues plus tard : le tableau de bord le dit en une ligne. */
+export function nombrePlusTard(
+  etats: Record<string, EtatRecontact>,
+  moisCourant: string,
+  aujourdhui?: string,
+): number {
   return Object.values(etats).filter(
-    (etat) => !etat.fait && etat.raison.recontacter !== null && etat.raison.recontacter > moisCourant,
+    (etat) =>
+      !etat.fait &&
+      etat.raison.recontacter !== null &&
+      !rappelArrive(etat.raison, moisCourant, aujourdhui),
   ).length;
 }
 

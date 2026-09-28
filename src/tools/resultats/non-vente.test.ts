@@ -6,9 +6,11 @@ import {
   derniereRaison,
   LIBELLES_MOTIF,
   MOTIFS,
+  MOTIFS_REFUS,
   etatsParRendezVous,
   moisProposes,
   nombrePlusTard,
+  rappelArrive,
 } from "./non-vente.ts";
 
 describe("derniereRaison", () => {
@@ -159,5 +161,42 @@ describe("derniereRaison — le jour exact de la closeuse (0038)", () => {
       },
     ]);
     assert.equal(raison?.recontacterLe, null);
+  });
+});
+
+describe("« En attente » : le jour exact choisi au calendrier (28/09/2026)", () => {
+  const raison = (recontacter: string | null, recontacterLe: string | null) => ({
+    motif: "pas_encore" as const,
+    recontacter,
+    recontacterLe,
+    noteeLe: "2026-09-28T10:00:00Z",
+  });
+
+  it("le formulaire « Pas de vente » ne propose plus « pas encore répondu »", () => {
+    assert.equal(MOTIFS_REFUS.includes("pas_encore"), false);
+    assert.equal(MOTIFS_REFUS.length, MOTIFS.length - 1);
+  });
+
+  it("avec le jour exact, le rappel arrive ce jour-là, pas au début du mois", () => {
+    const r = raison("2026-10-01", "2026-10-06");
+    assert.equal(rappelArrive(r, "2026-10-01", "2026-10-05"), false);
+    assert.equal(rappelArrive(r, "2026-10-01", "2026-10-06"), true);
+    assert.equal(rappelArrive(r, "2026-11-01", "2026-11-02"), true);
+  });
+
+  it("sans aujourd'hui, seul le mois compte, comme avant", () => {
+    assert.equal(rappelArrive(raison("2026-10-01", "2026-10-06"), "2026-10-01"), true);
+    assert.equal(rappelArrive(raison("2026-10-01", null), "2026-10-01", "2026-10-01"), true);
+  });
+
+  it("aRecontacter et nombrePlusTard se partagent les mêmes personnes", () => {
+    const etats = {
+      a: { raison: raison("2026-10-01", "2026-10-06"), fait: false },
+      b: { raison: raison("2026-10-01", "2026-10-02"), fait: false },
+      c: { raison: raison("2026-10-01", null), fait: false },
+    };
+    const dues = aRecontacter(etats, "2026-10-01", "2026-10-03").map((due) => due.id);
+    assert.deepEqual(dues, ["c", "b"]);
+    assert.equal(nombrePlusTard(etats, "2026-10-01", "2026-10-03"), 1);
   });
 });

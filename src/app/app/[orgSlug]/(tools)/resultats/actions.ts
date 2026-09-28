@@ -165,14 +165,24 @@ export async function refuserVente(
  * `radar_note_non_vente` dit aussi « pas de vente » si ce n'était pas fait :
  * une seule réponse du client. Ni le statut ni la commission ne bougent.
  */
+/*
+ * `pas_encore` manquait ici depuis la 0031 : l'écran le proposait en tête de
+ * liste et l'action le refusait (« Choisis une raison. »). « En attente »
+ * l'envoie avec le jour exact choisi au calendrier, `recontacterLe` (0038).
+ */
 const nonVenteSchema = z.object({
   bookingId: z.uuid({ error: "Rendez-vous introuvable." }),
-  motif: z.enum(["argent", "moment", "conjoint", "pas_convaincue", "autre"], {
+  motif: z.enum(["pas_encore", "argent", "moment", "conjoint", "pas_convaincue", "autre"], {
     error: "Choisis une raison.",
   }),
   recontacter: z
     .string()
     .regex(/^\d{4}-\d{2}-01$/, { error: "Choisis un mois." })
+    .nullable()
+    .optional(),
+  recontacterLe: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choisis une date." })
     .nullable()
     .optional(),
 });
@@ -192,6 +202,7 @@ export async function noterNonVente(
     booking_id: parsed.data.bookingId,
     motif: parsed.data.motif,
     recontacter: parsed.data.recontacter ?? undefined,
+    recontacter_le: parsed.data.recontacterLe ?? undefined,
   });
 
   if (error) {

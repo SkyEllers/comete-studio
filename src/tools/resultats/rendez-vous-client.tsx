@@ -2,6 +2,7 @@
 
 import {
   BadgeEuro,
+  CalendarClock,
   CalendarX2,
   Check,
   CircleSlash,
@@ -46,7 +47,12 @@ import {
 } from "./format";
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
 import { etatsParRendezVous, type EtatRecontact, type Motif } from "./non-vente";
-import { FormulaireNonVente, texteRaison, useNonVente } from "./non-vente-client";
+import {
+  FormulaireEnAttente,
+  FormulaireNonVente,
+  texteRaison,
+  useNonVente,
+} from "./non-vente-client";
 import type { Canal, RendezVous } from "./queries";
 import { FormulaireVente, ResumeVente, RetirerVente, type Vente } from "./vente";
 
@@ -192,7 +198,7 @@ export function ListeRendezVous({
   const [ouvert, setOuvert] = useState<string | null>(null);
   const [enCours, startTransition] = useTransition();
   const { enCoursAppel, noter } = useNoterAppel(orgSlug);
-  const { enCoursNonVente, noterRaison } = useNonVente(orgSlug);
+  const { enCoursNonVente, noterRaison, mettreEnAttente } = useNonVente(orgSlug);
   const router = useRouter();
 
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
@@ -353,6 +359,7 @@ export function ListeRendezVous({
               reponseAppel={derniereReponse(activites[choisi.id] ?? [])}
               onAppel={noter}
               onRaison={noterRaison}
+              onAttente={mettreEnAttente}
               onRefuser={refuser}
             />
           ) : null}
@@ -384,6 +391,7 @@ function FicheRendezVous({
   reponseAppel,
   onAppel,
   onRaison,
+  onAttente,
   onRefuser,
 }: {
   rdv: RendezVous;
@@ -398,10 +406,12 @@ function FicheRendezVous({
   reponseAppel: ReponseAppel | null;
   onAppel: (bookingId: string, reponse: ReponseAppel) => void;
   onRaison: (bookingId: string, motif: Motif, recontacter: string | null, apres?: () => void) => void;
+  onAttente: (bookingId: string, recontacterLe: string, apres?: () => void) => void;
   onRefuser: (bookingId: string) => void;
 }) {
   const [saisie, setSaisie] = useState(false);
   const [raisonOuverte, setRaisonOuverte] = useState(false);
+  const [attenteOuverte, setAttenteOuverte] = useState(false);
 
   const modifiable = rdv.status !== "honore";
   const nom = nomComplet(rdv.invitee_first_name, rdv.invitee_last_name);
@@ -528,7 +538,16 @@ function FicheRendezVous({
         ) : null}
 
         {questionVente ? (
-          raisonOuverte ? (
+          attenteOuverte ? (
+            <FormulaireEnAttente
+              raison={etatNonVente?.raison ?? null}
+              enCours={enCours}
+              onEnregistrer={(recontacterLe) =>
+                onAttente(rdv.id, recontacterLe, () => setAttenteOuverte(false))
+              }
+              onAnnuler={() => setAttenteOuverte(false)}
+            />
+          ) : raisonOuverte ? (
             <FormulaireNonVente
               idBase={rdv.id}
               raison={etatNonVente?.raison ?? null}
@@ -546,6 +565,30 @@ function FicheRendezVous({
               }
               onAnnuler={() => setRaisonOuverte(false)}
             />
+          ) : etatNonVente?.raison.motif === "pas_encore" ? (
+            /* En attente : elle peut encore acheter (« Vente conclue » reste
+               plus haut) ou dire non ; la date se déplace. */
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm">{texteRaison(etatNonVente.raison, etatNonVente.fait)}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={enCours}
+                onClick={() => setAttenteOuverte(true)}
+              >
+                <Pencil aria-hidden="true" />
+                Changer la date
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={enCours}
+                onClick={() => setRaisonOuverte(true)}
+              >
+                <CircleSlash aria-hidden="true" />
+                Pas de vente
+              </Button>
+            </div>
           ) : etatNonVente ? (
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm">{texteRaison(etatNonVente.raison, etatNonVente.fait)}</p>
@@ -572,15 +615,26 @@ function FicheRendezVous({
               </Button>
             </div>
           ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={enCours}
-              onClick={() => setRaisonOuverte(true)}
-            >
-              <CircleSlash aria-hidden="true" />
-              Pas de vente
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={enCours}
+                onClick={() => setAttenteOuverte(true)}
+              >
+                <CalendarClock aria-hidden="true" />
+                En attente
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={enCours}
+                onClick={() => setRaisonOuverte(true)}
+              >
+                <CircleSlash aria-hidden="true" />
+                Pas de vente
+              </Button>
+            </div>
           )
         ) : null}
 
@@ -738,11 +792,13 @@ export function AVerifier({
 }) {
   const [enCoursStatut, startTransition] = useTransition();
   const { enCoursAppel, noter } = useNoterAppel(orgSlug);
-  const { enCoursNonVente, noterRaison } = useNonVente(orgSlug);
+  const { enCoursNonVente, noterRaison, mettreEnAttente } = useNonVente(orgSlug);
   const enCours = enCoursStatut || enCoursAppel || enCoursNonVente;
   const [saisie, setSaisie] = useState<string | null>(null);
   /** La ligne dont on dit pourquoi elle n'a pas vendu. */
   const [raison, setRaison] = useState<string | null>(null);
+  /** La ligne mise « En attente », dont on choisit le jour de relance. */
+  const [attente, setAttente] = useState<string | null>(null);
   const router = useRouter();
   const parCanal = new Map(canaux.map((canal) => [canal.id, canal]));
 
@@ -840,11 +896,28 @@ export function AVerifier({
                     disabled={enCours}
                     onClick={() => {
                       setRaison(null);
+                      setAttente(null);
                       setSaisie(saisie === rdv.id ? null : rdv.id);
                     }}
                   >
                     <BadgeEuro aria-hidden="true" />
                     Vente conclue
+                  </Button>
+                  {/* Ni oui ni non en sortant du rendez-vous : le cas le plus
+                      fréquent chez Peggy. Un jour de relance, pas un refus. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={enCours}
+                    aria-expanded={attente === rdv.id}
+                    onClick={() => {
+                      setSaisie(null);
+                      setRaison(null);
+                      setAttente(attente === rdv.id ? null : rdv.id);
+                    }}
+                  >
+                    <CalendarClock aria-hidden="true" />
+                    En attente
                   </Button>
                   {/* Plus d'enregistrement direct : on demande d'abord pourquoi,
                       et « Sans raison » reste à portée pour qui ne veut rien dire. */}
@@ -855,6 +928,7 @@ export function AVerifier({
                     aria-expanded={raison === rdv.id}
                     onClick={() => {
                       setSaisie(null);
+                      setAttente(null);
                       setRaison(raison === rdv.id ? null : rdv.id);
                     }}
                   >
@@ -884,6 +958,19 @@ export function AVerifier({
                 enCours={enCours}
                 onEnregistrer={(vente) => vendre(rdv.id, vente)}
                 onAnnuler={() => setSaisie(null)}
+              />
+            </div>
+          ) : null}
+
+          {attente === rdv.id ? (
+            <div className="mt-3">
+              <FormulaireEnAttente
+                raison={null}
+                enCours={enCours}
+                onEnregistrer={(recontacterLe) =>
+                  mettreEnAttente(rdv.id, recontacterLe, () => setAttente(null))
+                }
+                onAnnuler={() => setAttente(null)}
               />
             </div>
           ) : null}
