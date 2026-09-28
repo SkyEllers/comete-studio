@@ -268,7 +268,7 @@ ${
 - plus_interessee : elle a changé d'avis, ça ne l'intéresse plus ;
 - ailleurs : elle a trouvé une autre solution, ou elle est déjà suivie ;
 - autre : tout le reste.
-Si elle ne veut pas le dire, c'est très bien : laisse ces deux champs vides.`
+Si elle ne veut pas le dire, c'est très bien : laisse ces deux champs vides. Ne lui dis jamais que sa réponse « reste entre vous » : l'équipe la lit.`
 }
 ${reprendre}`;
   }
@@ -280,7 +280,7 @@ ${reprendre}`;
 
 Tu lui as proposé de décaler son rendez-vous plutôt que de l'annuler.
 - Si elle préfère décaler : mets "veut_changer" à true, et suis la règle des changements de créneau.
-- Si elle maintient qu'elle veut annuler : mets "annulation_confirmee" à true. Le système annule le rendez-vous au moment où ton message part. Dis-lui que c'est annulé, puis demande-lui en une question, avec douceur, ce qui l'a décidée (elle peut ne pas répondre). Si elle a déjà donné sa raison dans ce message, remplis "raison_annulation" et "raison_categorie" et ne redemande rien.`;
+- Si elle maintient qu'elle veut annuler : mets "annulation_confirmee" à true. Le système annule le rendez-vous au moment où ton message part. Dis-lui que c'est annulé, puis demande-lui en une question, avec douceur, ce qui l'a décidée (elle peut ne pas répondre). Ne lui dis jamais que sa réponse « reste entre vous » : l'équipe la lit. Si elle a déjà donné sa raison dans ce message, remplis "raison_annulation" et "raison_categorie" et ne redemande rien.`;
   }
 
   return "";
