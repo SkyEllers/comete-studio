@@ -5,6 +5,7 @@ import { ouvrirAccords } from "@/tools/agent/accords";
 import { tournerTout } from "@/tools/agent/moteur";
 import { mailsVeilleStop } from "@/tools/agent/outil";
 import { envoyerResumes } from "@/tools/agent/resume";
+import { entretienReservation } from "@/tools/reservation/entretien";
 
 /**
  * L'horloge de l'agent.
@@ -22,7 +23,9 @@ import { envoyerResumes } from "@/tools/agent/resume";
  * Le même passage envoie le mail du matin, une fois par jour après 8h
  * (`resume.ts`), et ouvre la conversation des clientes qui ont donné leur
  * accord par mail avant le lancement (`accords.ts`, 0046), et demande au site
- * le mail de la veille pour celles qui ont dit STOP (`outil.ts`, 0048).
+ * le mail de la veille pour celles qui ont dit STOP (`outil.ts`, 0048). Et
+ * l'entretien de l'outil de réservation : écritures Google ratées, « complet »
+ * (`reservation/entretien.ts`).
  *
  * Deux passages qui se chevauchent n'envoient rien en double : chaque envoi
  * se réserve par sa `cle_envoi` avant de partir (`moteur.ts`).
@@ -58,8 +61,9 @@ export async function POST(request: Request) {
     const faits = await tournerTout(admin);
     const resumes = await envoyerResumes(admin);
     const veilles = await mailsVeilleStop(admin);
+    const reservation = await entretienReservation(admin);
     return Response.json(
-      { faits, resumes, veilles, duree_ms: Date.now() - debut },
+      { faits, resumes, veilles, reservation, duree_ms: Date.now() - debut },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (erreur) {
