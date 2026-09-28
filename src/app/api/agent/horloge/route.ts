@@ -5,6 +5,7 @@ import { ouvrirAccords } from "@/tools/agent/accords";
 import { tournerTout } from "@/tools/agent/moteur";
 import { mailsVeilleStop } from "@/tools/agent/outil";
 import { envoyerResumes } from "@/tools/agent/resume";
+import { relancerDevis } from "@/tools/devis/moteur";
 import { entretienReservation } from "@/tools/reservation/entretien";
 import { entretenirEnregistrements } from "@/tools/resultats/enregistrement-assemblyai";
 
@@ -26,7 +27,8 @@ import { entretenirEnregistrements } from "@/tools/resultats/enregistrement-asse
  * accord par mail avant le lancement (`accords.ts`, 0046), et demande au site
  * le mail de la veille pour celles qui ont dit STOP (`outil.ts`, 0048). Et
  * l'entretien de l'outil de réservation : écritures Google ratées, « complet »
- * (`reservation/entretien.ts`).
+ * (`reservation/entretien.ts`). Et le rappel quotidien des devis pas encore
+ * signés, à 10h (`devis/moteur.ts`, P16).
  *
  * Il rapatrie aussi les transcriptions des diagnostics, et efface ceux passés
  * depuis plus de six mois (`resultats/enregistrement-assemblyai.ts`, 0049). Une panne de
@@ -71,8 +73,12 @@ export async function POST(request: Request) {
       console.error(`[diagnostic] entretien raté : ${e.message}`);
       return null;
     });
+    const devis = await relancerDevis(admin).catch((e: Error) => {
+      console.error(`[devis] rappels ratés : ${e.message}`);
+      return null;
+    });
     return Response.json(
-      { faits, resumes, veilles, reservation, enregistrements, duree_ms: Date.now() - debut },
+      { faits, resumes, veilles, reservation, enregistrements, devis, duree_ms: Date.now() - debut },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (erreur) {

@@ -48,6 +48,8 @@ import {
   venteEncoreImpossible,
 } from "./format";
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
+import { BlocDevis } from "@/tools/devis/bloc-client";
+
 import { BlocEnregistrement, useSuiviTranscriptions } from "./enregistrement-client";
 import type { Enregistrement } from "./enregistrement-format";
 import {
@@ -692,6 +694,11 @@ function FicheRendezVous({
             />
           </section>
         ) : null}
+
+        {/* Le devis signé en ligne (P16) : après le diagnostic, jamais sur une
+            séance annulée ou manquée. Le bloc ne s'affiche que pour un espace
+            qui a son modèle de devis. */}
+        {vendable && bilanPossible(rdv.scheduled_start) ? <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} /> : null}
 
         {/* Avant le détail : c'est la question du test, et elle se pose la
             veille, quand le reste de la fiche n'a encore rien à dire. */}

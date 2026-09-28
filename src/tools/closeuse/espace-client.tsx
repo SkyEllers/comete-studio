@@ -50,6 +50,7 @@ import {
 import { noterSansEnregistrement } from "@/tools/resultats/enregistrement-actions";
 import type { Enregistrement, ResumeDiagnostic } from "@/tools/resultats/enregistrement-format";
 import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
+import { BlocDevis } from "@/tools/devis/bloc-client";
 import { libelleMois, moisPrecedent, moisSuivant } from "@/tools/resultats/mois";
 import { LIBELLES_MOTIF, MOTIFS, type Motif, type Raison } from "@/tools/resultats/non-vente";
 import { Tuile } from "@/tools/resultats/tuiles";
@@ -902,6 +903,10 @@ function FormResultat({
           ) : null}
         </section>
       ) : null}
+
+      {/* Le devis signé en ligne (P16) : envoyé d'ici, signé par elle, la
+          vente s'inscrit seule à la signature. */}
+      {tenu ? <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} /> : null}
 
       <div className="grid grid-cols-3 gap-2">
         {choix.map((c) => (
