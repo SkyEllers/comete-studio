@@ -51,6 +51,7 @@ import { noterSansEnregistrement } from "@/tools/resultats/enregistrement-action
 import type { Enregistrement, ResumeDiagnostic } from "@/tools/resultats/enregistrement-format";
 import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
 import { BlocDevis } from "@/tools/devis/bloc-client";
+import { BlocParcours } from "@/tools/fiche/parcours-client";
 import { libelleMois, moisPrecedent, moisSuivant } from "@/tools/resultats/mois";
 import { LIBELLES_MOTIF, MOTIFS, type Motif, type Raison } from "@/tools/resultats/non-vente";
 import { Tuile } from "@/tools/resultats/tuiles";
@@ -872,6 +873,8 @@ function FormResultat({
           {majuscule(jour(rdv.debut))}, {heure(rdv.debut)}
         </DialogDescription>
       </DialogHeader>
+
+      <BlocParcours orgSlug={orgSlug} bookingId={rdv.id} />
 
       {tenu ? (
         <section className="space-y-2">

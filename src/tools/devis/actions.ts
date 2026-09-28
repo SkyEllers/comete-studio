@@ -3,9 +3,8 @@
 import { z } from "zod";
 
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
-import { getMembership } from "@/lib/access";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { rendezVousAccessible } from "@/tools/fiche/acces";
 
 import { creerDevis, envoyerDevis, notifierSite, noter, profilDe } from "./moteur";
 import { montants, type Paiement } from "./regles";
@@ -22,21 +21,6 @@ const brut = (admin: ReturnType<typeof createAdminClient>) => admin as any;
 
 const idSchema = z.uuid({ error: "Rendez-vous introuvable." });
 
-async function rendezVousAccessible(orgSlug: string, bookingId: string) {
-  const acces = await getMembership(orgSlug);
-  if (!acces) return null;
-  const supabase = await createClient();
-  const { data: rdv } = await supabase
-    .from("radar_bookings")
-    .select("id, organization_id, closeuse_id, invitee_first_name, invitee_last_name, status")
-    .eq("id", bookingId)
-    .eq("organization_id", acces.org.id)
-    .maybeSingle();
-  if (!rdv) return null;
-  const { data: peut } = await supabase.rpc("radar_peut_saisir", { org: rdv.organization_id, closeuse: rdv.closeuse_id ?? undefined } as never);
-  if (peut !== true) return null;
-  return { acces, rdv };
-}
 
 export type EtatDevis = {
   id: string;

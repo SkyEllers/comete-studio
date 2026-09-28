@@ -49,6 +49,7 @@ import {
 } from "./format";
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
 import { BlocDevis } from "@/tools/devis/bloc-client";
+import { BlocParcours } from "@/tools/fiche/parcours-client";
 
 import { BlocEnregistrement, useSuiviTranscriptions } from "./enregistrement-client";
 import type { Enregistrement } from "./enregistrement-format";
@@ -679,6 +680,11 @@ function FicheRendezVous({
             </div>
           )
         ) : null}
+
+        {/* Son parcours (P16) : sa réservation et ses réponses, puis
+            l'assistante WhatsApp. La fiche du rendez-vous est la fiche de la
+            cliente. */}
+        <BlocParcours orgSlug={orgSlug} bookingId={rdv.id} />
 
         {/* L'enregistrement du diagnostic : la vidéo, sa transcription, ou le
             résumé écrit à sa place. Dès que la séance a pu avoir lieu. */}

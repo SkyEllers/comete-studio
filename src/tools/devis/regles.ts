@@ -201,7 +201,9 @@ export function contenu(p: ProfilDevis, cliente: Cliente, m: Montants, valide: s
       "Juste après la signature, vous recevez un lien de paiement sécurisé (Stripe). Vous payez par carte bancaire, ou par prélèvement SEPA si vous le préférez.",
       m.paiement === "une_fois"
         ? `Paiement en 1 fois : ${euros(m.totalCents)}.`
-        : `Paiement en plusieurs fois : ${euros(m.investigationCents)} à la mise en place, puis ${euros(m.mensualiteCents)} par mois pendant ${m.dureeMois} mois, prélevés automatiquement.`,
+        : m.dureeMois === 1
+          ? `Paiement à la mise en place : ${euros(m.totalCents)}.`
+          : `Paiement en plusieurs fois : ${euros(m.investigationCents + m.mensualiteCents)} à la mise en place (l'investigation et la première mensualité), puis ${euros(m.mensualiteCents)} par mois pendant les ${m.dureeMois - 1} mois suivants, prélevés automatiquement.`,
       "Le paiement est mis en place AVANT le 1er RDV.",
     ],
   };

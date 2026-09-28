@@ -195,9 +195,13 @@ begin
     return false;
   end if;
 
-  fois := case when d.paiement = 'plusieurs' then least(d.duree_mois + 1, 24) else 1 end;
-  premier := case when fois > 1 and d.investigation_cents > 0 and d.investigation_cents < d.total_cents
-                  then d.investigation_cents else null end;
+  /*
+   * En plusieurs fois : autant de paiements que de mois ; le premier porte
+   * l'investigation et la première mensualité (Stripe ne sait pas les
+   * séparer dans une même page de paiement, 28/09/2026).
+   */
+  fois := case when d.paiement = 'plusieurs' then d.duree_mois else 1 end;
+  premier := case when fois > 1 then d.investigation_cents + d.mensualite_cents else null end;
 
   update public.radar_bookings
      set sale_amount_cents  = d.total_cents,
