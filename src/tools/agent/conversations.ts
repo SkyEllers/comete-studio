@@ -190,7 +190,7 @@ async function deplacer(
   const [{ data: actuelle, error: lecture }, { data: booking }] = await Promise.all([
     admin
       .from("agent_conversations")
-      .select("invitee_uri, invites_precedents")
+      .select("invitee_uri, invites_precedents, etat")
       .eq("id", id)
       .single(),
     admin
@@ -226,10 +226,14 @@ async function deplacer(
       lien_visio: invite.scheduled_event.location?.join_url ?? null,
       lien_report: invite.reschedule_url ?? null,
       lien_annulation: invite.cancel_url ?? null,
-      etat: "active",
+      // Après un STOP, elle peut encore déplacer par son lien : l'agent, lui,
+      // reste muet.
+      etat: actuelle.etat === "stop" ? "stop" : "active",
       confirme_le: new Date().toISOString(),
       sans_reponse_veille: false,
       report_attendu: null,
+      // Nouvelle date : le mail de la veille (après un STOP) repartira pour elle.
+      veille_mail_le: null,
       efface_apres: effaceApres(invite.scheduled_event.end_time),
     })
     .eq("id", id);
@@ -252,11 +256,14 @@ async function annulation(
 ): Promise<Issue> {
   if (invite.rescheduled) return "ok";
 
+  // Annulée par l'agent à sa demande (0048) : la conversation reste ouverte le
+  // temps qu'elle dise pourquoi ; le planning la fermera.
   const { error } = await admin
     .from("agent_conversations")
     .update({ etat: "annulee" })
     .eq("organization_id", orgId)
     .eq("invitee_uri", invite.uri)
+    .is("annulee_par_agent_le", null)
     .in("etat", ["active", "hors_champ"]);
 
   return error ? "erreur" : "ok";

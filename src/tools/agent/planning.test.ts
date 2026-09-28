@@ -241,3 +241,36 @@ describe("planifier — cas limites", () => {
     assert.deepEqual(cles(planifier(c, instantLocal("2026-10-03", 10, 0, m))), ["contenu:2026-10-03"]);
   });
 });
+
+describe("planifier — annulé par l'agent, à sa demande (0048)", () => {
+  const annulee = iso(t("2026-10-03", 11));
+
+  it("plus aucun modèle : ni rappel, ni contenu", () => {
+    // Le 4 à 10h, un contenu serait parti (milieu entre le 1er et J-3).
+    const c = conv({ annulee_par_agent_le: annulee, envois: [reservation], derniere_sortie_le: annulee });
+    assert.deepEqual(cles(planifier(c, t("2026-10-04", 10, 5))), []);
+    assert.deepEqual(cles(planifier(c, t("2026-10-05", 10, 5))), []);
+  });
+
+  it("répond encore quand elle écrit (sa raison), aux heures ouvertes", () => {
+    const c = conv({
+      annulee_par_agent_le: annulee,
+      envois: [reservation],
+      derniere_sortie_le: annulee,
+      derniere_entree_le: iso(t("2026-10-03", 11, 10)),
+    });
+    assert.deepEqual(cles(planifier(c, t("2026-10-03", 11, 15))), ["repondre"]);
+    assert.deepEqual(cles(planifier(c, t("2026-10-03", 22))), []);
+  });
+
+  it("se ferme deux jours après, même avant l'heure du rendez-vous", () => {
+    const c = conv({ annulee_par_agent_le: annulee, envois: [reservation], derniere_sortie_le: annulee });
+    assert.deepEqual(cles(planifier(c, t("2026-10-05", 10, 59))), []);
+    assert.deepEqual(cles(planifier(c, t("2026-10-05", 11, 1))), ["clore_annulee"]);
+  });
+
+  it("ne passe jamais « terminée » : l'heure du rendez-vous passée, elle se ferme « annulée »", () => {
+    const c = conv({ annulee_par_agent_le: annulee, envois: [reservation], derniere_sortie_le: annulee });
+    assert.deepEqual(cles(planifier(c, t("2026-10-09", 10))), ["clore_annulee"]);
+  });
+});

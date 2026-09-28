@@ -58,6 +58,8 @@ export type ConversationPlanning = {
   /** Le dernier message parti vers elle, modèle ou libre. */
   derniere_sortie_le: string | null;
   sans_reponse_veille: boolean;
+  /** L'agent a annulé son rendez-vous à sa demande (0048). */
+  annulee_par_agent_le?: string | null;
   /** Les modèles déjà partis, pour ce rendez-vous et les précédents. */
   envois: EnvoiPasse[];
 };
@@ -66,14 +68,19 @@ export type Action =
   | { genre: "envoyer"; modele: CleModele; cle: string }
   | { genre: "repondre" }
   | { genre: "noter_sans_reponse_veille" }
-  | { genre: "terminer" };
+  | { genre: "terminer" }
+  | { genre: "clore_annulee" };
+
+/**
+ * Après une annulation par l'agent, la conversation reste ouverte deux jours
+ * pour qu'elle dise pourquoi (Louis, 28/09/2026), puis se ferme « annulée ».
+ */
+export const ATTENTE_RAISON_MS = 2 * 24 * HEURE_MS;
 
 export function planifier(c: ConversationPlanning, maintenant: number): Action[] {
   if (c.etat !== "active") return [];
 
   const debut = Date.parse(c.rdv_debut);
-  if (maintenant >= Date.parse(c.rdv_fin)) return [{ genre: "terminer" }];
-
   const f = c.fuseau;
   const aujourdhui = jourLocal(maintenant, f);
   const a = (heure: number, jour = aujourdhui) => instantLocal(jour, heure, 0, f);
@@ -83,10 +90,18 @@ export function planifier(c: ConversationPlanning, maintenant: number): Action[]
     c.derniere_entree_le !== null &&
     (c.derniere_sortie_le === null ||
       Date.parse(c.derniere_entree_le) > Date.parse(c.derniere_sortie_le));
-  if (attend) {
-    const heureOuverte = maintenant >= a(DEBUT_REPONSES) && maintenant < a(FIN_REPONSES);
-    return heureOuverte ? [{ genre: "repondre" }] : [];
+  const heureOuverte = maintenant >= a(DEBUT_REPONSES) && maintenant < a(FIN_REPONSES);
+
+  // Annulé par l'agent : plus aucun modèle. On lui répond encore (sa raison),
+  // puis la conversation se ferme.
+  if (c.annulee_par_agent_le) {
+    if (attend) return heureOuverte ? [{ genre: "repondre" }] : [];
+    return maintenant >= Date.parse(c.annulee_par_agent_le) + ATTENTE_RAISON_MS ? [{ genre: "clore_annulee" }] : [];
   }
+
+  if (maintenant >= Date.parse(c.rdv_fin)) return [{ genre: "terminer" }];
+
+  if (attend) return heureOuverte ? [{ genre: "repondre" }] : [];
 
   if (maintenant >= debut) return [];
 

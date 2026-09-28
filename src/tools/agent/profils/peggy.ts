@@ -73,11 +73,14 @@ export const peggy: Profil = {
     attente: "Je vérifie et je reviens vers toi très vite.",
     creneauPris: "Ce créneau vient d'être pris juste avant toi. Je regarde ce qui reste et je reviens vers toi très vite.",
     raisonAnnulation: "Rendez-vous déplacé à ta demande : ton nouveau créneau t'a été confirmé par mail.",
+    // À VALIDER par Louis (28/09/2026), passé par humaniseur-fr.
+    raisonAnnulationDemandee: "Annulé à ta demande, sur WhatsApp.",
   },
 
   consignes: consignesPeggy,
   catalogue: articlesPeggy,
   urlTarifs: "https://www.peggygirault.fr/tarifs/",
+  urlReservation: "https://www.peggygirault.fr/rdv-diagnostic/",
 
   modeles: {
     reservation: {

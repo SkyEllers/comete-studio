@@ -74,6 +74,8 @@ export type RdvCliente = {
   email: string | null;
   lien_visio: string | null;
   fuseau_cliente: string;
+  /** Le rendez-vous qu'il remplace, s'il vient d'un report (0042). */
+  reporte_de: string | null;
 };
 
 /**
@@ -85,7 +87,7 @@ export async function rdvDuLien(db: Admin, organizationId: string, lien: string)
   const empreinte = createHash("sha256").update(lien).digest("hex");
   const { data } = await db
     .from("reservation_rendez_vous")
-    .select("id, statut, debut, fin, prenom, email, lien_visio, fuseau_cliente")
+    .select("id, statut, debut, fin, prenom, email, lien_visio, fuseau_cliente, reporte_de")
     .eq("organization_id", organizationId)
     .eq("jeton_hash", empreinte)
     .maybeSingle();

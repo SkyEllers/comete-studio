@@ -24,6 +24,30 @@ export const FACONS_EN_MOTS: Record<string, string> = {
   accompagnee: "elle a besoin d'être accompagnée",
 };
 
+/**
+ * Pourquoi elle annule, rangé (0048). La catégorie reste dans les bilans
+ * après l'effacement de la conversation ; ses mots, eux, partent avec elle.
+ */
+export const CATEGORIES_ANNULATION = [
+  "empechement",
+  "pas_le_moment",
+  "budget",
+  "plus_interessee",
+  "ailleurs",
+  "autre",
+] as const;
+export type CategorieAnnulation = (typeof CATEGORIES_ANNULATION)[number];
+
+/** Le libellé de chaque catégorie, tel que Radar l'affiche. */
+export const LIBELLES_ANNULATION: Record<CategorieAnnulation, string> = {
+  empechement: "un empêchement",
+  pas_le_moment: "pas le bon moment",
+  budget: "le budget",
+  plus_interessee: "plus intéressée",
+  ailleurs: "une autre solution",
+  autre: "autre raison",
+};
+
 /** La forme imposée à la réponse de l'IA (structured outputs). */
 export const SCHEMA_DECISION = {
   type: "object",
@@ -40,6 +64,10 @@ export const SCHEMA_DECISION = {
     "note_pour_peggy",
     "creneaux_proposes",
     "creneau_choisi",
+    "veut_annuler",
+    "annulation_confirmee",
+    "raison_annulation",
+    "raison_categorie",
   ],
   properties: {
     reponse: { type: "string", description: "Le message exact à lui envoyer, ou une chaîne vide." },
@@ -63,6 +91,20 @@ export const SCHEMA_DECISION = {
       type: "string",
       description: "La valeur exacte du créneau qu'elle vient de choisir parmi ceux proposés, ou vide.",
     },
+    veut_annuler: { type: "boolean", description: "Elle demande à annuler son rendez-vous." },
+    annulation_confirmee: {
+      type: "boolean",
+      description: "Tu lui as proposé de décaler et elle maintient qu'elle veut annuler.",
+    },
+    raison_annulation: {
+      type: "string",
+      description: "Pourquoi elle annule, avec ses mots, en une phrase courte, ou vide.",
+    },
+    raison_categorie: {
+      type: "string",
+      enum: ["", ...CATEGORIES_ANNULATION],
+      description: "La raison rangée, ou vide si elle n'en a pas donné.",
+    },
   },
 } as const;
 
@@ -78,6 +120,10 @@ export const decision = z.object({
   note_pour_peggy: z.string().max(1000),
   creneaux_proposes: z.array(z.string().max(40)).max(6),
   creneau_choisi: z.string().max(40),
+  veut_annuler: z.boolean(),
+  annulation_confirmee: z.boolean(),
+  raison_annulation: z.string().max(500),
+  raison_categorie: z.enum(["", ...CATEGORIES_ANNULATION]),
 });
 export type Decision = z.infer<typeof decision>;
 
@@ -118,6 +164,11 @@ export type EtatConversation = {
   report_demande_le: string | null;
   creneaux_proposes: string[];
   lien_report: string | null;
+  annulation_demandee_le?: string | null;
+  annulee_par_agent_le?: string | null;
+  raison_annulation?: string | null;
+  /** La page pour reprendre un rendez-vous plus tard (profil). */
+  lien_reservation?: string | null;
 };
 
 /** Ce que le système a lu dans Calendly pour un report en cours. */
@@ -150,7 +201,49 @@ ${formulaire || "(aucune)"}
 
 # La page Tarifs, lue à l'instant
 
-${tarifs ?? "(page illisible pour l'instant : ne donne aucun prix, dis que tu vérifies)"}${sectionReport(c, creneaux)}`;
+${tarifs ?? "(page illisible pour l'instant : ne donne aucun prix, dis que tu vérifies)"}${sectionAnnulation(c) || sectionReport(c, creneaux)}`;
+}
+
+/**
+ * Elle veut annuler (Louis, 28/09/2026) : d'abord lui proposer de décaler ;
+ * si elle maintient, le système annule et elle dit pourquoi, si elle veut.
+ */
+function sectionAnnulation(c: EtatConversation): string {
+  if (c.annulee_par_agent_le) {
+    const reprendre = c.lien_reservation
+      ? `Si elle veut reprendre un rendez-vous plus tard, donne-lui ce lien :\n${c.lien_reservation}`
+      : "Si elle veut reprendre un rendez-vous plus tard, dis-lui qu'elle peut le faire depuis le site de Peggy.";
+    return `
+
+# Son rendez-vous est annulé
+
+Tu l'as annulé à sa demande. Ne propose aucun créneau, ne relance pas.
+${
+  c.raison_annulation
+    ? "Elle t'a déjà dit pourquoi : ne redemande rien. Réponds simplement à son message."
+    : `Tu lui as demandé pourquoi. Si elle répond, remercie-la en une ligne, sans insister ni discuter sa raison ; mets ses mots dans "raison_annulation" (une phrase courte) et range-les dans "raison_categorie" :
+- empechement : un imprévu, son travail, sa santé, un voyage, un souci d'organisation ;
+- pas_le_moment : pas prête, pas maintenant, plus tard ;
+- budget : l'argent, le prix, ses moyens ;
+- plus_interessee : elle a changé d'avis, ça ne l'intéresse plus ;
+- ailleurs : elle a trouvé une autre solution, ou elle est déjà suivie ;
+- autre : tout le reste.
+Si elle ne veut pas le dire, c'est très bien : laisse ces deux champs vides.`
+}
+${reprendre}`;
+  }
+
+  if (c.annulation_demandee_le && !c.report_demande_le && c.creneaux_proposes.length === 0) {
+    return `
+
+# Elle veut annuler
+
+Tu lui as proposé de décaler son rendez-vous plutôt que de l'annuler.
+- Si elle préfère décaler : mets "veut_changer" à true, et suis la règle des changements de créneau.
+- Si elle maintient qu'elle veut annuler : mets "annulation_confirmee" à true. Le système annule le rendez-vous au moment où ton message part. Dis-lui que c'est annulé, puis demande-lui en une question, avec douceur, ce qui l'a décidée (elle peut ne pas répondre). Si elle a déjà donné sa raison dans ce message, remplis "raison_annulation" et "raison_categorie" et ne redemande rien.`;
+  }
+
+  return "";
 }
 
 function sectionReport(c: EtatConversation, creneaux: CreneauxDuMoment): string {
@@ -173,7 +266,8 @@ ${c.lien_report ?? "(lien introuvable : mets \"sur\" à false)"}`;
 
 Tu lui as proposé ces créneaux :
 ${liste(c.creneaux_proposes)}
-Si elle en choisit un, recopie sa valeur exacte (entre parenthèses) dans "creneau_choisi" et dis-lui que tu le réserves. Si aucun ne lui va, dis-le simplement et mets "sur" à false.`;
+Si elle en choisit un, recopie sa valeur exacte (entre parenthèses) dans "creneau_choisi" et dis-lui que tu le réserves. Si aucun ne lui va, donne-lui ce lien pour choisir elle-même un autre moment dans l'agenda (son rendez-vous actuel tient tant qu'elle n'en a pas choisi un autre), et laisse "creneau_choisi" vide :
+${c.lien_report ?? "(lien introuvable : mets \"sur\" à false)"}`;
   }
 
   if (!c.report_demande_le) return "";

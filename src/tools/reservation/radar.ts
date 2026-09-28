@@ -32,6 +32,8 @@ type Admin = ReturnType<typeof createAdminClient>;
 export const TYPE_URI = "reservation:diagnostic";
 export const TYPE_NOM = "Diagnostic offert (réservation maison)";
 export const uriRadar = (rdvId: string) => `reservation:${rdvId}`;
+/** Une annulation demandée à l'assistante WhatsApp : la raison s'y ajoute quand elle la donne. */
+export const NOTE_ANNULEE_AGENT = "Annulée par la personne, avec l'assistante";
 
 async function sel(db: Admin, org: string): Promise<string | null> {
   const lu = await db.rpc("radar_get_secret", { org, kind: "salt" });
@@ -225,13 +227,16 @@ export async function annulerDansRadar(
       .maybeSingle();
     if (!ligne || ligne.status === "annule") return;
 
+    // L'agent n'annule qu'à sa demande (0048) : c'est elle qui annule.
     const note = reprogramme
       ? par === "agent"
         ? "Reprogrammée par l'assistante"
         : "Reprogrammée par la personne"
       : par === "cliente"
         ? "Annulée par la personne"
-        : "Annulée par toi";
+        : par === "agent"
+          ? NOTE_ANNULEE_AGENT
+          : "Annulée par toi";
 
     await db
       .from("radar_bookings")
@@ -251,7 +256,7 @@ export async function annulerDansRadar(
       payload: {
         reprogramme,
         from: ligne.status,
-        par: par === "cliente" ? "invitee" : par === "agent" ? null : "host",
+        par: par === "cliente" || (par === "agent" && !reprogramme) ? "invitee" : par === "agent" ? null : "host",
         outil: "reservation",
         ...(par === "agent" ? { agent: true } : {}),
       },

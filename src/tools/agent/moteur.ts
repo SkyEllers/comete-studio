@@ -27,7 +27,7 @@ type Admin = ReturnType<typeof createAdminClient>;
  */
 
 const COLONNES =
-  "id, organization_id, simulation, decalage, etat, reserve_le, rdv_debut, rdv_fin, fuseau, confirme_le, derniere_entree_le, sans_reponse_veille, prenom, telephone, lien_visio, reponses";
+  "id, organization_id, simulation, decalage, etat, reserve_le, rdv_debut, rdv_fin, fuseau, confirme_le, derniere_entree_le, sans_reponse_veille, prenom, telephone, lien_visio, reponses, annulee_par_agent_le";
 
 type Conversation = {
   id: string;
@@ -46,6 +46,7 @@ type Conversation = {
   telephone: string | null;
   lien_visio: string | null;
   reponses: unknown;
+  annulee_par_agent_le: string | null;
 };
 
 export function valeursPour(c: Conversation): ValeursModele {
@@ -109,6 +110,11 @@ async function appliquer(
 ): Promise<boolean> {
   if (action.genre === "terminer") {
     await admin.from("agent_conversations").update({ etat: "terminee" }).eq("id", c.id);
+    return true;
+  }
+
+  if (action.genre === "clore_annulee") {
+    await admin.from("agent_conversations").update({ etat: "annulee" }).eq("id", c.id);
     return true;
   }
 

@@ -6,8 +6,10 @@ import {
   idOutil,
   invitationDepuisRdv,
   lienMonRdv,
+  lireLienPersonnel,
   TYPE_OUTIL,
   uriOutil,
+  veilleMailDue,
   type RdvOutil,
 } from "./outil-regles.ts";
 import { invitationCalendly, lireReservation } from "./reservation.ts";
@@ -100,5 +102,36 @@ describe("Agent — un rendez-vous de l'outil maison", () => {
     });
     assert.equal(c.etat, "hors_champ");
     assert.equal(c.telephone, null);
+  });
+});
+
+describe("Agent — le lien personnel et le mail de la veille", () => {
+  it("lit le site et le jeton du lien /mon-rdv/", () => {
+    const j = "b".repeat(64);
+    assert.deepEqual(lireLienPersonnel(`https://www.peggygirault.fr/mon-rdv/#${j}`), {
+      site: "https://www.peggygirault.fr",
+      jeton: j,
+    });
+    assert.equal(lireLienPersonnel("https://calendly.com/reschedulings/x"), null);
+    assert.equal(lireLienPersonnel(`http://www.peggygirault.fr/mon-rdv/#${j}`), null);
+    assert.equal(lireLienPersonnel("https://www.peggygirault.fr/mon-rdv/#court"), null);
+    assert.equal(lireLienPersonnel(null), null);
+  });
+
+  // Rendez-vous le jeudi 8 octobre à 14h, heure de Paris (UTC+2).
+  const c = { rdv_debut: "2026-10-08T12:00:00.000Z", fuseau: "Europe/Paris", veille_mail_le: null };
+  const paris = (jour: string, h: number) => Date.parse(`${jour}T${String(h - 2).padStart(2, "0")}:00:00.000Z`);
+
+  it("part la veille, de 10h à 21h, heure de la cliente", () => {
+    assert.equal(veilleMailDue(c, paris("2026-10-07", 9)), false);
+    assert.equal(veilleMailDue(c, paris("2026-10-07", 10)), true);
+    assert.equal(veilleMailDue(c, paris("2026-10-07", 20)), true);
+    assert.equal(veilleMailDue(c, paris("2026-10-07", 21)), false);
+  });
+
+  it("ni l'avant-veille, ni le jour même, ni deux fois", () => {
+    assert.equal(veilleMailDue(c, paris("2026-10-06", 12)), false);
+    assert.equal(veilleMailDue(c, paris("2026-10-08", 10)), false);
+    assert.equal(veilleMailDue({ ...c, veille_mail_le: "2026-10-07T08:00:00.000Z" }, paris("2026-10-07", 12)), false);
   });
 });

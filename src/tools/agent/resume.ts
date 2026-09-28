@@ -49,6 +49,9 @@ export async function diagnosticsDuJour(
     .gte("rdv_debut", debut)
     .lt("rdv_debut", fin)
     .in("etat", ETATS_DU_JOUR)
+    // Annulé par l'agent, la conversation reste un temps « active » (0048) :
+    // ce n'est plus un rendez-vous du jour.
+    .is("annulee_par_agent_le", null)
     .order("rdv_debut");
   if (!avecSimulations) requete = requete.eq("simulation", false);
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { NOTE_ANNULEE_AGENT } from "@/tools/reservation/radar";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -49,6 +50,38 @@ export async function ancienDuReport(
     }
   }
   return null;
+}
+
+/**
+ * L'annulation qui arrive est-elle celle que l'agent vient de faire, à sa
+ * demande (0048) ? Calendly l'annonce comme une annulation par l'hôte ; c'est
+ * pourtant elle qui annule.
+ */
+export async function annuleeParAgent(admin: Admin, orgId: string, uri: string): Promise<boolean> {
+  const { data } = await admin
+    .from("agent_conversations")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("simulation", false)
+    .eq("invitee_uri", uri)
+    .not("annulee_par_agent_le", "is", null)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+/** Sa raison, rangée, ajoutée à la note de Radar : rien de ce qu'elle a écrit, seulement la catégorie. */
+export async function raisonDansRadar(
+  admin: Admin,
+  orgId: string,
+  bookingId: string,
+  libelle: string,
+): Promise<void> {
+  await admin
+    .from("radar_bookings")
+    .update({ status_note: `${NOTE_ANNULEE_AGENT} : ${libelle}`, updated_at: new Date().toISOString() })
+    .eq("id", bookingId)
+    .eq("organization_id", orgId)
+    .eq("status", "annule");
 }
 
 /** L'annulation qui arrive est-elle celle d'un rendez-vous que l'agent a déplacé ? */

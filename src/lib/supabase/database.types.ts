@@ -99,6 +99,7 @@ export type Database = {
       agent_bilans: {
         Row: {
           a_repondu: boolean
+          annulee_par_agent: boolean
           confirme: boolean
           created_at: string
           delai_jours: number
@@ -109,6 +110,7 @@ export type Database = {
           mois: string
           organization_id: string
           questions_montees: number
+          raison_categorie: string | null
           reports_agent: number
           sans_reponse_veille: boolean
           simulation: boolean
@@ -116,6 +118,7 @@ export type Database = {
         }
         Insert: {
           a_repondu: boolean
+          annulee_par_agent?: boolean
           confirme: boolean
           created_at?: string
           delai_jours: number
@@ -126,6 +129,7 @@ export type Database = {
           mois: string
           organization_id: string
           questions_montees: number
+          raison_categorie?: string | null
           reports_agent: number
           sans_reponse_veille: boolean
           simulation: boolean
@@ -133,6 +137,7 @@ export type Database = {
         }
         Update: {
           a_repondu?: boolean
+          annulee_par_agent?: boolean
           confirme?: boolean
           created_at?: string
           delai_jours?: number
@@ -143,6 +148,7 @@ export type Database = {
           mois?: string
           organization_id?: string
           questions_montees?: number
+          raison_categorie?: string | null
           reports_agent?: number
           sans_reponse_veille?: boolean
           simulation?: boolean
@@ -160,6 +166,8 @@ export type Database = {
       }
       agent_conversations: {
         Row: {
+          annulation_demandee_le: string | null
+          annulee_par_agent_le: string | null
           booking_id: string | null
           confirme_le: string | null
           contenu_propose_le: string | null
@@ -184,6 +192,8 @@ export type Database = {
           organization_id: string
           premiere_reponse_le: string | null
           prenom: string
+          raison_annulation: string | null
+          raison_categorie: string | null
           rdv_debut: string
           rdv_fin: string
           reponses: Json
@@ -196,8 +206,11 @@ export type Database = {
           stop_le: string | null
           telephone: string | null
           updated_at: string
+          veille_mail_le: string | null
         }
         Insert: {
+          annulation_demandee_le?: string | null
+          annulee_par_agent_le?: string | null
           booking_id?: string | null
           confirme_le?: string | null
           contenu_propose_le?: string | null
@@ -222,6 +235,8 @@ export type Database = {
           organization_id: string
           premiere_reponse_le?: string | null
           prenom: string
+          raison_annulation?: string | null
+          raison_categorie?: string | null
           rdv_debut: string
           rdv_fin: string
           reponses?: Json
@@ -234,8 +249,11 @@ export type Database = {
           stop_le?: string | null
           telephone?: string | null
           updated_at?: string
+          veille_mail_le?: string | null
         }
         Update: {
+          annulation_demandee_le?: string | null
+          annulee_par_agent_le?: string | null
           booking_id?: string | null
           confirme_le?: string | null
           contenu_propose_le?: string | null
@@ -260,6 +278,8 @@ export type Database = {
           organization_id?: string
           premiere_reponse_le?: string | null
           prenom?: string
+          raison_annulation?: string | null
+          raison_categorie?: string | null
           rdv_debut?: string
           rdv_fin?: string
           reponses?: Json
@@ -272,6 +292,7 @@ export type Database = {
           stop_le?: string | null
           telephone?: string | null
           updated_at?: string
+          veille_mail_le?: string | null
         }
         Relationships: [
           {

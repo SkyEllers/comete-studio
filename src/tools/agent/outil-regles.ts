@@ -1,6 +1,8 @@
 import type { Depot } from "../reservation/moteur.ts";
 
+import { FIN_VEILLE, HEURE_JOURNEE } from "./planning.ts";
 import type { InvitationCalendly } from "./reservation.ts";
+import { ajouterJours, instantLocal, jourLocal } from "./temps.ts";
 
 /**
  * Un rendez-vous de l'outil de réservation maison, lu comme l'agent lit une
@@ -44,6 +46,43 @@ export function lienMonRdv(urlSite: string | null, jeton: string | null): string
   } catch {
     return null;
   }
+}
+
+/**
+ * Le jeton en clair et l'adresse du site, lus dans le lien personnel
+ * (`https://www.peggygirault.fr/mon-rdv/#<jeton>`). Null si le lien n'a pas
+ * cette forme.
+ */
+export function lireLienPersonnel(lien: string | null): { site: string; jeton: string } | null {
+  if (!lien) return null;
+  try {
+    const u = new URL(lien);
+    const jeton = u.hash.slice(1);
+    if (u.protocol !== "https:" || u.pathname !== "/mon-rdv/" || !/^[0-9a-f]{64}$/.test(jeton)) return null;
+    return { site: u.origin, jeton };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Le mail de la veille à celle qui a dit STOP (Louis, 27/09/2026) : le jour
+ * d'avant le rendez-vous, dans son fuseau, entre 10h et 21h, comme le rappel
+ * de la veille qu'elle ne reçoit plus. Une seule fois (`veille_mail_le`).
+ */
+export function veilleMailDue(
+  c: { rdv_debut: string; fuseau: string; veille_mail_le: string | null },
+  maintenant: number,
+): boolean {
+  if (c.veille_mail_le) return false;
+  const debut = Date.parse(c.rdv_debut);
+  if (maintenant >= debut) return false;
+  const veille = ajouterJours(jourLocal(debut, c.fuseau), -1);
+  if (jourLocal(maintenant, c.fuseau) !== veille) return false;
+  return (
+    maintenant >= instantLocal(veille, HEURE_JOURNEE, 0, c.fuseau) &&
+    maintenant < instantLocal(veille, FIN_VEILLE, 0, c.fuseau)
+  );
 }
 
 /**

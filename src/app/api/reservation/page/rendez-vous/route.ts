@@ -11,7 +11,8 @@ import { accesPage, json, rdvDuLien, rdvPourSite, sansCorps } from "@/tools/rese
  *
  *   401/429 comme les autres routes de la page.
  *   404  lien inconnu chez ce client.
- *   200  { id, statut, debut, fin, prenom, email, lienVisio, fuseau }.
+ *   200  { id, statut, debut, fin, prenom, email, lienVisio, fuseau },
+ *        plus { ancienId, ancienDebut } s'il vient d'un report.
  */
 
 export const runtime = "nodejs";
@@ -28,5 +29,21 @@ export async function POST(request: NextRequest) {
 
   const rdv = await rdvDuLien(admin, acces.organizationId, corps.data.lien);
   if (!rdv) return json({ raison: "lien_inconnu" }, 404);
-  return json(rdvPourSite(rdv));
+
+  // Un rendez-vous issu d'un report : l'ancien, pour le mail « déplacé » que
+  // le site envoie quand c'est l'assistante qui a déplacé (0048).
+  const ancien = rdv.reporte_de
+    ? (
+        await admin
+          .from("reservation_rendez_vous")
+          .select("id, debut")
+          .eq("id", rdv.reporte_de)
+          .eq("organization_id", acces.organizationId)
+          .maybeSingle()
+      ).data
+    : null;
+  return json({
+    ...rdvPourSite(rdv),
+    ...(ancien ? { ancienId: ancien.id, ancienDebut: new Date(ancien.debut).toISOString() } : {}),
+  });
 }

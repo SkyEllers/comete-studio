@@ -1,15 +1,23 @@
 import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { agendasGoogle } from "@/tools/reservation/agenda";
+import { agendasGoogle, effacerRendezVous } from "@/tools/reservation/agenda";
 import { depotSupabase } from "@/tools/reservation/depot";
 import { identifiants } from "@/tools/reservation/google";
 import { creneauxLibres, reporter } from "@/tools/reservation/moteur";
+import { annulerDansRadar } from "@/tools/reservation/radar";
 import { suivreReport } from "@/tools/reservation/suites";
 
 import { agentRecoitInvitation } from "./conversations.ts";
 import { tournerTout } from "./moteur.ts";
-import { fenetreEntiere, invitationDepuisRdv, lienMonRdv, type RdvOutil } from "./outil-regles.ts";
+import {
+  fenetreEntiere,
+  invitationDepuisRdv,
+  lienMonRdv,
+  lireLienPersonnel,
+  veilleMailDue,
+  type RdvOutil,
+} from "./outil-regles.ts";
 import { profil as profilDe } from "./profils/index.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -115,6 +123,7 @@ export async function reporterParAgent(
   org: string,
   ancienId: string,
   choisi: string,
+  lienPersonnel: string | null,
 ): Promise<Deplace | null> {
   const ids = identifiants();
   if (!ids) return null;
@@ -133,6 +142,9 @@ export async function reporterParAgent(
   }
 
   await suivreReport(admin, org, ancienId, prise.id, ids, "agent");
+  // Le mail « ton rendez-vous est déplacé », avec l'invitation mise à jour :
+  // c'est le site qui l'envoie, depuis l'adresse du client.
+  await notifierSite(lienPersonnel, "deplace");
 
   const { data } = await admin
     .from("reservation_rendez_vous")
@@ -147,4 +159,95 @@ export async function reporterParAgent(
     lienVisio: data.lien_visio,
     bookingId: data.radar_booking_id,
   };
+}
+
+/**
+ * Demander au site d'envoyer un mail à la cliente : « déplacé », « annulé »
+ * ou le rappel de la veille. Le mail part de l'adresse du client, avec
+ * l'invitation d'agenda, comme ceux de la page. Le site ne croit que le lien
+ * personnel : il relit le rendez-vous au hub avec son propre jeton, et
+ * n'écrit qu'à sa titulaire. Ne lève jamais.
+ */
+export async function notifierSite(
+  lienPersonnel: string | null,
+  geste: "deplace" | "annule" | "veille",
+): Promise<boolean> {
+  const lu = lireLienPersonnel(lienPersonnel);
+  if (!lu) {
+    console.error("Agent : pas de lien personnel, le site n'est pas prévenu", geste);
+    return false;
+  }
+  try {
+    const r = await fetch(`${lu.site}/api/rdv/notifier`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "comete-hub/agent" },
+      body: JSON.stringify({ lien: lu.jeton, geste }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!r.ok) console.error("Agent : le site refuse le mail", geste, r.status);
+    return r.ok;
+  } catch {
+    console.error("Agent : le site ne répond pas", geste);
+    return false;
+  }
+}
+
+/**
+ * Annuler à sa demande un rendez-vous de l'outil : la base d'abord (le
+ * créneau se libère), puis l'agenda Google, Radar (« annulée par la
+ * personne, avec l'assistante ») et le mail d'annulation du site.
+ */
+export async function annulerParAgentOutil(
+  admin: Admin,
+  rdvId: string,
+  lienPersonnel: string | null,
+): Promise<boolean> {
+  const { error } = await admin.rpc("reservation_annuler", { rendez_vous: rdvId, par: "agent" });
+  if (error) {
+    console.error("Agent : annulation refusée par l'outil", error.message);
+    return false;
+  }
+  const ids = identifiants();
+  if (ids) {
+    try {
+      await effacerRendezVous(admin, rdvId, ids);
+    } catch (erreur) {
+      console.error("Agent, effacement Google :", erreur instanceof Error ? erreur.message : "erreur");
+    }
+  }
+  await annulerDansRadar(admin, rdvId, { reprogramme: false, par: "agent" });
+  await notifierSite(lienPersonnel, "annule");
+  return true;
+}
+
+/**
+ * Le mail de la veille pour celles qui ont dit STOP (rendez-vous de l'outil
+ * seulement : Calendly envoie ses propres rappels). Appelé par l'horloge.
+ */
+export async function mailsVeilleStop(admin: Admin, maintenant = Date.now()): Promise<number> {
+  const { data } = await admin
+    .from("agent_conversations")
+    .select("id, rdv_debut, fuseau, veille_mail_le, lien_report")
+    .eq("etat", "stop")
+    .eq("simulation", false)
+    .like("invitee_uri", "reservation:%")
+    .is("veille_mail_le", null)
+    .gt("rdv_debut", new Date(maintenant).toISOString())
+    .lt("rdv_debut", new Date(maintenant + 3 * 86_400_000).toISOString());
+
+  let envoyes = 0;
+  for (const c of data ?? []) {
+    if (!veilleMailDue(c, maintenant)) continue;
+    // Noté avant l'envoi : deux passages de l'horloge n'envoient pas deux mails.
+    const { data: pris } = await admin
+      .from("agent_conversations")
+      .update({ veille_mail_le: new Date(maintenant).toISOString() })
+      .eq("id", c.id)
+      .is("veille_mail_le", null)
+      .select("id");
+    if (!pris?.length) continue;
+    if (await notifierSite(c.lien_report, "veille")) envoyes++;
+    else await admin.from("agent_conversations").update({ veille_mail_le: null }).eq("id", c.id);
+  }
+  return envoyes;
 }

@@ -4,7 +4,8 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { agentRecoit } from "@/tools/agent/conversations";
 import { tournerTout } from "@/tools/agent/moteur";
-import { ancienDuReport, annuleParLeReport } from "@/tools/agent/radar";
+import { ancienDuReport, annuleeParAgent, annuleParLeReport } from "@/tools/agent/radar";
+import { NOTE_ANNULEE_AGENT } from "@/tools/reservation/radar";
 import {
   attribuer,
   precedent,
@@ -270,14 +271,20 @@ async function radar(
       // c'est une reprogrammation, pas une annulation du client (0041).
       const parAgent = !invite.rescheduled && (await annuleParLeReport(admin, orgId, invite.uri));
       const reprogramme = Boolean(invite.rescheduled) || parAgent;
-      const par = parAgent ? null : quiAAnnule(invite.cancellation);
+      // L'agent l'a annulé à sa demande (0048) : c'est elle qui annule, pas l'hôte.
+      const aSaDemande = !reprogramme && (await annuleeParAgent(admin, orgId, invite.uri));
+      const par = parAgent ? null : aSaDemande ? "invitee" : quiAAnnule(invite.cancellation);
 
       await admin
         .from("radar_bookings")
         .update({
           status: "annule",
           status_origin: "calendly",
-          status_note: parAgent ? "Reprogrammée par l'assistante" : motifAnnulation(invite.rescheduled, par),
+          status_note: parAgent
+            ? "Reprogrammée par l'assistante"
+            : aSaDemande
+              ? NOTE_ANNULEE_AGENT
+              : motifAnnulation(invite.rescheduled, par),
           canceled_at: recuLe,
           updated_at: new Date().toISOString(),
         })
@@ -288,7 +295,7 @@ async function radar(
         organization_id: orgId,
         type: "booking.canceled",
         // `par` est ce qui se compte : le libellé, lui, peut être réécrit.
-        payload: { reprogramme, from: connu.status, par, ...(parAgent ? { agent: true } : {}) },
+        payload: { reprogramme, from: connu.status, par, ...(parAgent || aSaDemande ? { agent: true } : {}) },
       });
 
       return accepter(message.event);

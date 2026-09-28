@@ -8,16 +8,18 @@ import { choisirCreneaux } from "./creneaux.ts";
 import { envoyerLibre, maintenantDe } from "./envoi.ts";
 import { mettreEnFile as mettreDansLaFile } from "./file.ts";
 import { demanderDecision, lireTarifs } from "./ia.ts";
-import { creneauxOutil, reporterParAgent } from "./outil.ts";
+import { annulerParAgentOutil, creneauxOutil, reporterParAgent } from "./outil.ts";
 import { estDeLOutil, idOutil, uriOutil } from "./outil-regles.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import {
   consignesStables,
   contexteDuMoment,
+  LIBELLES_ANNULATION,
   transcrire,
   type CreneauxDuMoment,
   type Decision,
 } from "./prompt.ts";
+import { raisonDansRadar } from "./radar.ts";
 import { effaceApres } from "./reservation.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -46,7 +48,7 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   const { data: c } = await admin
     .from("agent_conversations")
     .select(
-      "id, organization_id, simulation, decalage, etat, prenom, nom, email, rdv_debut, rdv_fin, fuseau, confirme_le, facon_de_decider, reports_agent, contenu_propose_le, reponses, report_demande_le, creneaux_proposes, lien_report, event_uri, event_type_uri, invitee_uri, invites_precedents",
+      "id, organization_id, simulation, decalage, etat, prenom, nom, email, rdv_debut, rdv_fin, fuseau, confirme_le, facon_de_decider, reports_agent, contenu_propose_le, reponses, report_demande_le, creneaux_proposes, lien_report, event_uri, event_type_uri, invitee_uri, invites_precedents, booking_id, annulation_demandee_le, annulee_par_agent_le, raison_annulation",
     )
     .eq("id", conversationId)
     .maybeSingle();
@@ -95,7 +97,7 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   const appel = await demanderDecision({
     stables: consignesStables(profil, fixes ?? []),
     moment: contexteDuMoment(
-      { ...c, reponses },
+      { ...c, reponses, lien_reservation: profil.urlReservation },
       maintenant,
       await lireTarifs(profil.urlTarifs),
       creneaux,
@@ -173,6 +175,21 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
     }
   }
 
+  // ------------------- Elle maintient qu'elle veut annuler ------------------
+  // Seulement après lui avoir proposé de décaler (Louis, 28/09/2026) : le
+  // premier « je veux annuler » ne fait que poser `annulation_demandee_le`.
+  const annuler =
+    d.annulation_confirmee && Boolean(c.annulation_demandee_le) && !c.annulee_par_agent_le && !choisi;
+  if (annuler && !(await annulerRendezVous(admin, c, profil.textes.raisonAnnulationDemandee))) {
+    if (!(await envoyerLibre(admin, c.id, profil.textes.attente, { reel, cle }))) return "rien";
+    await mettreEnFile(admin, c, dernier.id, "incertain", {
+      question: "Elle veut annuler, mais l'annulation n'a pas pu se faire : à toi d'annuler et de lui répondre.",
+      brouillon: d.reponse || null,
+      maintenant,
+    });
+    return "file";
+  }
+
   // --------------------------------- Sûre -----------------------------------
   if (!(await envoyerLibre(admin, c.id, d.reponse.trim(), { reel, cle }))) return "rien";
 
@@ -180,17 +197,67 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   const lus = creneaux && creneaux !== "illisibles" ? [...creneaux.memeJour, ...creneaux.plusProches] : [];
   const proposes = d.creneaux_proposes.filter((p) => lus.some((l) => Date.parse(l) === Date.parse(p)));
 
+  // Sa raison, une fois le rendez-vous annulé par l'agent : ses mots avec la
+  // conversation, la catégorie aussi dans Radar.
+  const annulee = annuler || Boolean(c.annulee_par_agent_le);
+  const raison = annulee && !c.raison_annulation && d.raison_annulation.trim() ? d.raison_annulation.trim() : null;
+  const categorie = raison && d.raison_categorie ? d.raison_categorie : raison ? "autre" : null;
+
   const iso = new Date(maintenant).toISOString();
   await admin
     .from("agent_conversations")
     .update({
-      ...(d.confirme && !choisi ? { confirme_le: iso } : {}),
+      ...(d.confirme && !choisi && !annulee ? { confirme_le: iso } : {}),
       ...(d.contenu_propose && !c.contenu_propose_le ? { contenu_propose_le: iso } : {}),
-      ...(d.veut_changer && !c.report_demande_le && !choisi ? { report_demande_le: iso } : {}),
+      ...(d.veut_changer && !c.report_demande_le && !choisi && !annulee ? { report_demande_le: iso } : {}),
+      ...(d.veut_annuler && !c.annulation_demandee_le && !annulee ? { annulation_demandee_le: iso } : {}),
       ...(proposes.length > 0 ? { creneaux_proposes: proposes.map((p) => new Date(p).toISOString()) } : {}),
+      ...(raison ? { raison_annulation: raison.slice(0, 500), raison_categorie: categorie } : {}),
     })
     .eq("id", c.id);
+
+  if (categorie && c.booking_id && !c.simulation) {
+    await raisonDansRadar(admin, c.organization_id, c.booking_id, LIBELLES_ANNULATION[categorie]);
+  }
   return "repondu";
+}
+
+/**
+ * Annuler son rendez-vous, à sa demande : par le moteur pour un rendez-vous
+ * de l'outil, par l'API de Calendly sinon. `annulee_par_agent_le` est posé
+ * avant : le webhook de Calendly, qui arrive dans la seconde, doit savoir que
+ * c'est elle qui annule et ne pas fermer la conversation. Un échec le retire.
+ */
+async function annulerRendezVous(
+  admin: Admin,
+  c: {
+    id: string;
+    organization_id: string;
+    simulation: boolean;
+    invitee_uri: string;
+    event_uri: string | null;
+    lien_report: string | null;
+  },
+  raison: string,
+): Promise<boolean> {
+  await admin
+    .from("agent_conversations")
+    .update({ annulee_par_agent_le: new Date().toISOString() })
+    .eq("id", c.id);
+  if (c.simulation) return true;
+
+  const rdvOutil = idOutil(c.invitee_uri);
+  let fait = false;
+  if (rdvOutil) {
+    fait = await annulerParAgentOutil(admin, rdvOutil, c.lien_report);
+  } else {
+    const jeton = await jetonAgent(admin, c.organization_id);
+    fait = Boolean(jeton && c.event_uri) && (await annulerAncien(jeton as string, c.event_uri as string, raison));
+  }
+  if (!fait) {
+    await admin.from("agent_conversations").update({ annulee_par_agent_le: null }).eq("id", c.id);
+  }
+  return fait;
 }
 
 type AvantReport = {
@@ -207,6 +274,7 @@ type AvantReport = {
   event_uri: string | null;
   invitee_uri: string;
   invites_precedents: string[];
+  lien_report: string | null;
 };
 
 /**
@@ -230,6 +298,7 @@ async function deplacerRendezVous(
   const commun = {
     reports_agent: c.reports_agent + 1,
     report_demande_le: null,
+    annulation_demandee_le: null,
     creneaux_proposes: [],
     confirme_le: new Date().toISOString(),
     sans_reponse_veille: false,
@@ -256,7 +325,7 @@ async function deplacerRendezVous(
   // (le lien personnel suit le rendez-vous).
   const ancienOutil = idOutil(c.invitee_uri);
   if (ancienOutil) {
-    const nouveau = await reporterParAgent(admin, c.organization_id, ancienOutil, choisi);
+    const nouveau = await reporterParAgent(admin, c.organization_id, ancienOutil, choisi, c.lien_report);
     if (!nouveau) return false;
     const { error } = await admin
       .from("agent_conversations")

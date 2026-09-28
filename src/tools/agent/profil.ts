@@ -67,6 +67,8 @@ export type Profil = {
     creneauPris: string;
     /** Le motif d'annulation de l'ancien rendez-vous, que Calendly lui montre. */
     raisonAnnulation: string;
+    /** Le motif quand l'agent annule à sa demande un rendez-vous Calendly (Calendly le lui montre). */
+    raisonAnnulationDemandee: string;
   };
   /**
    * La voix et les règles de conduite, en consignes pour l'IA. Stables d'un
@@ -77,6 +79,8 @@ export type Profil = {
   catalogue: Contenu[];
   /** La page des prix publics, lue au moment de répondre, jamais recopiée. */
   urlTarifs: string | null;
+  /** La page pour reprendre un rendez-vous, donnée après une annulation. */
+  urlReservation: string | null;
 };
 
 export type ValeursModele = Record<VariableModele, string>;
