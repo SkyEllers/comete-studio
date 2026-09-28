@@ -89,12 +89,19 @@ export const peggy: Profil = {
     // confirmer un créneau qu'elle vient de choisir, on lance la préparation
     // (ce qu'elle attend du rendez-vous) ; la confirmation vient aux rappels.
     // Nouveau nom chez Meta : `diag_reservation` part jusqu'à sa validation.
+    //
+    // v3, validé par Louis le 28/09/2026 (humaniseur-fr, P16) : une vraie
+    // personne pendant les 45 minutes, et le chemin vers un humain que la
+    // politique WhatsApp Business exige (« prompt, clear, and direct
+    // escalation paths »). Ne part en production qu'une fois
+    // `diag_reservation_v3` approuvé chez Meta (`scripts/agent-etat-modele.mjs`).
     reservation: {
-      nomMeta: "diag_reservation_v2",
+      nomMeta: "diag_reservation_v3",
       corps:
         "Bonjour {{1}}, ici l'assistante de Peggy Girault. Je suis une IA, je m'occupe de ton rendez-vous jusqu'au jour J.\n" +
         "C'est réservé : ton diagnostic offert a lieu {{2}} à {{3}}, en visio (45 minutes).\n" +
-        "Pour qu'il te serve vraiment : qu'est-ce que tu aimerais avoir compris à la fin ?",
+        "Pendant ces 45 minutes, tu seras avec une vraie personne : Peggy ou quelqu'un de son équipe. Et si tu veux parler à quelqu'un avant, dis-le-moi ici.\n" +
+        "Pour que ce rendez-vous te serve vraiment : qu'est-ce que tu aimerais avoir compris à la fin ?",
       variables: ["prenom", "jour", "heure"],
       // Sans bouton (Louis, 28/09/2026) : on attend sa réponse en mots.
       boutons: [],

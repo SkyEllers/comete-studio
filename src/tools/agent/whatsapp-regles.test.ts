@@ -25,7 +25,7 @@ describe("WhatsApp — ce qui part", () => {
     const corps = corpsModele("+33612345678", "reservation", peggy.modeles.reservation, valeurs);
     assert.equal(corps.to, "33612345678");
     // Son texte a changé le 28/09/2026 : nouveau nom chez Meta.
-    assert.equal(corps.template.name, "diag_reservation_v2");
+    assert.equal(corps.template.name, "diag_reservation_v3");
     assert.equal(corps.template.language.code, "fr");
     assert.deepEqual(
       corps.template.components[0].parameters.map((p) => p.text),
