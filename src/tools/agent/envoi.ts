@@ -26,7 +26,7 @@ export async function envoyerLibre(
   admin: Admin,
   conversationId: string,
   texte: string,
-  options: { reel?: number; cle?: string } = {},
+  options: { reel?: number; cle?: string; lien?: { texte: string; url: string } } = {},
 ): Promise<boolean> {
   const { data: c } = await admin
     .from("agent_conversations")
@@ -51,6 +51,9 @@ export async function envoyerLibre(
       genre: "libre",
       cle_envoi: options.cle ?? null,
       texte,
+      // Le bouton se lit dans l'admin comme ceux des modèles ; son adresse,
+      // elle, reste dans la conversation (lien personnel), pas ici.
+      boutons: options.lien ? [options.lien.texte] : [],
       canal: canal.nom,
       created_at: new Date(maintenantDe(c, options.reel)).toISOString(),
     })
@@ -58,7 +61,12 @@ export async function envoyerLibre(
     .single();
   if (error || !reserve) return false;
 
-  const resultat = await canal.envoyer(admin, { organisationId: c.organization_id, telephone: c.telephone, texte });
+  const resultat = await canal.envoyer(admin, {
+    organisationId: c.organization_id,
+    telephone: c.telephone,
+    texte,
+    lien: options.lien,
+  });
   if (!resultat.ok) {
     await admin
       .from("agent_messages")

@@ -4,7 +4,15 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 import type { CleModele, ValeursModele } from "./profil.ts";
 import { profil as profilDe } from "./profils/index.ts";
-import { codeRefus, corpsModele, corpsTexte, raisonRefus, refusDefinitif, VERSION_API } from "./whatsapp-regles.ts";
+import {
+  codeRefus,
+  corpsBoutonLien,
+  corpsModele,
+  corpsTexte,
+  raisonRefus,
+  refusDefinitif,
+  VERSION_API,
+} from "./whatsapp-regles.ts";
 
 /**
  * Par où les messages partent.
@@ -21,6 +29,8 @@ export type Envoi = {
   texte: string;
   /** Un modèle validé par Meta : obligatoire hors de la fenêtre de 24 h. */
   modele?: { cle: CleModele; profil: string; valeurs: ValeursModele };
+  /** Un message libre avec un bouton qui ouvre ce lien. */
+  lien?: { texte: string; url: string };
 };
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -77,6 +87,8 @@ export const canalWhatsapp: Canal = {
       if (!profil) return { ok: false, erreur: `Profil inconnu : ${envoi.modele.profil}`, definitif: true };
       const cle = envoi.modele.cle;
       corps = corpsModele(envoi.telephone, cle, profil.modeles[cle], envoi.modele.valeurs);
+    } else if (envoi.lien) {
+      corps = corpsBoutonLien(envoi.telephone, envoi.texte, envoi.lien);
     } else {
       corps = corpsTexte(envoi.telephone, envoi.texte);
     }

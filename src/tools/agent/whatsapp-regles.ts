@@ -55,6 +55,29 @@ export function corpsTexte(telephone: string, texte: string) {
 }
 
 /**
+ * Un message libre avec un bouton qui ouvre un lien (`cta_url`), dans la
+ * fenêtre de 24 h : « Changer mon créneau » plutôt qu'une adresse de cent
+ * caractères (Louis, 28/09/2026). Meta : texte du bouton 20 caractères au
+ * plus, corps 1 024.
+ */
+export function corpsBoutonLien(telephone: string, texte: string, bouton: { texte: string; url: string }) {
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: versMeta(telephone),
+    type: "interactive",
+    interactive: {
+      type: "cta_url",
+      body: { text: texte.slice(0, 1024) },
+      action: {
+        name: "cta_url",
+        parameters: { display_text: bouton.texte.slice(0, 20), url: bouton.url },
+      },
+    },
+  };
+}
+
+/**
  * La signature que Meta pose sur chaque webhook : `sha256=<hex>`, HMAC du
  * corps brut avec la clé secrète de l'app. Comparée en temps constant.
  */

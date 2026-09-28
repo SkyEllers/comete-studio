@@ -48,6 +48,39 @@ export const LIBELLES_ANNULATION: Record<CategorieAnnulation, string> = {
   autre: "autre raison",
 };
 
+/**
+ * Les boutons-liens qu'un message libre peut porter (Louis, 28/09/2026) : le
+ * lien part sous le message, jamais l'adresse dans le texte. 20 caractères au
+ * plus (Meta).
+ */
+export const BOUTONS = {
+  changer: "Changer mon créneau",
+  reprendre: "Choisir un créneau",
+} as const;
+export type Bouton = keyof typeof BOUTONS;
+
+/**
+ * Le message tel qu'il part : le bouton demandé par l'IA, avec son lien, et
+ * le texte sans l'adresse si elle l'a écrite quand même. Sans lien connu, pas
+ * de bouton (la consigne dit « sur » à false quand le lien manque).
+ */
+export function messageAvecBouton(
+  texte: string,
+  bouton: "" | Bouton,
+  liens: { changer: string | null; reprendre: string | null },
+): { texte: string; lien?: { texte: string; url: string } } {
+  const url = bouton ? liens[bouton] : null;
+  if (!bouton || !url) return { texte };
+  const sans = texte
+    .split(url)
+    .join("")
+    .replace(/[ \t]*:[ \t]*(\n|$)/g, ".$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { texte: sans, lien: { texte: BOUTONS[bouton], url } };
+}
+
 /** La forme imposée à la réponse de l'IA (structured outputs). */
 export const SCHEMA_DECISION = {
   type: "object",
@@ -68,6 +101,7 @@ export const SCHEMA_DECISION = {
     "annulation_confirmee",
     "raison_annulation",
     "raison_categorie",
+    "bouton",
   ],
   properties: {
     reponse: { type: "string", description: "Le message exact à lui envoyer, ou une chaîne vide." },
@@ -105,6 +139,11 @@ export const SCHEMA_DECISION = {
       enum: ["", ...CATEGORIES_ANNULATION],
       description: "La raison rangée, ou vide si elle n'en a pas donné.",
     },
+    bouton: {
+      type: "string",
+      enum: ["", "changer", "reprendre"],
+      description: "Le bouton-lien à mettre sous ce message, ou vide.",
+    },
   },
 } as const;
 
@@ -124,6 +163,7 @@ export const decision = z.object({
   annulation_confirmee: z.boolean(),
   raison_annulation: z.string().max(500),
   raison_categorie: z.enum(["", ...CATEGORIES_ANNULATION]),
+  bouton: z.enum(["", "changer", "reprendre"]),
 });
 export type Decision = z.infer<typeof decision>;
 
@@ -211,7 +251,7 @@ ${tarifs ?? "(page illisible pour l'instant : ne donne aucun prix, dis que tu v�
 function sectionAnnulation(c: EtatConversation): string {
   if (c.annulee_par_agent_le) {
     const reprendre = c.lien_reservation
-      ? `Si elle veut reprendre un rendez-vous plus tard, donne-lui ce lien :\n${c.lien_reservation}`
+      ? `Si elle veut reprendre un rendez-vous plus tard, mets "bouton" à "reprendre" : un bouton « ${BOUTONS.reprendre} » part sous ton message, avec le lien de la page de réservation. N'écris jamais l'adresse.`
       : "Si elle veut reprendre un rendez-vous plus tard, dis-lui qu'elle peut le faire depuis le site de Peggy.";
     return `
 
@@ -255,8 +295,7 @@ function sectionReport(c: EtatConversation, creneaux: CreneauxDuMoment): string 
 
 # Changer de créneau
 
-Tu as déjà déplacé son rendez-vous une fois. Si elle doit encore changer, ne propose aucun créneau : donne-lui ce lien pour reprendre rendez-vous quand elle sera prête, et laisse "creneaux_proposes" et "creneau_choisi" vides.
-${c.lien_report ?? "(lien introuvable : mets \"sur\" à false)"}`;
+Tu as déjà déplacé son rendez-vous une fois. Si elle doit encore changer, ne propose aucun créneau : dis-lui qu'elle peut choisir elle-même un autre moment quand elle sera prête, laisse "creneaux_proposes" et "creneau_choisi" vides, et ${c.lien_report ? `mets "bouton" à "changer" : un bouton « ${BOUTONS.changer} » part sous ton message, avec son lien. N'écris jamais l'adresse.` : "(son lien est introuvable : mets \"sur\" à false)"}`;
   }
 
   if (c.creneaux_proposes.length > 0) {
@@ -266,8 +305,7 @@ ${c.lien_report ?? "(lien introuvable : mets \"sur\" à false)"}`;
 
 Tu lui as proposé ces créneaux :
 ${liste(c.creneaux_proposes)}
-Si elle en choisit un, recopie sa valeur exacte (entre parenthèses) dans "creneau_choisi" et dis-lui que tu le réserves. Si aucun ne lui va, donne-lui ce lien pour choisir elle-même un autre moment dans l'agenda (son rendez-vous actuel tient tant qu'elle n'en a pas choisi un autre), et laisse "creneau_choisi" vide :
-${c.lien_report ?? "(lien introuvable : mets \"sur\" à false)"}`;
+Si elle en choisit un, recopie sa valeur exacte (entre parenthèses) dans "creneau_choisi" et dis-lui que tu le réserves. Si aucun ne lui va, dis-lui qu'elle peut choisir elle-même un autre moment dans l'agenda (son rendez-vous actuel tient tant qu'elle n'en a pas choisi un autre), laisse "creneau_choisi" vide, et ${c.lien_report ? `mets "bouton" à "changer" : un bouton « ${BOUTONS.changer} » part sous ton message, avec son lien. N'écris jamais l'adresse.` : "(son lien est introuvable : mets \"sur\" à false)"}`;
   }
 
   if (!c.report_demande_le) return "";

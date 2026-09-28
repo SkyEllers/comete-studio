@@ -15,6 +15,7 @@ import {
   consignesStables,
   contexteDuMoment,
   LIBELLES_ANNULATION,
+  messageAvecBouton,
   transcrire,
   type CreneauxDuMoment,
   type Decision,
@@ -194,7 +195,12 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   }
 
   // --------------------------------- Sûre -----------------------------------
-  if (!(await envoyerLibre(admin, c.id, d.reponse.trim(), { reel, cle }))) return "rien";
+  // Un lien part dans un bouton sous le message, jamais en adresse (Louis, 28/09/2026).
+  const message = messageAvecBouton(d.reponse.trim(), d.bouton, {
+    changer: c.lien_report,
+    reprendre: profil.urlReservation,
+  });
+  if (!(await envoyerLibre(admin, c.id, message.texte, { reel, cle, lien: message.lien }))) return "rien";
 
   // Seuls des créneaux vraiment lus dans l'agenda peuvent être retenus.
   const lus = creneaux && creneaux !== "illisibles" ? [...creneaux.memeJour, ...creneaux.plusProches] : [];
