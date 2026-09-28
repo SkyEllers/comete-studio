@@ -6,6 +6,7 @@ import { tournerTout } from "@/tools/agent/moteur";
 import { mailsVeilleStop } from "@/tools/agent/outil";
 import { envoyerResumes } from "@/tools/agent/resume";
 import { entretienReservation } from "@/tools/reservation/entretien";
+import { entretenirEnregistrements } from "@/tools/resultats/enregistrement-assemblyai";
 
 /**
  * L'horloge de l'agent.
@@ -26,6 +27,10 @@ import { entretienReservation } from "@/tools/reservation/entretien";
  * le mail de la veille pour celles qui ont dit STOP (`outil.ts`, 0048). Et
  * l'entretien de l'outil de réservation : écritures Google ratées, « complet »
  * (`reservation/entretien.ts`).
+ *
+ * Il rapatrie aussi les transcriptions des diagnostics, et efface ceux passés
+ * depuis plus de six mois (`resultats/enregistrement-assemblyai.ts`, 0049). Une panne de
+ * ce côté n'arrête pas l'agent.
  *
  * Deux passages qui se chevauchent n'envoient rien en double : chaque envoi
  * se réserve par sa `cle_envoi` avant de partir (`moteur.ts`).
@@ -62,8 +67,12 @@ export async function POST(request: Request) {
     const resumes = await envoyerResumes(admin);
     const veilles = await mailsVeilleStop(admin);
     const reservation = await entretienReservation(admin);
+    const enregistrements = await entretenirEnregistrements(admin).catch((e: Error) => {
+      console.error(`[diagnostic] entretien raté : ${e.message}`);
+      return null;
+    });
     return Response.json(
-      { faits, resumes, veilles, reservation, duree_ms: Date.now() - debut },
+      { faits, resumes, veilles, reservation, enregistrements, duree_ms: Date.now() - debut },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (erreur) {

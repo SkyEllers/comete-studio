@@ -52,6 +52,7 @@ npm run qa:sonde     # Sonde : isolation, sel, tâches de nuit, point de collect
 npm run qa:export    # Export Radar : cloisonnement, liste blanche, pagination ; demande un serveur
 npm run qa:pulsar    # Pulsar : isolation, chronomètres en parallèle (4 au plus), quarts d'heure, client interne
 npm run qa:horizon   # Horizon : isolation, brouillons invisibles au client, écriture réservée à l'administration
+npm run qa:diagnostic -- --video <fichier.mp4> # Enregistrement du diagnostic (0049) : droits, bucket, résumé, purge à 6 mois, vraie transcription AssemblyAI
 npm run rapport:entonnoir # entonnoir GA4 de la landing de Jonathan ; demande GA4_ACCESS_TOKEN (docs/RAPPORT-ENTONNOIR-GA4.md)
 ```
 

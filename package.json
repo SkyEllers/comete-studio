@@ -21,6 +21,7 @@
     "qa:sonde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sonde.mjs",
     "qa:pulsar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-pulsar.mjs",
     "qa:closeuse": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-closeuse.mjs",
+    "qa:diagnostic": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-diagnostic.mjs",
     "qa:horizon": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-horizon.mjs",
     "qa:prospection": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-prospection.mjs",
     "qa:agent-report": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-report.mjs",

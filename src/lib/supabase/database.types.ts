@@ -3474,7 +3474,12 @@ export type Database = {
       radar_decline_sale: { Args: { booking_id: string }; Returns: boolean }
       radar_diagnostic_chemin_ok: { Args: { chemin: string }; Returns: boolean }
       radar_diagnostic_deposer: {
-        Args: { booking_id: string; chemin: string; nom: string; taille: number }
+        Args: {
+          booking_id: string
+          chemin: string
+          nom: string
+          taille: number
+        }
         Returns: string
       }
       radar_diagnostic_sans: {

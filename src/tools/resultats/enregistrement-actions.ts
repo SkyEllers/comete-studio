@@ -8,7 +8,7 @@ import { getMembership } from "@/lib/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-import { BUCKET_DIAGNOSTICS, lancerTranscription } from "./enregistrement";
+import { BUCKET_DIAGNOSTICS, lancerTranscription } from "./enregistrement-assemblyai";
 import type { EtatTranscription } from "./enregistrement-format";
 
 /**
@@ -58,13 +58,15 @@ export async function deposerEnregistrement(
   });
   if (error) return fail(lisible(error.message, "L'enregistrement n'a pas pu être rangé sur la fiche."));
 
+  const admin = createAdminClient();
+
   // Remplacé : l'ancien fichier ne sert plus à personne.
   if (ancien) {
-    const { error: retrait } = await createAdminClient().storage.from(BUCKET_DIAGNOSTICS).remove([ancien]);
+    const { error: retrait } = await admin.storage.from(BUCKET_DIAGNOSTICS).remove([ancien]);
     if (retrait) console.error(`[diagnostic] ancien fichier non retiré (${bookingId})`);
   }
 
-  const transcription = await lancerTranscription(bookingId);
+  const transcription = await lancerTranscription(admin, bookingId);
   rafraichir(orgSlug);
   return ok({ transcription });
 }
@@ -116,7 +118,7 @@ export async function relancerTranscription(
     return ok({ transcription: data.transcription_etat as EtatTranscription });
   }
 
-  const transcription = await lancerTranscription(parsed.data.bookingId);
+  const transcription = await lancerTranscription(createAdminClient(), parsed.data.bookingId);
   rafraichir(orgSlug);
   if (transcription === "echec") return fail("La transcription n'a pas pu partir. Réessaie dans quelques minutes.");
   return ok({ transcription });
