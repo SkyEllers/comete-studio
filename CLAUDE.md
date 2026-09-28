@@ -25,6 +25,7 @@ Lu par Claude Code à chaque session. Décrit le projet, la stack, les conventio
 | Archives zip | `client-zip` | Capsule, phase 3 : zip construit en flux dans le navigateur, jamais en mémoire entière. |
 | Calendly | `fetch` natif | Radar, phase 4 : trois appels (identité, abonnement, désabonnement). Pas de paquet pour si peu — et celui-ci porterait le jeton d'accès au calendrier d'un client. |
 | IA | API Anthropic en `fetch` natif, sans SDK | Sas, phase 5 : un seul appel (`POST /v1/messages`), modèle Haiku, température 0, réponse en JSON validée par zod. `ANTHROPIC_API_KEY` côté serveur uniquement. |
+| Transcription | API AssemblyAI en `fetch` natif, sans SDK, serveurs UE (`api.eu.assemblyai.com`) | Enregistrement du diagnostic (0049) : la vidéo part par un lien signé du Storage, la transcription revient à la lecture de la page, puis est effacée chez AssemblyAI. `ASSEMBLYAI_API_KEY` côté serveur uniquement ; sans elle, la vidéo se dépose et se regarde quand même. |
 | Validation | `zod` | Toute Server Action valide ses entrées avant de toucher la base. |
 | Icônes / toasts / markdown | `lucide-react` / `sonner` / `react-markdown` + `remark-gfm` | Markdown uniquement pour les descriptions de cartes (pas de HTML brut). |
 | Hébergement | Vercel, projet existant, domaine déjà lié | Variables d'env dans Vercel, jamais dans le repo. |
