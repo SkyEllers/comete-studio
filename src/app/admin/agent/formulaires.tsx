@@ -166,7 +166,7 @@ export function FormulaireResume({
         <input type="hidden" name="organization_id" value={organisationId} />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="resume_actif" defaultChecked={actif} className="accent-ember" />
-          Mail de la veille (18h) : les diagnostics du lendemain
+          Mail de la veille (17h) : les diagnostics du lendemain
         </label>
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-56 flex-1">

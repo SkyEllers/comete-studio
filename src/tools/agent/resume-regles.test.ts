@@ -33,6 +33,7 @@ describe("où en est le rendez-vous", () => {
   it("pas encore confirmé", () => assert.equal(etatEnMots(diag()), "Pas encore confirmé."));
   it("STOP : le rendez-vous tient", () => assert.match(etatEnMots(diag({ etat: "stop" })), /Le rendez-vous tient/));
   it("réservé trop près", () => assert.match(etatEnMots(diag({ etat: "hors_champ" })), /ne lui a pas écrit/));
+  it("pas suivie par l'assistante", () => assert.equal(etatEnMots(diag({ etat: "sans_suivi" })), "Pas suivie par l'assistante WhatsApp."));
 });
 
 describe("ce qu'elle a dit", () => {
@@ -68,7 +69,7 @@ describe("le mail de la veille", () => {
     assert.match(m.texte, /15h30 · Nadia\nCe qu'elle a dit : rien de particulier\.\nConfirmé\./);
   });
 
-  it("dit « demain » et renvoie à l'agenda pour ce qui arrive après 18h", () => {
+  it("dit « demain » et renvoie à l'agenda pour ce qui arrive après 17h", () => {
     const m = mailDuResume({ jour: "2026-10-02", fuseau: P, diagnostics: [diag()] });
     assert.match(m?.texte ?? "", /^Bonjour,\n\nDemain, 1 diagnostic :/);
     assert.match(m?.texte ?? "", /il est dans ton agenda/);

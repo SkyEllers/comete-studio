@@ -1,8 +1,8 @@
 /**
  * Le mail de la veille (P12, « Le résumé pour Peggy avant son Zoom ») : un
- * seul mail à 18h, les diagnostics du lendemain, trois lignes chacun. Peggy
+ * seul mail à 17h, les diagnostics du lendemain, trois lignes chacun. Peggy
  * prépare ses rendez-vous la veille (P16, Louis, 28/09/2026 : il remplace le
- * mail de 8h). Ce qui se réserve après 18h pour le lendemain, elle le voit
+ * mail de 8h). Ce qui se réserve après 17h pour le lendemain, elle le voit
  * dans son agenda Google. Lecture facultative : s'il n'est pas ouvert, rien
  * ne casse.
  *
@@ -11,7 +11,7 @@
 
 import { heureEnMots, jourEnMots } from "./temps.ts";
 
-export const HEURE_DU_RESUME = 18;
+export const HEURE_DU_RESUME = 17;
 
 export type DiagnosticDuJour = {
   rdv_debut: string;
@@ -31,6 +31,7 @@ export type DiagnosticDuJour = {
 
 /** Où en est son rendez-vous, en une phrase. */
 export function etatEnMots(d: DiagnosticDuJour): string {
+  if (d.etat === "sans_suivi") return "Pas suivie par l'assistante WhatsApp.";
   if (d.etat === "hors_champ") return "Réservé moins de 24 h avant : l'assistante ne lui a pas écrit.";
   if (d.etat === "stop") return "Elle a demandé à ne plus recevoir de messages. Le rendez-vous tient.";
   const suite = d.confirme_le
@@ -89,7 +90,7 @@ export function mailDuResume(q: {
   const sujet = `${prefixe}${n === 1 ? "Ton diagnostic" : `Tes ${n} diagnostics`} de demain, ${date}`;
   const intro = `Demain, ${n === 1 ? "1 diagnostic" : `${n} diagnostics`} :`;
   const pied =
-    "Rien à faire de ton côté. C'est juste pour que tu saches, avant chaque visio, où elle en est. Un rendez-vous pris ce soir pour demain n'y est pas : il est dans ton agenda.";
+    "Rien à faire de ton côté. C'est juste pour que tu saches, avant chaque visio, où elle en est. Un rendez-vous pris après 17h pour demain n'y est pas : il est dans ton agenda.";
 
   const blocs = [...q.diagnostics]
     .sort((a, b) => Date.parse(a.rdv_debut) - Date.parse(b.rdv_debut))

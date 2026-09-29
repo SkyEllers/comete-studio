@@ -10,11 +10,11 @@ type Admin = ReturnType<typeof createAdminClient>;
 
 /**
  * Le mail de la veille : chacune reçoit ses diagnostics du lendemain (Louis,
- * 25/09/2026 ; la veille à 18h au lieu du jour même à 8h depuis le 28/09). Le client reçoit les siens ; chaque closeuse, les rendez-vous
+ * 25/09/2026 ; la veille à 17h au lieu du jour même à 8h depuis le 28/09). Le client reçoit les siens ; chaque closeuse, les rendez-vous
  * que Radar lui attribue, les jours où elle en a. Une closeuse retirée du
  * client rend ses rendez-vous au client.
  *
- * L'horloge passe toutes les 5 minutes ; le premier passage après 18h (heure
+ * L'horloge passe toutes les 5 minutes ; le premier passage après 17h (heure
  * de Paris) réserve le lendemain dans `resume_envoye_le` avant d'envoyer
  * ses diagnostics. Deux
  * passages simultanés n'envoient donc qu'une fois. Si aucun mail n'est parti
@@ -22,8 +22,8 @@ type Admin = ReturnType<typeof createAdminClient>;
  * réessaie ; si une partie seulement est partie, on ne renvoie pas à celles
  * qui l'ont déjà.
  *
- * Seules les vraies conversations comptent. Les simulations n'y entrent que
- * par l'envoi de test, qui part chez Louis seul.
+ * Les simulations n'y entrent que par l'envoi de test, qui part chez Louis
+ * seul.
  */
 
 const PARIS = "Europe/Paris";
@@ -31,7 +31,17 @@ const ETATS_DU_JOUR = ["active", "hors_champ", "stop", "terminee"];
 
 type NoteIa = { ia?: { note_pour_peggy?: string | null } } | null;
 
-/** Les diagnostics d'une journée chez un client, avec ce que chacune a dit. */
+/**
+ * Les diagnostics d'une journée chez un client, avec ce que chacune a dit.
+ *
+ * La liste part de Radar : tous les diagnostics du jour (un type dont le nom
+ * dit « diagnostic »), qu'ils soient suivis par l'assistante ou non (Louis,
+ * 28/09/2026 : le 28 au soir, les 5 diagnostics du lendemain, pris sur
+ * Calendly avant la mise en route de l'assistante, n'apparaissaient pas, et
+ * aucun mail n'était parti). Quand l'assistante suit la cliente, sa
+ * conversation ajoute l'état et ce qu'elle a dit. Les simulations, sans
+ * rendez-vous dans Radar, n'entrent que par l'envoi de test.
+ */
 export async function diagnosticsDuJour(
   admin: Admin,
   orgId: string,
@@ -56,27 +66,39 @@ export async function diagnosticsDuJour(
     .order("rdv_debut");
   if (!avecSimulations) requete = requete.eq("simulation", false);
 
-  const { data: conversations } = await requete;
-  if (!conversations?.length) return [];
-
-  const bookings = conversations.map((c) => c.booking_id).filter((b): b is string => Boolean(b));
-  const [{ data: entrants }, { data: rdvs }] = await Promise.all([
+  const [{ data: conversations }, { data: rdvs }] = await Promise.all([
+    requete,
     admin
-      .from("agent_messages")
-      .select("conversation_id, comprehension")
-      .in(
-        "conversation_id",
-        conversations.map((c) => c.id),
-      )
-      .eq("sens", "entrant")
-      .order("created_at"),
-    bookings.length
-      ? admin.from("radar_bookings").select("id, closeuse_id").in("id", bookings)
-      : Promise.resolve({ data: [] as { id: string; closeuse_id: string | null }[] }),
+      .from("radar_bookings")
+      .select("id, scheduled_start, invitee_first_name, closeuse_id, status, event_type_name")
+      .eq("organization_id", orgId)
+      .gte("scheduled_start", debut)
+      .lt("scheduled_start", fin)
+      .not("status", "in", "(annule,no_show)")
+      .ilike("event_type_name", "%diagnostic%")
+      .order("scheduled_start"),
   ]);
-  const closeuseDe = new Map((rdvs ?? []).map((r) => [r.id, r.closeuse_id]));
 
-  return conversations.map((c) => ({
+  const convs = conversations ?? [];
+  const { data: entrants } = convs.length
+    ? await admin
+        .from("agent_messages")
+        .select("conversation_id, comprehension")
+        .in(
+          "conversation_id",
+          convs.map((c) => c.id),
+        )
+        .eq("sens", "entrant")
+        .order("created_at")
+    : { data: [] as { conversation_id: string; comprehension: unknown }[] };
+
+  const notesDe = (id: string) =>
+    (entrants ?? [])
+      .filter((m) => m.conversation_id === id)
+      .map((m) => (m.comprehension as NoteIa)?.ia?.note_pour_peggy ?? "")
+      .filter((n): n is string => Boolean(n));
+
+  const depuisConversation = (c: (typeof convs)[number], closeuse: string | null): DiagnosticDuJour => ({
     rdv_debut: c.rdv_debut,
     prenom: c.prenom,
     fuseau: c.fuseau,
@@ -86,12 +108,36 @@ export async function diagnosticsDuJour(
     deplace: c.invites_precedents.length > 0,
     sans_reponse_veille: c.sans_reponse_veille,
     simulation: c.simulation,
-    closeuse_id: c.booking_id ? (closeuseDe.get(c.booking_id) ?? null) : null,
-    notes: (entrants ?? [])
-      .filter((m) => m.conversation_id === c.id)
-      .map((m) => (m.comprehension as NoteIa)?.ia?.note_pour_peggy ?? "")
-      .filter((n): n is string => Boolean(n)),
-  }));
+    closeuse_id: closeuse,
+    notes: notesDe(c.id),
+  });
+
+  const convDe = new Map(convs.filter((c) => c.booking_id).map((c) => [c.booking_id as string, c]));
+  const vus = new Set<string>();
+  const liste: DiagnosticDuJour[] = (rdvs ?? []).map((r) => {
+    const c = convDe.get(r.id);
+    if (c) {
+      vus.add(c.id);
+      return depuisConversation(c, r.closeuse_id);
+    }
+    return {
+      rdv_debut: r.scheduled_start,
+      prenom: r.invitee_first_name?.trim() || "Invitée",
+      fuseau: PARIS,
+      etat: "sans_suivi",
+      confirme_le: null,
+      reports_agent: 0,
+      deplace: false,
+      sans_reponse_veille: false,
+      simulation: false,
+      closeuse_id: r.closeuse_id,
+      notes: [],
+    };
+  });
+  // Une conversation sans rendez-vous Radar (une simulation, un rendez-vous
+  // pas encore arrivé dans Radar) garde sa place.
+  for (const c of convs) if (!vus.has(c.id)) liste.push(depuisConversation(c, null));
+  return liste.sort((a, b) => Date.parse(a.rdv_debut) - Date.parse(b.rdv_debut));
 }
 
 type Envoi = { pour: string | null; a: string[]; diagnostics: DiagnosticDuJour[] };
@@ -147,7 +193,7 @@ export async function envoyerResumes(admin: Admin, reel = Date.now()): Promise<n
 
   // `resume_envoye_le` porte le jour des diagnostics couverts (le lendemain
   // de l'envoi). Avant le 28/09/2026, il portait le jour d'envoi du mail de
-  // 8h, qui couvrait le jour même : le premier passage de 18h qui suit la
+  // 8h, qui couvrait le jour même : le premier passage de 17h qui suit la
   // mise en ligne voit une date plus petite que demain et envoie bien.
   const demain = ajouterJours(jour, 1);
 
