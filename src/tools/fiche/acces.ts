@@ -20,9 +20,15 @@ export async function rendezVousAccessible(orgSlug: string, bookingId: string) {
     .eq("organization_id", acces.org.id)
     .maybeSingle();
   if (!rdv) return null;
+  /*
+   * `closeuse` part toujours, `null` compris : la fonction n'a pas de valeur
+   * par défaut, et sans ce paramètre PostgREST ne la trouve pas. Avant le
+   * 30/09/2026, chaque rendez-vous sans closeuse (tous ceux de Peggy) était
+   * refusé : ni sa réservation ni son devis sur la fiche.
+   */
   const { data: peut } = await supabase.rpc(
     "radar_peut_saisir",
-    { org: rdv.organization_id, closeuse: rdv.closeuse_id ?? undefined } as never,
+    { org: rdv.organization_id, closeuse: rdv.closeuse_id } as never,
   );
   if (peut !== true) return null;
   return { acces, rdv };
