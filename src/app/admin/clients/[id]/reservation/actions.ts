@@ -8,6 +8,9 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reecrireDescription } from "@/tools/reservation/agenda";
+import { identifiants } from "@/tools/reservation/google";
+import { baseEspace } from "@/tools/reservation/suites";
 
 /**
  * L'administration de la réservation d'un client, réservée à Louis (0042).
@@ -170,4 +173,44 @@ export async function revoquerJetonPage(input: unknown): Promise<ActionResult> {
 
   rafraichir(organizationId);
   return ok();
+}
+
+/**
+ * Réécrire, dans les agendas Google, la description des diagnostics à venir
+ * pris avant le 30/09/2026 : numéro, réponses et lien de la fiche (Louis).
+ * Sans risque à relancer : la description est simplement réécrite.
+ */
+export async function reecrireDescriptions(
+  organizationId: unknown,
+): Promise<ActionResult<{ reecrits: number; echecs: number }>> {
+  await requireAdmin();
+  const org = organisation.safeParse(organizationId);
+  if (!org.success) return failFromZod(org.error);
+  const ids = identifiants();
+  if (!ids) return fail("Identifiants Google absents du serveur.");
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("reservation_rendez_vous")
+    .select("id")
+    .eq("organization_id", org.data)
+    .eq("statut", "confirme")
+    .not("google_event_id", "is", null)
+    .gt("debut", new Date().toISOString())
+    .order("debut")
+    .limit(100);
+  if (error) return fail(`Rendez-vous : ${error.message}`);
+
+  const base = await baseEspace(admin, org.data);
+  let reecrits = 0;
+  let echecs = 0;
+  for (const r of data ?? []) {
+    try {
+      if (await reecrireDescription(admin, r.id, ids, base)) reecrits++;
+    } catch (erreur) {
+      echecs++;
+      console.error("Réservation, description :", erreur instanceof Error ? erreur.message : "erreur");
+    }
+  }
+  return ok({ reecrits, echecs });
 }

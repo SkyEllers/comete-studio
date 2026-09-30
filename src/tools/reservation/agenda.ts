@@ -5,6 +5,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import {
   AGENDA_PRINCIPAL,
   agendaExiste,
+  changerDescription,
   creerAgenda,
   creerEvenement,
   effacerEvenement,
@@ -17,7 +18,7 @@ import {
   type Identifiants,
 } from "./google.ts";
 import type { Agendas, PersonneLue } from "./moteur.ts";
-import { descriptionEvenement } from "./reponses.ts";
+import { descriptionEvenement, lienFiche } from "./reponses.ts";
 
 /**
  * Google Agenda branché sur la base du hub : le jeton de chacune vit dans le
@@ -135,14 +136,14 @@ type RdvPourAgenda = {
   reponses: unknown;
   google_event_id: string | null;
   organization_id: string;
-  personne: { id: string; google_agenda: string; visio: string; lien_visio: string | null };
+  personne: { id: string; role: string; google_agenda: string; visio: string; lien_visio: string | null };
 };
 
 async function lireRdv(db: Admin, rdvId: string): Promise<RdvPourAgenda> {
   const { data, error } = await db
     .from("reservation_rendez_vous")
     .select(
-      "id, debut, fin, prenom, nom, telephone, reponses, google_event_id, organization_id, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(id, google_agenda, visio, lien_visio)",
+      "id, debut, fin, prenom, nom, telephone, reponses, google_event_id, organization_id, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(id, role, google_agenda, visio, lien_visio)",
     )
     .eq("id", rdvId)
     .single();
@@ -159,7 +160,7 @@ export async function ecrireRendezVous(
   db: Admin,
   rdvId: string,
   ids: Identifiants,
-  lienEspace: string,
+  baseEspace: string,
 ): Promise<{ id: string; lienVisio: string | null }> {
   const rdv = await lireRdv(db, rdvId);
   if (rdv.google_event_id) return { id: rdv.google_event_id, lienVisio: null };
@@ -176,7 +177,7 @@ export async function ecrireRendezVous(
     // Le titre porte le rappel : c'est lui que la notification affiche (Louis, 28/09/2026).
     titre: `Diagnostic · ${prenom} · lance l'enregistrement`,
     // Son numéro et ses réponses au formulaire, sous les yeux (Louis, 30/09/2026).
-    description: descriptionEvenement({ ...rdv, email: null }, lienEspace),
+    description: descriptionEvenement({ ...rdv, email: null }, lienFiche(baseEspace, rdv.personne.role, rdv.id)),
     visio:
       rdv.personne.visio === "lien" && rdv.personne.lien_visio
         ? { type: "lien", lien: rdv.personne.lien_visio }
@@ -197,4 +198,29 @@ export async function effacerRendezVous(db: Admin, rdvId: string, ids: Identifia
   if (!rdv.google_event_id) return;
   const acces = await porteJetons(db, ids)(rdv.personne.id);
   await effacerEvenement(acces, rdv.personne.google_agenda, rdv.google_event_id);
+}
+
+/**
+ * Réécrire la description d'un rendez-vous déjà dans l'agenda : numéro,
+ * réponses, lien de sa fiche (Louis, 30/09/2026, pour ceux pris avant). Même
+ * texte que `ecrireRendezVous`, lien fixe de visio compris.
+ */
+export async function reecrireDescription(
+  db: Admin,
+  rdvId: string,
+  ids: Identifiants,
+  baseEspace: string,
+): Promise<boolean> {
+  const rdv = await lireRdv(db, rdvId);
+  if (!rdv.google_event_id || rdv.personne.google_agenda === AGENDA_PRINCIPAL) return false;
+  const acces = await porteJetons(db, ids)(rdv.personne.id);
+  const texte = descriptionEvenement({ ...rdv, email: null }, lienFiche(baseEspace, rdv.personne.role, rdv.id));
+  const lien = rdv.personne.visio === "lien" ? rdv.personne.lien_visio : null;
+  await changerDescription(
+    acces,
+    rdv.personne.google_agenda,
+    rdv.google_event_id,
+    lien ? `${texte}\n\nVisio : ${lien}` : texte,
+  );
+  return true;
 }

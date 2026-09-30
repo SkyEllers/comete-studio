@@ -38,14 +38,24 @@ const couper = (texte: string, max: number) => (texte.length > max ? `${texte.sl
 /*
  * Google n'annonce pas de limite pour la description d'un événement, mais
  * refuse les très longues : 12 réponses de 2 000 caractères n'y entrent pas.
- * On coupe chaque réponse, puis l'ensemble ; le texte entier reste dans son
- * espace et dans le mail.
+ * On coupe chaque réponse, puis l'ensemble ; le texte entier reste sur sa
+ * fiche et dans le mail.
  */
 const MAX_REPONSE_GOOGLE = 1500;
 const MAX_DESCRIPTION_GOOGLE = 7000;
 
+/**
+ * Le lien de la fiche de la cliente, depuis l'événement Google et le mail
+ * (Louis, 30/09/2026). La titulaire l'ouvre dans Radar : la page retrouve le
+ * mois et ouvre la fiche à partir de l'identifiant du rendez-vous, qui existe
+ * avant Radar (Google s'écrit d'abord). Une closeuse n'a pas Radar : son espace.
+ */
+export function lienFiche(baseEspace: string, role: string, rdvId: string): string {
+  return role === "closeuse" ? `${baseEspace}/closeuse` : `${baseEspace}/resultats/rendez-vous?resa=${rdvId}`;
+}
+
 /** La description de l'événement Google : qui, son numéro, ses réponses. */
-export function descriptionEvenement(r: Reservee, lienEspace: string): string {
+export function descriptionEvenement(r: Reservee, lienFiche: string): string {
   const reponses = reponsesLues(r.reponses);
   const tete = [
     `Diagnostic réservé en ligne par ${nomComplet(r)}.`,
@@ -53,7 +63,7 @@ export function descriptionEvenement(r: Reservee, lienEspace: string): string {
     "",
     "Pense à lancer l'enregistrement de l'appel dès le début : tu déposeras la vidéo sur la fiche du rendez-vous.",
   ].filter((l) => l !== null);
-  const pied = ["", `Tout est aussi dans ton espace : ${lienEspace}`];
+  const pied = ["", `Sa fiche : ${lienFiche}`];
   const corps = reponses.length
     ? ["", "Ses réponses :", ...reponses.flatMap((x) => ["", x.question, couper(x.reponse, MAX_REPONSE_GOOGLE)])]
     : [];
@@ -67,7 +77,7 @@ export type Prevenir = {
   rdv: Reservee & { debut: string };
   fuseau: string;
   lienVisio: string | null;
-  lienEspace: string;
+  lienFiche: string;
 };
 
 function echapper(texte: string): string {
@@ -100,7 +110,7 @@ export function mailReservation(p: Prevenir): { sujet: string; texte: string; ht
     ...(reponses.length ? ["", "Ses réponses :", ...reponses.flatMap((x) => ["", x.question, x.reponse])] : []),
     "",
     ...(p.lienVisio ? [`Visio : ${p.lienVisio}`] : []),
-    `Ton espace : ${p.lienEspace}`,
+    `Sa fiche : ${p.lienFiche}`,
     "",
   ].join("\n");
 
@@ -114,7 +124,7 @@ export function mailReservation(p: Prevenir): { sujet: string; texte: string; ht
           ...reponses.map((x) => `<p><strong>${echapper(x.question)}</strong><br>${para(x.reponse)}</p>`),
         ]
       : []),
-    `<p>${p.lienVisio ? `<a href="${echapper(p.lienVisio)}">Ouvrir la visio</a> · ` : ""}<a href="${echapper(p.lienEspace)}">Ton espace</a></p>`,
+    `<p>${p.lienVisio ? `<a href="${echapper(p.lienVisio)}">Ouvrir la visio</a> · ` : ""}<a href="${echapper(p.lienFiche)}">Sa fiche</a></p>`,
   ].join("\n");
 
   return { sujet, texte, html };

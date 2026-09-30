@@ -18,11 +18,11 @@ import { annulerDansRadar, versRadar } from "./radar.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-/** L'espace « Mon agenda » du client, écrit dans la description de l'événement Google. */
-export async function lienEspace(admin: Admin, org: string): Promise<string> {
+/** L'espace du client dans le hub, d'où partent les liens de l'événement Google et du mail. */
+export async function baseEspace(admin: Admin, org: string): Promise<string> {
   const { data: orga } = await admin.from("organizations").select("slug").eq("id", org).single();
   const racine = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.cometestudio.fr").replace(/\/+$/, "");
-  return `${racine}/app/${orga?.slug ?? ""}/agenda`;
+  return `${racine}/app/${orga?.slug ?? ""}`;
 }
 
 export async function suivreReport(
@@ -38,7 +38,7 @@ export async function suivreReport(
   } catch (erreur) {
     console.error("Réservation, effacement Google :", erreur instanceof Error ? erreur.message : "erreur");
   }
-  const espace = await lienEspace(admin, org);
+  const espace = await baseEspace(admin, org);
   try {
     await ecrireRendezVous(admin, nouveauId, ids, espace);
   } catch (erreur) {

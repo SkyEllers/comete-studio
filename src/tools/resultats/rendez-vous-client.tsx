@@ -197,6 +197,7 @@ export function ListeRendezVous({
   sourcesAttribution,
   moisClotures,
   suiviAppel = false,
+  ouvrirAuDepart,
 }: {
   orgSlug: string;
   organizationId: string;
@@ -214,8 +215,10 @@ export function ListeRendezVous({
   moisClotures: string[];
   /** L'espace note ce qu'a donné l'appel de la veille (réglage de Louis). */
   suiviAppel?: boolean;
+  /** La fiche à ouvrir d'emblée : le lien de l'événement Google ou du mail de réservation. */
+  ouvrirAuDepart?: string;
 }) {
-  const [ouvert, setOuvert] = useState<string | null>(null);
+  const [ouvert, setOuvert] = useState<string | null>(ouvrirAuDepart ?? null);
   const [enCours, startTransition] = useTransition();
   const { enCoursAppel, noter } = useNoterAppel(orgSlug);
   const { enCoursNonVente, noterRaison, mettreEnAttente } = useNonVente(orgSlug);

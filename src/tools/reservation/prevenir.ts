@@ -3,7 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { envoyer } from "../fichiers/courriel.ts";
-import { mailReservation } from "./reponses.ts";
+import { lienFiche, mailReservation } from "./reponses.ts";
 
 /**
  * Prévenir par mail la personne qui tient le diagnostic (Peggy, une
@@ -23,20 +23,20 @@ type RdvPourMail = {
   telephone: string | null;
   reponses: unknown;
   lien_visio: string | null;
-  personne: { user_id: string; fuseau: string };
+  personne: { user_id: string; role: string; fuseau: string };
 };
 
 export async function prevenirPersonne(
   admin: Admin,
   rdvId: string,
   type: "nouveau" | "deplace",
-  lienEspace: string,
+  baseEspace: string,
 ): Promise<boolean> {
   try {
     const { data, error } = await admin
       .from("reservation_rendez_vous")
       .select(
-        "debut, prenom, nom, email, telephone, reponses, lien_visio, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(user_id, fuseau)",
+        "debut, prenom, nom, email, telephone, reponses, lien_visio, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(user_id, role, fuseau)",
       )
       .eq("id", rdvId)
       .single();
@@ -51,7 +51,7 @@ export async function prevenirPersonne(
       rdv,
       fuseau: rdv.personne.fuseau,
       lienVisio: rdv.lien_visio,
-      lienEspace,
+      lienFiche: lienFiche(baseEspace, rdv.personne.role, rdvId),
     });
     return await envoyer({ ...mail, a: [profil.email] });
   } catch (erreur) {

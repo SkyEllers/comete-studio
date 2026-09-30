@@ -368,3 +368,22 @@ export async function effacerEvenement(acces: string, agenda: string, id: string
   if (reponse.status === 404 || reponse.status === 410) return;
   if (!reponse.ok) await lire(reponse, "effacement du rendez-vous");
 }
+
+/** Changer la description d'un rendez-vous déjà écrit, sans rien toucher d'autre. */
+export async function changerDescription(
+  acces: string,
+  agenda: string,
+  id: string,
+  description: string,
+  f: Fetch = fetch,
+): Promise<void> {
+  const reponse = await f(
+    `${API}/calendars/${encodeURIComponent(agenda)}/events/${encodeURIComponent(id)}?sendUpdates=none`,
+    {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${acces}`, "content-type": "application/json" },
+      body: JSON.stringify({ description }),
+    },
+  );
+  await lire(reponse, "description du rendez-vous");
+}

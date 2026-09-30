@@ -24,6 +24,7 @@ import {
   creerJetonPage,
   ouvrirReservation,
   preparerReservation,
+  reecrireDescriptions,
   revoquerJetonPage,
 } from "./actions";
 
@@ -245,6 +246,27 @@ export function RevoquerJeton({ organizationId, jetonId }: { organizationId: str
       }
     >
       Révoquer
+    </Button>
+  );
+}
+
+/** Pour les diagnostics pris avant le 30/09/2026 : numéro, réponses et lien de la fiche dans Google. */
+export function ReecrireDescriptions({ organizationId }: { organizationId: string }) {
+  const [enCours, demarrer] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      disabled={enCours}
+      onClick={() =>
+        demarrer(async () => {
+          const r = await reecrireDescriptions(organizationId);
+          if (!r.ok) toast.error(r.error);
+          else if (r.data.echecs > 0) toast.error(`${r.data.reecrits} réécrits, ${r.data.echecs} refusés par Google.`);
+          else toast.success(`${r.data.reecrits} rendez-vous réécrits dans Google Agenda.`);
+        })
+      }
+    >
+      {enCours ? "Réécriture…" : "Réécrire les rendez-vous à venir dans Google"}
     </Button>
   );
 }

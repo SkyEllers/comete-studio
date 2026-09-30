@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { TableSkeleton } from "@/components/app/skeletons";
 import { Button } from "@/components/ui/button";
 import { requireMembership } from "@/lib/access";
+import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { ChercherNom } from "@/tools/resultats/chercher-nom";
 import { libelleMois, moisAOffrir, moisDemande } from "@/tools/resultats/mois";
@@ -91,6 +92,34 @@ function Filtres({
   );
 }
 
+/**
+ * Le lien de l'événement Google et du mail de réservation (Louis,
+ * 30/09/2026) : `?resa=<rendez-vous de l'outil>`. On retrouve sa ligne Radar
+ * et son mois, lus avec la session : un rendez-vous d'un autre client, ou pas
+ * encore dans Radar, laisse la page telle quelle.
+ */
+async function ficheDeReservation(
+  organizationId: string,
+  resa: string | undefined,
+): Promise<{ id: string; mois: string } | null> {
+  if (!resa || !/^[0-9a-f-]{36}$/i.test(resa)) return null;
+  const supabase = await createClient();
+  const { data: rdv } = await supabase
+    .from("reservation_rendez_vous")
+    .select("radar_booking_id")
+    .eq("organization_id", organizationId)
+    .eq("id", resa)
+    .maybeSingle();
+  if (!rdv?.radar_booking_id) return null;
+  const { data: ligne } = await supabase
+    .from("radar_bookings_effective")
+    .select("id, mois")
+    .eq("organization_id", organizationId)
+    .eq("id", rdv.radar_booking_id)
+    .maybeSingle();
+  return ligne?.id && ligne.mois ? { id: ligne.id, mois: ligne.mois } : null;
+}
+
 async function Liste({
   organizationId,
   orgSlug,
@@ -99,6 +128,7 @@ async function Liste({
   statutFiltre,
   venteFiltre,
   recherche,
+  ouvrir,
 }: {
   organizationId: string;
   orgSlug: string;
@@ -107,6 +137,7 @@ async function Liste({
   statutFiltre?: string;
   venteFiltre?: string;
   recherche: string | null;
+  ouvrir?: string;
 }) {
   const chemin = `/app/${orgSlug}/resultats/rendez-vous`;
 
@@ -241,6 +272,7 @@ async function Liste({
           sourcesAttribution={sources}
           moisClotures={moisClotures}
           suiviAppel={reglages.suivi_appel_veille}
+          ouvrirAuDepart={ouvrir}
         />
       )}
     </>
@@ -252,9 +284,10 @@ export default async function RendezVousPage({
   searchParams,
 }: PageProps<"/app/[orgSlug]/resultats/rendez-vous">) {
   const { orgSlug } = await params;
-  const { mois, canal, statut, vente, q } = await searchParams;
+  const { mois, canal, statut, vente, q, resa } = await searchParams;
   const { org } = await requireMembership(orgSlug);
   const recherche = nettoyerRecherche(seul(q));
+  const fiche = await ficheDeReservation(org.id, seul(resa));
   const venteFiltre = seul(vente) === "avec" || seul(vente) === "sans" ? seul(vente) : undefined;
 
   return (
@@ -279,7 +312,8 @@ export default async function RendezVousPage({
         <Liste
           organizationId={org.id}
           orgSlug={orgSlug}
-          mois={moisDemande(mois)}
+          mois={fiche?.mois ?? moisDemande(mois)}
+          ouvrir={fiche?.id}
           canalFiltre={seul(canal)}
           statutFiltre={seul(statut)}
           venteFiltre={venteFiltre}

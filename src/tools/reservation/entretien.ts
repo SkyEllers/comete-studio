@@ -9,7 +9,7 @@ import { depotSupabase } from "./depot.ts";
 import { identifiants } from "./google.ts";
 import { creneauxLibres } from "./moteur.ts";
 import { uriRadar } from "./radar.ts";
-import { lienEspace } from "./suites.ts";
+import { baseEspace } from "./suites.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -62,7 +62,7 @@ export async function reecrireGoogle(admin: Admin, maintenant = Date.now()): Pro
   let ecrits = 0;
   for (const r of data ?? []) {
     try {
-      const ecrit = await ecrireRendezVous(admin, r.id, ids, await lienEspace(admin, r.organization_id));
+      const ecrit = await ecrireRendezVous(admin, r.id, ids, await baseEspace(admin, r.organization_id));
       ecrits++;
       if (ecrit.lienVisio) {
         await admin

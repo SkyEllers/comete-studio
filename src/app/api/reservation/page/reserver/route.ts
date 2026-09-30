@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     const { data: orga } = await admin.from("organizations").select("slug").eq("id", org).single();
     const racine = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.cometestudio.fr").replace(/\/+$/, "");
 
-    const espace = `${racine}/app/${orga?.slug ?? ""}/agenda`;
+    const espace = `${racine}/app/${orga?.slug ?? ""}`;
     let lienVisio: string | null = null;
     try {
       const ecrit = await ecrireRendezVous(admin, prise.id, ids, espace);

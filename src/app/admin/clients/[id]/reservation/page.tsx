@@ -22,7 +22,15 @@ import { depotSupabase } from "@/tools/reservation/depot";
 import { identifiants } from "@/tools/reservation/google";
 import { creneauxLibres, type Disponibilites } from "@/tools/reservation/moteur";
 
-import { AjouterPersonne, BasculerPersonne, CreerJeton, OuvrirBouton, PreparerBouton, RevoquerJeton } from "./reservation-forms";
+import {
+  AjouterPersonne,
+  BasculerPersonne,
+  CreerJeton,
+  OuvrirBouton,
+  PreparerBouton,
+  ReecrireDescriptions,
+  RevoquerJeton,
+} from "./reservation-forms";
 
 /**
  * La réservation d'un client, vue par Louis : qui prend des diagnostics,
@@ -226,6 +234,16 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               </ul>
             ) : null}
             <CreerJeton organizationId={org.id} />
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg">Les rendez-vous déjà dans Google</h2>
+            <p className="text-muted-foreground text-sm">
+              Réécrit la description des diagnostics à venir dans l&apos;agenda « Diagnostics » de chacune : le
+              numéro, les réponses au formulaire et le lien de la fiche. Pour ceux pris avant le 30/09/2026 ; sans
+              risque à relancer.
+            </p>
+            <ReecrireDescriptions organizationId={org.id} />
           </section>
 
           <section className="space-y-3">
