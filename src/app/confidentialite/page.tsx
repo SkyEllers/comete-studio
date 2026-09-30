@@ -196,8 +196,9 @@ export default function ConfidentialitePage() {
           moments où tu es occupée. Pas le titre de tes rendez-vous, pas leur
           contenu. Ça lui sert à ne proposer que des créneaux où tu es libre. Il
           crée aussi dans ton compte un agenda à part, « Diagnostics », où il
-          écrit chaque diagnostic réservé avec son lien de visio. Il n&apos;écrit
-          nulle part ailleurs.
+          écrit chaque diagnostic réservé avec son lien de visio, le numéro de
+          la personne et ses réponses au formulaire de réservation. Il
+          n&apos;écrit nulle part ailleurs.
         </p>
         <p>
           Il garde l&apos;adresse de ton compte Google et un jeton d&apos;accès,

@@ -7,6 +7,7 @@ import { AgendaClient } from "@/tools/reservation/agenda-client";
 import type { Issue } from "@/tools/reservation/etat";
 import { maFiche, monAgenda } from "@/tools/reservation/personne";
 import { Absences, Horaires, Maximum, Visio } from "@/tools/reservation/reglages-client";
+import { nomComplet, reponsesLues, type Reservee } from "@/tools/reservation/reponses";
 
 export const metadata: Metadata = {
   title: "Mon agenda · Comète Studio",
@@ -83,6 +84,7 @@ export default async function AgendaPage({
                       Ouvrir la visio
                     </a>
                   ) : null}
+                  <Reponses rdv={r} />
                 </li>
               ))}
             </ul>
@@ -90,5 +92,42 @@ export default async function AgendaPage({
         </section>
       </div>
     </>
+  );
+}
+
+/** Qui elle est et ses réponses au formulaire, repliées sous le rendez-vous (Louis, 30/09/2026). */
+function Reponses({ rdv }: { rdv: Reservee }) {
+  const reponses = reponsesLues(rdv.reponses);
+  return (
+    <details className="basis-full">
+      <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs">
+        {reponses.length ? "Ses réponses" : "Ses coordonnées"}
+      </summary>
+      <div className="mt-2 space-y-3 pb-1">
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          {nomComplet(rdv)}
+          {rdv.telephone ? (
+            <>
+              <br />
+              <a href={`tel:${rdv.telephone}`} className="underline underline-offset-4">
+                {rdv.telephone}
+              </a>
+            </>
+          ) : null}
+          {rdv.email ? (
+            <>
+              <br />
+              {rdv.email}
+            </>
+          ) : null}
+        </p>
+        {reponses.map((x, i) => (
+          <div key={i}>
+            <p className="text-xs font-medium">{x.question}</p>
+            <p className="text-muted-foreground text-sm whitespace-pre-line">{x.reponse}</p>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }

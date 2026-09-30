@@ -10,6 +10,7 @@ import { depotSupabase } from "@/tools/reservation/depot";
 import { identifiants } from "@/tools/reservation/google";
 import { reserver } from "@/tools/reservation/moteur";
 import { demandeSchema } from "@/tools/reservation/page";
+import { prevenirPersonne } from "@/tools/reservation/prevenir";
 import { versRadar } from "@/tools/reservation/radar";
 
 /**
@@ -94,13 +95,18 @@ export async function POST(request: NextRequest) {
     const { data: orga } = await admin.from("organizations").select("slug").eq("id", org).single();
     const racine = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.cometestudio.fr").replace(/\/+$/, "");
 
+    const espace = `${racine}/app/${orga?.slug ?? ""}/agenda`;
     let lienVisio: string | null = null;
     try {
-      const ecrit = await ecrireRendezVous(admin, prise.id, ids, `${racine}/app/${orga?.slug ?? ""}/agenda`);
+      const ecrit = await ecrireRendezVous(admin, prise.id, ids, espace);
       lienVisio = ecrit.lienVisio;
     } catch (erreur) {
       console.error("Réservation, écriture Google :", erreur instanceof Error ? erreur.message : erreur);
     }
+
+    // Le mail à la personne qui le tient, avec les réponses, après la
+    // réponse au site : il ne la retarde pas.
+    after(() => prevenirPersonne(admin, prise.id, "nouveau", espace));
 
     // Radar, avec la bonne personne. Ne fait jamais échouer la réservation.
     await versRadar(admin, prise.id);

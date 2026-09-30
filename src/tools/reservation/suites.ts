@@ -5,6 +5,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { ecrireRendezVous, effacerRendezVous } from "./agenda.ts";
 import type { Identifiants } from "./google.ts";
 import type { Auteur } from "./moteur.ts";
+import { prevenirPersonne } from "./prevenir.ts";
 import { annulerDansRadar, versRadar } from "./radar.ts";
 
 /**
@@ -37,11 +38,13 @@ export async function suivreReport(
   } catch (erreur) {
     console.error("Réservation, effacement Google :", erreur instanceof Error ? erreur.message : "erreur");
   }
+  const espace = await lienEspace(admin, org);
   try {
-    await ecrireRendezVous(admin, nouveauId, ids, await lienEspace(admin, org));
+    await ecrireRendezVous(admin, nouveauId, ids, espace);
   } catch (erreur) {
     console.error("Réservation, écriture Google :", erreur instanceof Error ? erreur.message : "erreur");
   }
   await annulerDansRadar(admin, ancienId, { reprogramme: true, par });
   await versRadar(admin, nouveauId);
+  await prevenirPersonne(admin, nouveauId, "deplace", espace);
 }

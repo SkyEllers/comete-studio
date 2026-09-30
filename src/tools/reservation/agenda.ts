@@ -17,6 +17,7 @@ import {
   type Identifiants,
 } from "./google.ts";
 import type { Agendas, PersonneLue } from "./moteur.ts";
+import { descriptionEvenement } from "./reponses.ts";
 
 /**
  * Google Agenda branché sur la base du hub : le jeton de chacune vit dans le
@@ -129,6 +130,9 @@ type RdvPourAgenda = {
   debut: string;
   fin: string;
   prenom: string | null;
+  nom: string | null;
+  telephone: string | null;
+  reponses: unknown;
   google_event_id: string | null;
   organization_id: string;
   personne: { id: string; google_agenda: string; visio: string; lien_visio: string | null };
@@ -138,7 +142,7 @@ async function lireRdv(db: Admin, rdvId: string): Promise<RdvPourAgenda> {
   const { data, error } = await db
     .from("reservation_rendez_vous")
     .select(
-      "id, debut, fin, prenom, google_event_id, organization_id, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(id, google_agenda, visio, lien_visio)",
+      "id, debut, fin, prenom, nom, telephone, reponses, google_event_id, organization_id, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(id, google_agenda, visio, lien_visio)",
     )
     .eq("id", rdvId)
     .single();
@@ -171,7 +175,8 @@ export async function ecrireRendezVous(
     fin: rdv.fin,
     // Le titre porte le rappel : c'est lui que la notification affiche (Louis, 28/09/2026).
     titre: `Diagnostic · ${prenom} · lance l'enregistrement`,
-    description: `Diagnostic réservé en ligne par ${prenom}.\nPense à lancer l'enregistrement de l'appel dès le début : tu déposeras la vidéo sur la fiche du rendez-vous.\nSes réponses aux questions de réservation sont dans ton espace : ${lienEspace}`,
+    // Son numéro et ses réponses au formulaire, sous les yeux (Louis, 30/09/2026).
+    description: descriptionEvenement({ ...rdv, email: null }, lienEspace),
     visio:
       rdv.personne.visio === "lien" && rdv.personne.lien_visio
         ? { type: "lien", lien: rdv.personne.lien_visio }
