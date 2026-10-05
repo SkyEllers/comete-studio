@@ -3,7 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { canalPour } from "./canal.ts";
-import { signalerEchec } from "./echecs.ts";
+import { marquerSiInjoignable, signalerEchec } from "./echecs.ts";
 import { intervalleMs } from "./temps.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -80,6 +80,7 @@ export async function envoyerLibre(
         conversationId: c.id,
         erreur: resultat.erreur,
       });
+      await marquerSiInjoignable(admin, c.id, resultat.erreur);
     }
     return false;
   }

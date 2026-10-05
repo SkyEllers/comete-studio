@@ -2,14 +2,15 @@ import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
 
-import { estStop, sensDuBouton } from "./lecture.ts";
+import { estReaction, estStop, sensDuBouton } from "./lecture.ts";
 import { envoyerLibre, maintenantDe } from "./envoi.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import type { SensBouton } from "./profil.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-export type Lu = { stop: boolean; sens: SensBouton | null; messageId: string } | null;
+/** `muet` : un message qui n'appelle aucune réponse (une réaction). */
+export type Lu = { stop: boolean; sens: SensBouton | null; messageId: string; muet?: boolean } | null;
 
 /**
  * Elle a écrit : noter le message, et ce qui se lit sans IA.
@@ -65,6 +66,15 @@ export async function recevoir(
 
   // Après un STOP, on garde ce qu'elle écrit, et on ne répond plus rien.
   if (c.etat !== "active") return { stop, sens, messageId: message.id };
+
+  // Une réaction se garde, et c'est tout : elle ne compte pas comme un message
+  // qui attend une réponse.
+  if (estReaction(texte)) {
+    if (!c.premiere_reponse_le) {
+      await admin.from("agent_conversations").update({ premiere_reponse_le: maintenant }).eq("id", c.id);
+    }
+    return { stop: false, sens: null, messageId: message.id, muet: true };
+  }
 
   await admin
     .from("agent_conversations")

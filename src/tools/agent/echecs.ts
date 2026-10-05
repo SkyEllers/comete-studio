@@ -4,10 +4,29 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { envoyer } from "../fichiers/courriel.ts";
 import { mailEchecEnvoi } from "./file-regles.ts";
+import { numeroInjoignable } from "./whatsapp-regles.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
 const HEURE_MS = 60 * 60 * 1000;
+
+/**
+ * Un refus qui dit qu'on ne la joindra jamais par WhatsApp : la conversation
+ * passe hors champ, l'agent cesse de lui écrire, et le mail de la veille dit
+ * à Peggy de l'appeler ou de lui écrire. Ne lève jamais.
+ */
+export async function marquerSiInjoignable(admin: Admin, conversationId: string, erreur: string): Promise<void> {
+  if (!numeroInjoignable(erreur)) return;
+  try {
+    await admin
+      .from("agent_conversations")
+      .update({ etat: "hors_champ" })
+      .eq("id", conversationId)
+      .eq("etat", "active");
+  } catch {
+    console.error("Agent : conversation injoignable non marquée");
+  }
+}
 
 /**
  * Prévenir Louis qu'un envoi est refusé pour de bon. Un mail par heure et par

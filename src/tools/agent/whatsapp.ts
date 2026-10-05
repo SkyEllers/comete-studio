@@ -2,7 +2,7 @@ import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
 
-import { signalerEchec } from "./echecs.ts";
+import { marquerSiInjoignable, signalerEchec } from "./echecs.ts";
 import { recevoir } from "./entrees.ts";
 import { suiviAvance, type Entree, type Suivi } from "./whatsapp-regles.ts";
 
@@ -65,7 +65,7 @@ export async function traiterWebhook(
     }
 
     const recu = await recevoir(admin, c.id, e.texte, Date.now(), e.idExterne);
-    if (recu && !recu.stop) aTourner.add(c.id);
+    if (recu && !recu.stop && !recu.muet) aTourner.add(c.id);
   }
 
   for (const s of lu.suivis) {
@@ -87,6 +87,7 @@ export async function traiterWebhook(
         conversationId: m.conversation_id,
         erreur: s.erreur ?? "Meta n'a pas donné de raison.",
       });
+      if (s.erreur) await marquerSiInjoignable(admin, m.conversation_id, s.erreur);
     }
   }
 

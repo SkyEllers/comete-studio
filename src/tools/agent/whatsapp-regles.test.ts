@@ -6,6 +6,7 @@ import { peggy } from "./profils/peggy.ts";
 import { mailEchecEnvoi } from "./file-regles.ts";
 import {
   codeRefus,
+  numeroInjoignable,
   corpsModele,
   corpsTexte,
   depuisMeta,
@@ -183,5 +184,18 @@ describe("WhatsApp — un refus se retente ou non", () => {
     assert.match(m.texte, /131026/);
     assert.ok(!m.html.includes("<b>x</b>"));
     assert.ok(!m.texte.includes("—"));
+  });
+});
+
+describe("numéro injoignable", () => {
+  it("pas de numéro, ou 131026 : on ne la joindra pas", () => {
+    assert.equal(numeroInjoignable("Aucun numéro où écrire."), true);
+    assert.equal(numeroInjoignable("131026 · Message undeliverable"), true);
+    assert.equal(numeroInjoignable("HTTP 400 · 131026 · Message undeliverable"), true);
+  });
+  it("les autres refus ne disent rien du numéro", () => {
+    assert.equal(numeroInjoignable("131049 · This message was not delivered to maintain healthy ecosystem engagement."), false);
+    assert.equal(numeroInjoignable("1310260 · autre"), false);
+    assert.equal(numeroInjoignable(null), false);
   });
 });

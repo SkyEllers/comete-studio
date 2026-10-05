@@ -190,7 +190,7 @@ async function deplacer(
   const [{ data: actuelle, error: lecture }, { data: booking }] = await Promise.all([
     admin
       .from("agent_conversations")
-      .select("invitee_uri, invites_precedents, etat")
+      .select("invitee_uri, invites_precedents, etat, telephone")
       .eq("id", id)
       .single(),
     admin
@@ -227,8 +227,10 @@ async function deplacer(
       lien_report: invite.reschedule_url ?? null,
       lien_annulation: invite.cancel_url ?? null,
       // Après un STOP, elle peut encore déplacer par son lien : l'agent, lui,
-      // reste muet.
-      etat: actuelle.etat === "stop" ? "stop" : "active",
+      // reste muet. Hors champ sans numéro, le report n'en donne pas un
+      // (05/10/2026 : Christelle, sans numéro, était repassée « active » et
+      // l'agent essayait de lui écrire).
+      etat: actuelle.etat === "stop" ? "stop" : actuelle.etat === "hors_champ" && !actuelle.telephone ? "hors_champ" : "active",
       confirme_le: new Date().toISOString(),
       sans_reponse_veille: false,
       report_attendu: null,

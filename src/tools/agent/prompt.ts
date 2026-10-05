@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { creneauEnMots } from "./creneaux.ts";
 import type { Profil } from "./profil.ts";
-import { heureEnMots, jourEnMots } from "./temps.ts";
+import { heureDuRdv, heureEnMots, jourEnMots } from "./temps.ts";
 
 /**
  * Ce que l'IA reçoit, et ce qu'elle doit rendre.
@@ -229,7 +229,8 @@ Nous sommes ${jourEnMots(maintenant, c.fuseau)}, il est ${heureEnMots(maintenant
 # Elle et son rendez-vous
 
 - Prénom : ${c.prenom}
-- Diagnostic : ${jourEnMots(c.rdv_debut, c.fuseau)} à ${heureEnMots(c.rdv_debut, c.fuseau)}, sur Zoom, 45 minutes
+- Diagnostic : ${jourEnMots(c.rdv_debut, c.fuseau)} à ${heureDuRdv(c.rdv_debut, c.fuseau)}, sur Zoom, 45 minutes
+- Son fuseau (celui de son téléphone quand elle a réservé, pas forcément celui où elle sera) : ${c.fuseau}. Quand tu lui donnes l'heure du rendez-vous et que ce fuseau n'est pas celui de Paris, donne les deux heures, comme ci-dessus.
 - A confirmé sa venue : ${c.confirme_le ? "oui" : "pas encore"}
 - Façon de décider : ${c.facon_de_decider ? FACONS_EN_MOTS[c.facon_de_decider] : "inconnue"}
 - Rendez-vous déjà déplacés par toi : ${c.reports_agent}

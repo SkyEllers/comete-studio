@@ -25,6 +25,24 @@ export function heureEnMots(instant: string | Date | number, fuseau: string): st
   return minute === "00" ? `${heure}h` : `${heure}h${minute}`;
 }
 
+/** Le fuseau de Peggy, celui de ses créneaux. */
+export const FUSEAU_COACH = "Europe/Paris";
+
+/**
+ * L'heure du rendez-vous telle qu'elle la lit, et celle de Paris quand les
+ * deux diffèrent : « 13h chez toi (19h heure de Paris) ». Son fuseau est celui
+ * de son téléphone au moment de réserver, pas forcément celui où elle sera
+ * (05/10/2026 : Christiane, en Guadeloupe, sera en France ; Florence a reçu
+ * « 4h » pour un 10h de Paris).
+ */
+export function heureDuRdv(instant: string | Date | number, fuseau: string): string {
+  const chezElle = heureEnMots(instant, fuseau);
+  const aParis = heureEnMots(instant, FUSEAU_COACH);
+  const memeJour = jourEnMots(instant, fuseau) === jourEnMots(instant, FUSEAU_COACH);
+  if (chezElle === aParis && memeJour) return chezElle;
+  return `${chezElle} chez toi (${aParis} heure de Paris)`;
+}
+
 /** Un `interval` Postgres (« 24:00:00 », « 1 day 02:00:00 ») en millisecondes. */
 export function intervalleMs(valeur: string): number {
   const jours = /(-?\d+)\s*days?/.exec(valeur);

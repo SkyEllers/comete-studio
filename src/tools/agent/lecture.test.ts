@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { estStop, sensDuBouton } from "./lecture.ts";
+import { estReaction, estStop, sensDuBouton } from "./lecture.ts";
 import { peggy } from "./profils/peggy.ts";
 
 describe("estStop", () => {
@@ -24,5 +24,13 @@ describe("sensDuBouton", () => {
     assert.equal(sensDuBouton(peggy, "Je dois décaler"), "changer");
     assert.equal(sensDuBouton(peggy, "J'ai un empêchement"), "changer");
     assert.equal(sensDuBouton(peggy, "Peut-être"), null);
+  });
+});
+
+describe("estReaction", () => {
+  it("une réaction seule n'appelle pas de réponse", () => {
+    assert.equal(estReaction("[Elle a envoyé une réaction]"), true);
+    assert.equal(estReaction("[Elle a envoyé un message vocal]"), false);
+    assert.equal(estReaction("Merci ❤️"), false);
   });
 });

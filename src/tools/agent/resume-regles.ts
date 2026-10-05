@@ -9,7 +9,7 @@
  * Ce fichier ne fait que l'écrire. Il se teste sans base.
  */
 
-import { heureEnMots, jourEnMots } from "./temps.ts";
+import { FUSEAU_COACH, heureEnMots, jourEnMots } from "./temps.ts";
 
 export const HEURE_DU_RESUME = 17;
 
@@ -27,12 +27,36 @@ export type DiagnosticDuJour = {
   notes: string[];
   /** La closeuse qui tient ce rendez-vous dans Radar ; null : le client. */
   closeuse_id?: string | null;
+  /**
+   * Pourquoi l'assistante ne lui écrit pas, quand elle ne lui écrit pas
+   * (05/10/2026 : « réservé moins de 24 h avant » s'affichait aussi pour celles
+   * qu'on ne pouvait pas joindre).
+   */
+  raison_hors_champ?: RaisonHorsChamp;
+};
+
+export type RaisonHorsChamp = "trop_proche" | "sans_numero" | "whatsapp_refuse";
+
+/** Pourquoi une conversation est hors champ, d'après ce qu'elle garde. */
+export function raisonHorsChamp(c: {
+  reserve_le: string;
+  rdv_debut: string;
+  telephone: string | null;
+}): RaisonHorsChamp {
+  if (Date.parse(c.rdv_debut) - Date.parse(c.reserve_le) < 24 * 3_600_000) return "trop_proche";
+  return c.telephone ? "whatsapp_refuse" : "sans_numero";
+}
+
+const HORS_CHAMP: Record<RaisonHorsChamp, string> = {
+  trop_proche: "Réservé moins de 24 h avant : l'assistante ne lui a pas écrit.",
+  sans_numero: "Aucun numéro WhatsApp : l'assistante n'a pas pu lui écrire. À joindre par mail.",
+  whatsapp_refuse: "WhatsApp refuse son numéro : l'assistante n'a pas pu lui écrire. À appeler.",
 };
 
 /** Où en est son rendez-vous, en une phrase. */
 export function etatEnMots(d: DiagnosticDuJour): string {
   if (d.etat === "sans_suivi") return "Pas suivie par l'assistante WhatsApp.";
-  if (d.etat === "hors_champ") return "Réservé moins de 24 h avant : l'assistante ne lui a pas écrit.";
+  if (d.etat === "hors_champ") return HORS_CHAMP[d.raison_hors_champ ?? "trop_proche"];
   if (d.etat === "stop") return "Elle a demandé à ne plus recevoir de messages. Le rendez-vous tient.";
   const suite = d.confirme_le
     ? "confirmé"
@@ -52,9 +76,19 @@ export function notesEnMots(notes: string[]): string {
   return /^\p{Lu}\p{Ll}/u.test(phrase) ? phrase.charAt(0).toLowerCase() + phrase.slice(1) : phrase;
 }
 
+/**
+ * L'heure à Paris, celle de l'agenda de Peggy ; celle de la cliente en plus
+ * quand elle diffère (05/10/2026 : le mail donnait l'heure de la cliente).
+ */
+function heurePourLaCoach(d: DiagnosticDuJour): string {
+  const aParis = heureEnMots(d.rdv_debut, FUSEAU_COACH);
+  const chezElle = heureEnMots(d.rdv_debut, d.fuseau);
+  return chezElle === aParis ? aParis : `${aParis} (${chezElle} chez elle)`;
+}
+
 export function blocDuDiagnostic(d: DiagnosticDuJour): string[] {
   return [
-    `${heureEnMots(d.rdv_debut, d.fuseau)} · ${d.prenom}${d.simulation ? " (simulation)" : ""}`,
+    `${heurePourLaCoach(d)} · ${d.prenom}${d.simulation ? " (simulation)" : ""}`,
     `Ce qu'elle a dit : ${notesEnMots(d.notes)}`,
     etatEnMots(d),
   ];

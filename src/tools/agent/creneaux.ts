@@ -1,4 +1,4 @@
-import { heureEnMots, jourEnMots, jourLocal } from "./temps.ts";
+import { heureDuRdv, heureEnMots, jourEnMots, jourLocal } from "./temps.ts";
 
 /**
  * Quels créneaux lui proposer quand elle doit changer.
@@ -62,5 +62,5 @@ export function choisirCreneaux(
 
 /** « jeudi 8 octobre à 9h30 (2026-10-08T07:30:00.000Z) » : lisible, et retrouvable. */
 export function creneauEnMots(instant: string, fuseau: string): string {
-  return `${jourEnMots(instant, fuseau)} à ${heureEnMots(instant, fuseau)} (${new Date(instant).toISOString()})`;
+  return `${jourEnMots(instant, fuseau)} à ${heureDuRdv(instant, fuseau)} (${new Date(instant).toISOString()})`;
 }

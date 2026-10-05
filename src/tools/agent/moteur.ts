@@ -4,17 +4,20 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { canalPour } from "./canal.ts";
 import { choisirContenu, contenusDeja } from "./contenus.ts";
-import { signalerEchec } from "./echecs.ts";
+import { marquerSiInjoignable, signalerEchec } from "./echecs.ts";
 import { maintenantDe } from "./envoi.ts";
 import { planifier, type Action, type EnvoiPasse } from "./planning.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import { repondre } from "./reponse.ts";
 import { MODELES, rendreModele, type CleModele, type Profil, type ValeursModele } from "./profil.ts";
-import { heureEnMots, jourEnMots } from "./temps.ts";
+import { heureDuRdv, jourEnMots } from "./temps.ts";
 
 export { envoyerLibre, maintenantDe } from "./envoi.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
+
+/** Le contenu planifié ne part pas si un article lui est parti depuis moins que ça. */
+const ARTICLE_RECENT_MS = 5 * 24 * 3_600_000;
 
 /**
  * L'horloge de l'agent : pour chaque conversation, faire ce que le planning
@@ -53,7 +56,7 @@ export function valeursPour(c: Conversation): ValeursModele {
   return {
     prenom: c.prenom,
     jour: jourEnMots(c.rdv_debut, c.fuseau),
-    heure: heureEnMots(c.rdv_debut, c.fuseau),
+    heure: heureDuRdv(c.rdv_debut, c.fuseau),
     lienVisio: c.lien_visio ?? "(le lien de la visio est dans ton mail de confirmation)",
     titreContenu: "",
     lienContenu: "",
@@ -138,7 +141,7 @@ async function appliquer(
   if (action.modele === "contenu") {
     const { data: sortis } = await admin
       .from("agent_messages")
-      .select("texte")
+      .select("texte, created_at")
       .eq("conversation_id", c.id)
       .eq("sens", "sortant");
     const reponses = Array.isArray(c.reponses) ? (c.reponses as { answer: string }[]) : [];
@@ -147,18 +150,25 @@ async function appliquer(
       reponses,
       contenusDeja(profil.catalogue, (sortis ?? []).map((m) => m.texte)),
     );
-    if (!choisi) {
-      // Catalogue épuisé pour elle : le créneau se consomme sans rien envoyer.
+    // Un article déjà parti ces cinq derniers jours, dans la conversation :
+    // un deuxième fait trop (05/10/2026 : Maÿlis, un article le 02/10 et un
+    // autre le 05/10, a touché « Ne plus recevoir »).
+    const recents = (sortis ?? []).filter(
+      (m) => maintenant - Date.parse(m.created_at) < ARTICLE_RECENT_MS,
+    );
+    const articleRecent = contenusDeja(profil.catalogue, recents.map((m) => m.texte)).size > 0;
+    if (!choisi || articleRecent) {
+      // Rien de neuf à lui envoyer : le créneau se consomme sans rien envoyer.
       await admin.from("agent_messages").insert({
         conversation_id: c.id,
         organization_id: c.organization_id,
         sens: "sortant",
         genre: "modele",
         cle_envoi: action.cle,
-        texte: "(aucun contenu qu'elle n'ait déjà reçu)",
+        texte: choisi ? "(un article lui est déjà parti ces cinq derniers jours)" : "(aucun contenu qu'elle n'ait déjà reçu)",
         canal: canal.nom,
         statut: "echec",
-        erreur: "Catalogue épuisé : rien envoyé.",
+        erreur: choisi ? "Article récent : rien envoyé." : "Catalogue épuisé : rien envoyé.",
         created_at: new Date(maintenant).toISOString(),
       });
       return false;
@@ -215,6 +225,7 @@ async function appliquer(
         conversationId: c.id,
         erreur: resultat.erreur,
       });
+      await marquerSiInjoignable(admin, c.id, resultat.erreur);
     }
     console.error("Agent : envoi refusé par le canal", canal.nom, action.modele, resultat.definitif ? "définitif" : "passager");
     return false;

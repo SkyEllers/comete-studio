@@ -3,7 +3,7 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { envoyer } from "../fichiers/courriel.ts";
-import { HEURE_DU_RESUME, mailDuResume, type DiagnosticDuJour } from "./resume-regles.ts";
+import { HEURE_DU_RESUME, mailDuResume, raisonHorsChamp, type DiagnosticDuJour } from "./resume-regles.ts";
 import { ajouterJours, instantLocal, jourLocal } from "./temps.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -54,7 +54,7 @@ export async function diagnosticsDuJour(
   let requete = admin
     .from("agent_conversations")
     .select(
-      "id, booking_id, rdv_debut, prenom, fuseau, etat, confirme_le, reports_agent, invites_precedents, sans_reponse_veille, simulation",
+      "id, booking_id, rdv_debut, reserve_le, telephone, prenom, fuseau, etat, confirme_le, reports_agent, invites_precedents, sans_reponse_veille, simulation",
     )
     .eq("organization_id", orgId)
     .gte("rdv_debut", debut)
@@ -110,6 +110,7 @@ export async function diagnosticsDuJour(
     simulation: c.simulation,
     closeuse_id: closeuse,
     notes: notesDe(c.id),
+    ...(c.etat === "hors_champ" ? { raison_hors_champ: raisonHorsChamp(c) } : {}),
   });
 
   const convDe = new Map(convs.filter((c) => c.booking_id).map((c) => [c.booking_id as string, c]));

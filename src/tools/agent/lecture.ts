@@ -19,6 +19,16 @@ export function estStop(texte: string): boolean {
   return /^\s*(stop|arr[eê]te?r?|arr[eê]t|ne plus recevoir)\s*[.!]*\s*$/i.test(texte);
 }
 
+/**
+ * Une réaction (un emoji posé sur un message) : rien à quoi répondre. Elle
+ * ne doit ni faire écrire l'agent ni le mettre en attente d'une réponse
+ * (05/10/2026 : Anastasie avait reçu « je vérifie et je reviens vers toi »
+ * pour un cœur, et sa question était montée dans la file).
+ */
+export function estReaction(texte: string): boolean {
+  return texte.trim() === "[Elle a envoyé une réaction]";
+}
+
 /** Le sens d'un bouton, retrouvé par son libellé dans les modèles du profil. */
 export function sensDuBouton(profil: Profil, libelle: string): SensBouton | null {
   for (const modele of Object.values(profil.modeles)) {

@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { etatEnMots, mailDuResume, notesEnMots, type DiagnosticDuJour } from "./resume-regles.ts";
+import {
+  blocDuDiagnostic,
+  etatEnMots,
+  mailDuResume,
+  notesEnMots,
+  raisonHorsChamp,
+  type DiagnosticDuJour,
+} from "./resume-regles.ts";
 
 const P = "Europe/Paris";
 
@@ -34,6 +41,27 @@ describe("où en est le rendez-vous", () => {
   it("STOP : le rendez-vous tient", () => assert.match(etatEnMots(diag({ etat: "stop" })), /Le rendez-vous tient/));
   it("réservé trop près", () => assert.match(etatEnMots(diag({ etat: "hors_champ" })), /ne lui a pas écrit/));
   it("pas suivie par l'assistante", () => assert.equal(etatEnMots(diag({ etat: "sans_suivi" })), "Pas suivie par l'assistante WhatsApp."));
+  it("sans numéro : à joindre par mail", () =>
+    assert.match(etatEnMots(diag({ etat: "hors_champ", raison_hors_champ: "sans_numero" })), /Aucun numéro WhatsApp.*mail/));
+  it("numéro refusé par WhatsApp : à appeler", () =>
+    assert.match(etatEnMots(diag({ etat: "hors_champ", raison_hors_champ: "whatsapp_refuse" })), /WhatsApp refuse son numéro.*appeler/));
+});
+
+describe("pourquoi hors champ", () => {
+  const rdv = "2026-10-07T17:00:00.000Z";
+  it("réservé la veille", () =>
+    assert.equal(raisonHorsChamp({ reserve_le: "2026-10-07T08:00:00.000Z", rdv_debut: rdv, telephone: null }), "trop_proche"));
+  it("sans numéro", () =>
+    assert.equal(raisonHorsChamp({ reserve_le: "2026-10-01T08:00:00.000Z", rdv_debut: rdv, telephone: null }), "sans_numero"));
+  it("numéro refusé", () =>
+    assert.equal(raisonHorsChamp({ reserve_le: "2026-10-01T08:00:00.000Z", rdv_debut: rdv, telephone: "33600000000" }), "whatsapp_refuse"));
+});
+
+describe("l'heure dans le mail", () => {
+  it("l'heure de Paris, et la sienne quand elle diffère", () => {
+    assert.equal(blocDuDiagnostic(diag())[0], "10h · Sandrine");
+    assert.equal(blocDuDiagnostic(diag({ fuseau: "America/Guadeloupe" }))[0], "10h (4h chez elle) · Sandrine");
+  });
 });
 
 describe("ce qu'elle a dit", () => {

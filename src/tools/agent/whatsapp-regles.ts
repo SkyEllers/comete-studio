@@ -127,6 +127,17 @@ export function refusDefinitif(statutHttp: number, code: number | null): boolean
   return code === null || !PASSAGERS.has(code);
 }
 
+/**
+ * Le refus dit qu'on ne pourra jamais lui écrire par WhatsApp : pas de numéro,
+ * ou un numéro que WhatsApp refuse (131026 : pas de compte WhatsApp, ou une
+ * application trop ancienne). Retenter chaque modèle ne sert à rien
+ * (05/10/2026 : trois échecs pour Christelle, deux pour Delphine).
+ */
+export function numeroInjoignable(erreur: string | null | undefined): boolean {
+  if (!erreur) return false;
+  return erreur.startsWith("Aucun numéro") || /(^|\D)131026(\D|$)/.test(erreur);
+}
+
 // ------------------------------ Le webhook ---------------------------------
 
 // L'enveloppe est stricte sur ce qu'on lit, tolérante sur le reste : un champ
