@@ -228,7 +228,9 @@ export type Signature = { adresse: string; demarrageImmediat: boolean; ip: strin
 /**
  * La cliente signe. Dans l'ordre : l'état passe « signe » avec l'empreinte de
  * ce qu'elle a vu (une seule signature gagne) ; le PDF signé, avec son
- * dossier de preuve, se range dans le bucket ; la vente s'inscrit dans Radar.
+ * dossier de preuve, se range dans le bucket. **La vente ne s'inscrit pas ici** :
+ * elle attend le paiement (`noterPaiement`), signé ne voulant pas dire payé
+ * (Louis, 06/10/2026).
  * Le mail avec le PDF et le lien de paiement, c'est le site qui l'envoie.
  */
 export async function signer(
@@ -275,11 +277,6 @@ export async function signer(
   });
 
   await rangerPdf(admin, p, { ...signe, empreinte_contenu: e, statut: "signe" });
-
-  const { data: radar, error: erreurRadar } = await admin.rpc("devis_vers_radar", { devis_cible: d.id });
-  if (erreurRadar || radar === false) {
-    console.error("Devis : la vente n'a pas pu s'inscrire dans Radar", erreurRadar?.message ?? "refusée");
-  }
   return { ok: true };
 }
 
@@ -417,7 +414,12 @@ export async function relancerDevis(admin: Admin, maintenant = Date.now()): Prom
   return { rappels, expires };
 }
 
-/** Le site a ouvert la page de paiement, ou Stripe dit que c'est payé. */
+/**
+ * Le site a ouvert la page de paiement, ou Stripe dit que c'est payé. Au
+ * premier « payé », la vente s'inscrit dans Radar et chez la closeuse, datée
+ * du jour du paiement : une cliente qui signe sans payer n'est pas une vente
+ * (Louis, 06/10/2026 ; avant, la vente s'inscrivait à la signature).
+ */
 export async function noterPaiement(
   admin: Admin,
   d: LigneDevis,
@@ -428,6 +430,10 @@ export async function noterPaiement(
   if (genre === "paye") {
     if (d.paye_le) return;
     await brut(admin).from("devis").update({ paye_le: maintenant, stripe_session: session }).eq("id", d.id);
+    const { data: radar, error: erreurRadar } = await admin.rpc("devis_vers_radar", { devis_cible: d.id });
+    if (erreurRadar || radar === false) {
+      console.error("Devis : la vente n'a pas pu s'inscrire dans Radar", erreurRadar?.message ?? "refusée");
+    }
   } else {
     await brut(admin)
       .from("devis")

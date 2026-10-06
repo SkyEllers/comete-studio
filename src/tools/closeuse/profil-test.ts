@@ -428,7 +428,7 @@ export type GesteCliente = "ouvrir" | "signer" | "payer";
 
 /**
  * Ce que ferait la cliente sur la page du devis, joué à sa place : l'ouvrir,
- * le signer (la vente s'inscrit dans Radar), le payer. Seulement pour un devis
+ * le signer, le payer (c'est là que la vente s'inscrit). Seulement pour un devis
  * de l'espace d'essai.
  */
 export async function simulerDevis(devisId: string, geste: GesteCliente): Promise<{ erreur: string } | { ok: true }> {

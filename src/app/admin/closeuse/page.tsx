@@ -136,7 +136,7 @@ export default async function CloseusePage() {
       <Bloc titre="Le devis, côté cliente (simulation)">
         <p className="text-muted-foreground mb-3 text-sm">
           Dans ton profil, « Envoyer le devis » marche comme chez Peggy, mais rien ne part : pas de mail, pas de
-          Stripe. Ici, tu joues la cliente, et tu regardes ce que la closeuse voit changer dans le bloc « Le devis ».
+          Stripe. Ici, tu joues la cliente, et tu regardes ce que la closeuse voit changer dans le bloc « Le devis ». La vente n&apos;apparaît chez elle qu&apos;au paiement.
           Les devis s&apos;effacent avec les rendez-vous démo.
         </p>
         {devis.length ? (

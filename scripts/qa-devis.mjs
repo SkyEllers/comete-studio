@@ -93,7 +93,7 @@ try {
   const lien = cree.lien;
   const { data: ligne } = await admin.from("devis").select("*").eq("id", cree.id).single();
   verifie("empreinte du lien", ligne.jeton_hash === createHash("sha256").update(lien).digest("hex"));
-  verifie("total en plusieurs fois", ligne.total_cents === 140_000, String(ligne.total_cents));
+  verifie("total en plusieurs fois", ligne.total_cents === 152_000, String(ligne.total_cents));
   verifie("validité d'une semaine", Boolean(ligne.valide_jusqu_au));
   const { data: liens } = await admin.from("devis_liens").select("lien").eq("devis_id", cree.id);
   verifie("lien rangé à part", liens?.[0]?.lien === lien);
@@ -113,7 +113,7 @@ try {
   verifie("C1 voit le journal", (await voit("c1", "devis_evenements")) >= 1);
   const ecrit = await par(jetons.c1)("PATCH", `devis?id=eq.${cree.id}`, { total_cents: 1 });
   const { data: intact } = await admin.from("devis").select("total_cents").eq("id", cree.id).single();
-  verifie("personne n'écrit en direct", intact.total_cents === 140_000, `statut ${ecrit.status}`);
+  verifie("personne n'écrit en direct", intact.total_cents === 152_000, `statut ${ecrit.status}`);
 
   // ------------------------------ Lire, ouvrir -----------------------------
   const d = await moteur.devisDuLien(admin, orgs.a.id, lien);
@@ -155,13 +155,18 @@ try {
     createHash("sha256").update(octets).digest("hex") === signe.empreinte_pdf,
   );
 
+  const { data: signeSeul } = await admin.from("radar_bookings").select("sale_amount_cents").eq("id", r1.id).single();
+  verifie("signé sans payer : pas encore de vente dans Radar", signeSeul.sale_amount_cents === null, JSON.stringify(signeSeul));
+
+  await moteur.noterPaiement(admin, await moteur.devisDuLien(admin, orgs.a.id, lien), "paye", "cs_test_zz");
+  await moteur.noterPaiement(admin, await moteur.devisDuLien(admin, orgs.a.id, lien), "paye", "cs_test_zz");
   const { data: vente } = await admin
     .from("radar_bookings")
     .select("sale_amount_cents, sale_fois, sale_premier_cents, sale_note")
     .eq("id", r1.id)
     .single();
-  verifie("vente dans Radar", vente.sale_amount_cents === 140_000, JSON.stringify(vente));
-  verifie("6 paiements, 650 € le premier", vente.sale_fois === 6 && vente.sale_premier_cents === 65_000, JSON.stringify(vente));
+  verifie("payé : la vente est dans Radar", vente.sale_amount_cents === 152_000, JSON.stringify(vente));
+  verifie("6 paiements, 670 € le premier", vente.sale_fois === 6 && vente.sale_premier_cents === 67_000, JSON.stringify(vente));
   const { data: activite } = await admin
     .from("radar_booking_activities")
     .select("type, payload")
@@ -171,9 +176,6 @@ try {
 
   const pdf = await moteur.pdfSigne(admin, PROFILS_DEVIS[orgs.a.slug], await moteur.devisDuLien(admin, orgs.a.id, lien));
   verifie("PDF relu", pdf && Buffer.from(pdf.slice(0, 5)).toString() === "%PDF-");
-
-  await moteur.noterPaiement(admin, await moteur.devisDuLien(admin, orgs.a.id, lien), "paye", "cs_test_zz");
-  await moteur.noterPaiement(admin, await moteur.devisDuLien(admin, orgs.a.id, lien), "paye", "cs_test_zz");
   const { count: payes } = await admin
     .from("devis_evenements")
     .select("id", { count: "exact", head: true })
@@ -187,7 +189,7 @@ try {
   const second = await moteur.creerDevis(admin, demande(r2.id, comptes.c1, { dureeMois: 3 }));
   const { data: ancien } = await admin.from("devis").select("statut, total_cents").eq("id", premier.id).single();
   verifie("un devis corrigé annule le précédent", ancien.statut === "annule");
-  verifie("1 fois : 50 € de moins", ancien.total_cents === 135_000, String(ancien.total_cents));
+  verifie("1 fois : 50 € de moins", ancien.total_cents === 147_000, String(ancien.total_cents));
 
   // Le second, envoyé il y a deux jours : un rappel attendu ; le site ne répond pas.
   await admin
@@ -222,6 +224,7 @@ try {
     ip: null,
     agent: null,
   });
+  await moteur.noterPaiement(admin, await moteur.devisDuLien(admin, orgs.a.id, surAnnule.lien), "paye", "cs_test_zz_annule");
   const { data: sansVente } = await admin.from("radar_bookings").select("sale_amount_cents").eq("id", rAnnule.id).single();
   verifie("pas de vente sur une séance annulée", sansVente.sale_amount_cents === null);
 } catch (erreur) {

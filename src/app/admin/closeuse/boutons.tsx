@@ -44,7 +44,7 @@ export function BoutonDemos({ libelle }: { libelle: string }) {
   );
 }
 
-const FAIT = { ouvrir: "Ouvert par la cliente (simulé)", signer: "Signé (simulé) : la vente est dans son espace", payer: "Payé (simulé)" };
+const FAIT = { ouvrir: "Ouvert par la cliente (simulé)", signer: "Signé (simulé) : la vente attend le paiement", payer: "Payé (simulé) : la vente est dans son espace" };
 
 export function BoutonCliente({
   devisId,
