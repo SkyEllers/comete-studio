@@ -37,7 +37,8 @@ export const devisPeggy: ProfilDevis = {
     signataire: "Peggy GIRAULT",
   },
   investigationCents: 50_000,
-  mensualiteCents: 15_000,
+  // 170 €/mois, décidé par Louis le 06/10/2026 (150 jusque-là ; le kit des closeuses dit 170).
+  mensualiteCents: 17_000,
   remiseUneFoisCents: 5_000,
   dureeParDefaut: 6,
   validiteJours: 7,

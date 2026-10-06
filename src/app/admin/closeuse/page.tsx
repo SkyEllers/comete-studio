@@ -24,7 +24,7 @@ const DEMOS = [
   ["Nadia", "À venir, dans trois jours : « Assistante : pas encore confirmé »"],
   ["Sophie", "À noter (l'appel vient de finir) : l'enregistrement, puis le résultat"],
   ["Martine", "À recontacter aujourd'hui : « Pas de vente · le conjoint », son téléphone, « C'est fait »"],
-  ["Sandrine", "Déjà faits : vendu, 1 400 € en 6 fois, et dans « Mes ventes » ta commission"],
+  ["Sandrine", "Déjà faits : vendu, 1 520 € en 6 fois, et dans « Mes ventes » ta commission"],
   ["Claire", "Déjà faits : pas venue"],
   ["Julie", "Déjà faits : annulé"],
 ] as const;

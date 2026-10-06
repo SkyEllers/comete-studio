@@ -245,7 +245,7 @@ function lesDemos(maintenant: number): Demo[] {
       nom: "Démo",
       debut: auQuart(maintenant - 5 * JOUR),
       statut: "honore",
-      vente: { montantCents: 140_000, fois: 6, premierCents: 65_000 },
+      vente: { montantCents: 152_000, fois: 6, premierCents: 67_000 },
       resume: true,
     },
     { cle: "pas-venue", prenom: "Claire", nom: "Démo", debut: auQuart(maintenant - 2 * JOUR), statut: "no_show" },
