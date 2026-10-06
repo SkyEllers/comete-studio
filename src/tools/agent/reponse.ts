@@ -101,7 +101,14 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   const appel = await demanderDecision({
     stables: consignesStables(profil, fixes ?? []),
     moment: contexteDuMoment(
-      { ...c, reponses, lien_reservation: profil.urlReservation },
+      {
+        ...c,
+        reponses,
+        lien_reservation: profil.urlReservation,
+        sans_contenus: fil.some(
+          (m) => m.sens === "entrant" && (m.comprehension as { sens?: string } | null)?.sens === "sans_contenus",
+        ),
+      },
       maintenant,
       await lireTarifs(profil.urlTarifs),
       creneaux,

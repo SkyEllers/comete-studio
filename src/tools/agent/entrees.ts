@@ -2,7 +2,7 @@ import "server-only";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
 
-import { estReaction, estStop, sensDuBouton } from "./lecture.ts";
+import { estReaction, estSansContenus, estStop, sensDuBouton } from "./lecture.ts";
 import { envoyerLibre, maintenantDe } from "./envoi.ts";
 import { profil as profilDe } from "./profils/index.ts";
 import type { SensBouton } from "./profil.ts";
@@ -44,7 +44,7 @@ export async function recevoir(
 
   const maintenant = new Date(maintenantDe(c, reel)).toISOString();
   const stop = estStop(texte);
-  const sens = stop ? null : sensDuBouton(profil, texte);
+  const sens = stop ? null : estSansContenus(texte) ? "sans_contenus" : sensDuBouton(profil, texte);
 
   const { data: message } = await admin
     .from("agent_messages")
@@ -87,6 +87,12 @@ export async function recevoir(
     .eq("id", c.id);
 
   if (stop) await envoyerLibre(admin, c.id, profil.textes.stop, { reel, cle: `stop:${message.id}` });
+
+  // Plus d'articles : une réponse fixe, sans IA, et la conversation continue.
+  if (sens === "sans_contenus") {
+    await envoyerLibre(admin, c.id, profil.textes.sansContenus, { reel, cle: `sans_contenus:${message.id}` });
+    return { stop, sens, messageId: message.id, muet: true };
+  }
 
   return { stop, sens, messageId: message.id };
 }

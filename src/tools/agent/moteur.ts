@@ -157,6 +157,28 @@ async function appliquer(
       (m) => maintenant - Date.parse(m.created_at) < ARTICLE_RECENT_MS,
     );
     const articleRecent = contenusDeja(profil.catalogue, recents.map((m) => m.texte)).size > 0;
+    // Elle a touché « Ne plus recevoir » : plus aucun article (option A, 06/10/2026).
+    const { count: refus } = await admin
+      .from("agent_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", c.id)
+      .eq("sens", "entrant")
+      .eq("comprehension->>sens", "sans_contenus");
+    if ((refus ?? 0) > 0) {
+      await admin.from("agent_messages").insert({
+        conversation_id: c.id,
+        organization_id: c.organization_id,
+        sens: "sortant",
+        genre: "modele",
+        cle_envoi: action.cle,
+        texte: "(elle ne veut plus d'articles)",
+        canal: canal.nom,
+        statut: "echec",
+        erreur: "Articles refusés : rien envoyé.",
+        created_at: new Date(maintenant).toISOString(),
+      });
+      return false;
+    }
     if (!choisi || articleRecent) {
       // Rien de neuf à lui envoyer : le créneau se consomme sans rien envoyer.
       await admin.from("agent_messages").insert({

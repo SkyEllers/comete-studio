@@ -68,6 +68,9 @@ export const peggy: Profil = {
   // PROVISOIRE : pas encore passés par humaniseur-fr ni validés par Louis.
   textes: {
     stop: "C'est noté, je ne t'écris plus. Ton rendez-vous reste réservé : pour le déplacer ou l'annuler, le lien est dans ton mail de confirmation.",
+    // Option A validée par Louis le 06/10/2026, passé par humaniseur-fr.
+    sansContenus:
+      "C'est noté, je ne t'envoie plus d'articles. Je t'écrirai seulement pour te rappeler ton rendez-vous, et le matin même pour le lien de la visio. Si tu ne veux plus aucun message, écris STOP.",
     detresse:
       "Ce que tu vis a l'air très lourd, et tu n'as pas à le porter seule. Tu peux appeler le 3114, jour et nuit, c'est gratuit : des professionnels sont là pour t'écouter. Si tu es en danger tout de suite, appelle le 15.",
     attente: "Je vérifie et je reviens vers toi très vite.",
@@ -157,8 +160,11 @@ export const peggy: Profil = {
         "Tu me dis ce que tu en penses ?",
       variables: ["prenom", "titreContenu", "lienContenu"],
       // Le moyen de ne plus recevoir, exigé pour un message commercial : un
-      // bouton plutôt qu'une phrase (Louis, 27/09/2026). Lu comme un STOP.
-      boutons: [{ texte: "Ne plus recevoir", sens: "stop" }],
+      // bouton plutôt qu'une phrase (Louis, 27/09/2026). Il arrête les
+      // articles, pas les rappels : un STOP écrit arrête tout (option A,
+      // Louis, 06/10/2026 ; le 05/10, Maÿlis l'avait touché et ne recevait
+      // plus ni rappel ni lien de la visio).
+      boutons: [{ texte: "Ne plus recevoir", sens: "sans_contenus" }],
       categorie: "MARKETING",
     },
   },

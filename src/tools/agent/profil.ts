@@ -19,7 +19,8 @@ export const FACONS = ["fonce", "analyse", "pas_a_pas", "accompagnee"] as const;
 export type FaconDeDecider = (typeof FACONS)[number];
 
 /** Ce qu'un bouton veut dire, quel que soit son libellé. */
-export type SensBouton = "confirme" | "changer" | "stop";
+/** `sans_contenus` : plus d'articles, mais les rappels et le lien du jour continuent (Louis, 06/10/2026). */
+export type SensBouton = "confirme" | "changer" | "stop" | "sans_contenus";
 
 export type VariableModele = "prenom" | "jour" | "heure" | "lienVisio" | "titreContenu" | "lienContenu";
 
@@ -65,6 +66,8 @@ export type Profil = {
   /** Les réponses fixes qui ne passent pas par l'IA. */
   textes: {
     stop: string;
+    /** Elle ne veut plus d'articles : les rappels continuent. */
+    sansContenus: string;
     /** Détresse : part tel quel, sans IA, avec le numéro d'écoute. */
     detresse: string;
     /** L'agent n'est pas sûr : la question monte chez Louis, elle attend. */

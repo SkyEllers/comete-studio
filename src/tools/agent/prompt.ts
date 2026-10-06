@@ -209,6 +209,8 @@ export type EtatConversation = {
   raison_annulation?: string | null;
   /** La page pour reprendre un rendez-vous plus tard (profil). */
   lien_reservation?: string | null;
+  /** Elle a touché « Ne plus recevoir » : plus d'articles. */
+  sans_contenus?: boolean;
 };
 
 /** Ce que le système a lu dans Calendly pour un report en cours. */
@@ -234,7 +236,7 @@ Nous sommes ${jourEnMots(maintenant, c.fuseau)}, il est ${heureEnMots(maintenant
 - A confirmé sa venue : ${c.confirme_le ? "oui" : "pas encore"}
 - Façon de décider : ${c.facon_de_decider ? FACONS_EN_MOTS[c.facon_de_decider] : "inconnue"}
 - Rendez-vous déjà déplacés par toi : ${c.reports_agent}
-- Un article déjà proposé : ${c.contenu_propose_le ? "oui" : "non"}
+- Un article déjà proposé : ${c.contenu_propose_le ? "oui" : "non"}${c.sans_contenus ? "\n- Elle a demandé à ne plus recevoir d'articles : n'en propose aucun, et n'envoie aucun lien d'article." : ""}
 
 # Ses réponses au formulaire de réservation
 
