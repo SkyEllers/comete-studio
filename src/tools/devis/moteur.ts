@@ -353,6 +353,14 @@ export async function notifierSite(site: string, lien: string, geste: "envoi" | 
   }
 }
 
+/**
+ * Écrire à la cliente par le site, sauf pour un profil de simulation (l'espace
+ * d'essai) : rien ne part, et le devis suit son cours comme si le mail était parti.
+ */
+export async function prevenirCliente(p: ProfilDevis, lien: string, geste: "envoi" | "rappel" | "signe"): Promise<boolean> {
+  return p.simulation ? true : notifierSite(p.site, lien, geste);
+}
+
 async function lienDe(admin: Admin, devisId: string): Promise<string | null> {
   const { data } = await brut(admin).from("devis_liens").select("lien").eq("devis_id", devisId).maybeSingle();
   return (data?.lien as string | undefined) ?? null;
@@ -362,7 +370,7 @@ async function lienDe(admin: Admin, devisId: string): Promise<string | null> {
 export async function envoyerDevis(admin: Admin, organizationId: string, devisId: string, lien: string): Promise<boolean> {
   const p = await profilDe(admin, organizationId);
   if (!p) return false;
-  const ok = await notifierSite(p.site, lien, "envoi");
+  const ok = await prevenirCliente(p, lien, "envoi");
   if (ok) await noter(admin, devisId, "envoye");
   return ok;
 }
@@ -398,7 +406,7 @@ export async function relancerDevis(admin: Admin, maintenant = Date.now()): Prom
 
     const [p, lien] = await Promise.all([profilDe(admin, d.organization_id), lienDe(admin, d.id)]);
     if (!p || !lien) continue;
-    if (await notifierSite(p.site, lien, "rappel")) {
+    if (await prevenirCliente(p, lien, "rappel")) {
       await noter(admin, d.id, "relance", { details: { numero: d.relances + 1 } });
       rappels++;
     } else {

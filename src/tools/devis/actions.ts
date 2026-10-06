@@ -6,7 +6,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rendezVousAccessible } from "@/tools/fiche/acces";
 
-import { creerDevis, envoyerDevis, notifierSite, noter, profilDe } from "./moteur";
+import { creerDevis, envoyerDevis, noter, prevenirCliente, profilDe } from "./moteur";
 import { montants, type Paiement } from "./regles";
 
 /**
@@ -184,7 +184,7 @@ export async function renvoyerLeDevis(orgSlug: string, bookingId: string, devisI
     profilDe(admin, lu.rdv.organization_id),
   ]);
   if (!l?.lien || !profil) return fail("Ce devis ne s'envoie plus.");
-  if (!(await notifierSite(profil.site, l.lien, "envoi"))) return fail("Le mail n'est pas parti : réessaie dans un instant.");
+  if (!(await prevenirCliente(profil, l.lien, "envoi"))) return fail("Le mail n'est pas parti : réessaie dans un instant.");
   await noter(admin, d.id, "envoye", { details: { renvoi: true } });
   return ok();
 }

@@ -52,6 +52,8 @@ export type ProfilDevis = {
   remiseUneFoisCents: number;
   dureeParDefaut: number;
   validiteJours: number;
+  /** Vrai pour l'espace d'essai : aucun mail à la cliente, tout se simule depuis l'admin. */
+  simulation?: boolean;
   /** Change à chaque modification du texte : le devis garde celle qu'il a signée. */
   versionTexte: string;
   /** Le texte avant l'investissement (l'objet, les phases). */

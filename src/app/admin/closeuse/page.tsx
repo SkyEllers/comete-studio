@@ -4,9 +4,10 @@ import Link from "next/link";
 import { PageHeader } from "@/components/app/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import { EMAIL_TEST, ESPACE_TEST, etatProfilTest } from "@/tools/closeuse/profil-test";
+import { devisDuProfilTest, EMAIL_TEST, ESPACE_TEST, etatProfilTest } from "@/tools/closeuse/profil-test";
+import { euros } from "@/tools/devis/regles";
 
-import { BoutonDemos, BoutonPreparer } from "./boutons";
+import { BoutonCliente, BoutonDemos, BoutonPreparer } from "./boutons";
 
 /**
  * Closeuse — le profil de test de Louis (06/10/2026).
@@ -53,7 +54,7 @@ function Bloc({ titre, children }: { titre: string; children: React.ReactNode })
 
 export default async function CloseusePage() {
   await requireAdmin();
-  const etat = await etatProfilTest();
+  const [etat, devis] = await Promise.all([etatProfilTest(), devisDuProfilTest()]);
   const pret = Boolean(etat.compte && etat.closeuse && etat.reservation);
 
   return (
@@ -132,10 +133,35 @@ export default async function CloseusePage() {
         ) : null}
       </Bloc>
 
-      <p className="text-muted-foreground text-xs">
-        Le bloc « Le devis » n&apos;apparaît que chez Peggy : il passe par son site. Dans ce profil, la fiche s&apos;arrête
-        à l&apos;enregistrement et au résultat.
-      </p>
+      <Bloc titre="Le devis, côté cliente (simulation)">
+        <p className="text-muted-foreground mb-3 text-sm">
+          Dans ton profil, « Envoyer le devis » marche comme chez Peggy, mais rien ne part : pas de mail, pas de
+          Stripe. Ici, tu joues la cliente, et tu regardes ce que la closeuse voit changer dans le bloc « Le devis ».
+          Les devis s&apos;effacent avec les rendez-vous démo.
+        </p>
+        {devis.length ? (
+          <ul className="space-y-2">
+            {devis.map((d) => (
+              <li key={d.id} className="border-line flex flex-wrap items-center gap-2 border-t pt-2 text-sm">
+                <span className="font-medium">{d.prenom}</span>
+                <span className="text-muted-foreground">
+                  {euros(d.totalCents)}, {d.dureeMois} mois ·{" "}
+                  {d.statut === "signe" ? (d.paye ? "signé et payé" : "signé, paiement en attente") : d.statut === "envoye" ? (d.ouvert ? "ouvert" : "envoyé") : d.statut}
+                </span>
+                <span className="ml-auto flex gap-2">
+                  {d.statut === "envoye" && !d.ouvert ? <BoutonCliente devisId={d.id} geste="ouvrir" libelle="Elle l'ouvre" /> : null}
+                  {d.statut === "envoye" ? <BoutonCliente devisId={d.id} geste="signer" libelle="Elle signe" /> : null}
+                  {d.statut === "signe" && !d.paye ? <BoutonCliente devisId={d.id} geste="payer" libelle="Elle paie" /> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            Aucun devis pour l&apos;instant : envoie-en un depuis ton profil (Sophie, « Noter le résultat »).
+          </p>
+        )}
+      </Bloc>
     </>
   );
 }

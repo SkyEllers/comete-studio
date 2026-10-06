@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
-import { preparerLeProfil, remettreLesRendezVousDemo } from "./actions";
+import { preparerLeProfil, remettreLesRendezVousDemo, simulerLaCliente } from "./actions";
 
 export function BoutonPreparer({ libelle }: { libelle: string }) {
   const [enCours, startTransition] = useTransition();
@@ -35,6 +35,36 @@ export function BoutonDemos({ libelle }: { libelle: string }) {
           const r = await remettreLesRendezVousDemo();
           if (!r.ok) toast.error(r.error);
           else toast.success(`${r.data.crees} rendez-vous démo remis à neuf`);
+        })
+      }
+      disabled={enCours}
+    >
+      {libelle}
+    </Button>
+  );
+}
+
+const FAIT = { ouvrir: "Ouvert par la cliente (simulé)", signer: "Signé (simulé) : la vente est dans son espace", payer: "Payé (simulé)" };
+
+export function BoutonCliente({
+  devisId,
+  geste,
+  libelle,
+}: {
+  devisId: string;
+  geste: "ouvrir" | "signer" | "payer";
+  libelle: string;
+}) {
+  const [enCours, startTransition] = useTransition();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() =>
+        startTransition(async () => {
+          const r = await simulerLaCliente({ devisId, geste });
+          if (!r.ok) toast.error(r.error);
+          else toast.success(FAIT[geste]);
         })
       }
       disabled={enCours}

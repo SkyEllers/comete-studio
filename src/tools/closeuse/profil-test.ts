@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { devisDuLien, marquerOuvert, noterPaiement, signer } from "@/tools/devis/moteur";
+import { PROFILS_DEVIS } from "@/tools/devis/profils/peggy";
 import { aujourdhuiAParis } from "@/tools/resultats/format";
 
 /**
@@ -24,6 +26,10 @@ export const NOM_TEST = "Louis Girault (test)";
 const PREFIXE = "demo-closeuse-";
 
 type Admin = ReturnType<typeof createAdminClient>;
+
+/** Les tables du devis passent par un client non typé, comme dans `devis/moteur.ts`. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const brut = (admin: Admin) => admin as any;
 
 export type EtatProfilTest = {
   organisation: { id: string; nom: string } | null;
@@ -280,6 +286,26 @@ export async function remettreLesDemos(): Promise<{ erreur: string } | { crees: 
     const chemins = (fichiers ?? []).map((f) => f.chemin).filter((c): c is string => Boolean(c));
     if (chemins.length) await admin.storage.from("diagnostics").remove(chemins);
 
+    // Leurs devis d'essai (et les PDF signés) partent avec : la base les garderait, détachés.
+    const { data: devis } = await brut(admin)
+      .from("devis")
+      .select("id, pdf_chemin")
+      .eq("organization_id", org.id)
+      .in("booking_id", anciensIds);
+    const pdfs = ((devis ?? []) as { id: string; pdf_chemin: string | null }[])
+      .map((d) => d.pdf_chemin)
+      .filter((c): c is string => Boolean(c));
+    if (pdfs.length) await admin.storage.from("devis").remove(pdfs);
+    if (devis?.length) {
+      await brut(admin)
+        .from("devis")
+        .delete()
+        .in(
+          "id",
+          (devis as { id: string }[]).map((d) => d.id),
+        );
+    }
+
     const { error } = await admin.from("radar_bookings").delete().in("id", anciensIds);
     if (error) return { erreur: `Effacement des démos : ${error.message}` };
   }
@@ -353,4 +379,84 @@ export async function remettreLesDemos(): Promise<{ erreur: string } | { crees: 
   }
 
   return { crees };
+}
+
+// --------------------------- Le devis, simulé -------------------------------
+
+export type DevisTest = {
+  id: string;
+  prenom: string;
+  statut: string;
+  totalCents: number;
+  dureeMois: number;
+  ouvert: boolean;
+  paye: boolean;
+};
+
+/** Les devis envoyés depuis le profil de test, les plus récents d'abord. */
+export async function devisDuProfilTest(): Promise<DevisTest[]> {
+  const admin = createAdminClient();
+  const { org, profil } = await lire(admin);
+  if (!org || !profil) return [];
+  const { data } = await brut(admin)
+    .from("devis")
+    .select("id, prenom, statut, total_cents, duree_mois, ouvert_le, paye_le, created_at")
+    .eq("organization_id", org.id)
+    .neq("statut", "annule")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  return ((data ?? []) as {
+    id: string;
+    prenom: string;
+    statut: string;
+    total_cents: number;
+    duree_mois: number;
+    ouvert_le: string | null;
+    paye_le: string | null;
+  }[]).map((d) => ({
+    id: d.id,
+    prenom: d.prenom,
+    statut: d.statut,
+    totalCents: d.total_cents,
+    dureeMois: d.duree_mois,
+    ouvert: Boolean(d.ouvert_le),
+    paye: Boolean(d.paye_le),
+  }));
+}
+
+export type GesteCliente = "ouvrir" | "signer" | "payer";
+
+/**
+ * Ce que ferait la cliente sur la page du devis, joué à sa place : l'ouvrir,
+ * le signer (la vente s'inscrit dans Radar), le payer. Seulement pour un devis
+ * de l'espace d'essai.
+ */
+export async function simulerDevis(devisId: string, geste: GesteCliente): Promise<{ erreur: string } | { ok: true }> {
+  const admin = createAdminClient();
+  const { org } = await lire(admin);
+  const profil = PROFILS_DEVIS[ESPACE_TEST];
+  if (!org || !profil?.simulation) return { erreur: "Le devis d'essai n'est pas en place." };
+
+  const { data: l } = await brut(admin).from("devis_liens").select("lien").eq("devis_id", devisId).maybeSingle();
+  const d = l?.lien ? await devisDuLien(admin, org.id, l.lien as string) : null;
+  if (!d) return { erreur: "Ce devis n'est pas un devis de l'espace d'essai." };
+
+  const agent = "simulation depuis l'admin";
+  if (geste === "ouvrir") {
+    if (d.statut !== "envoye") return { erreur: "Ce devis n'est plus en attente." };
+    await marquerOuvert(admin, d, null, agent);
+    return { ok: true };
+  }
+  if (geste === "signer") {
+    const r = await signer(admin, profil, d, {
+      adresse: "1 rue de l'Essai, 69100 Villeurbanne",
+      demarrageImmediat: false,
+      ip: null,
+      agent,
+    });
+    return r.ok ? { ok: true } : { erreur: r.raison === "expire" ? "Ce devis a expiré." : "La signature n'a pas pu se faire." };
+  }
+  if (d.statut !== "signe") return { erreur: "Il faut d'abord le signer." };
+  await noterPaiement(admin, d, "paye", null);
+  return { ok: true };
 }
