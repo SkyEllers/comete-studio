@@ -1,0 +1,230 @@
+import "server-only";
+
+import { createHash, randomBytes } from "node:crypto";
+
+import type { createAdminClient } from "@/lib/supabase/admin";
+import { jetonAgent, lireInvitation } from "@/tools/agent/calendly";
+import { lienMonRdv, lireLienPersonnel } from "@/tools/agent/outil-regles";
+import { profil as profilAgent } from "@/tools/agent/profils";
+
+import { ecrireRendezVous, effacerRendezVous } from "./agenda.ts";
+import type { Identifiants } from "./google.ts";
+import { prevenirPersonne } from "./prevenir.ts";
+import { baseEspace } from "./suites.ts";
+
+/**
+ * Confier à une closeuse un diagnostic déjà pris chez la titulaire (Louis,
+ * 06/10/2026 : remplir leurs créneaux et libérer du temps à Peggy).
+ *
+ * Même rendez-vous, même heure, même fiche Radar ; seule la personne change :
+ * 1. l'événement quitte l'agenda « Diagnostics » de la titulaire et s'écrit
+ *    dans celui de la closeuse, avec sa visio (d'où un nouveau lien) ;
+ * 2. la cliente reçoit le nouveau lien (`visio`, mail du site, depuis
+ *    l'adresse de Peggy) ; elle n'a pas à savoir qui la reçoit ;
+ * 3. Radar et l'assistante WhatsApp suivent (closeuse, lien des rappels) ;
+ * 4. la closeuse reçoit le mail « Nouveau diagnostic ».
+ *
+ * Un rendez-vous pris sur Calendly n'a pas de ligne dans l'outil : on la crée
+ * (origine `admin`), avec l'adresse et les réponses lues chez Calendly.
+ * L'événement Calendly reste dans l'agenda de la titulaire : elle le retire
+ * elle-même (`calendly: true` dans la réponse).
+ */
+
+type Admin = ReturnType<typeof createAdminClient>;
+
+export type Confie =
+  | { ok: true; mailCliente: boolean; calendly: boolean; lienVisio: string | null }
+  | { ok: false; erreur: string };
+
+const empreinte = (jeton: string) => createHash("sha256").update(jeton).digest("hex");
+
+/** Le site du client, lu dans le profil de l'agent (comme `agent/outil.ts`). */
+async function siteDuClient(admin: Admin, org: string): Promise<string | null> {
+  const { data } = await admin.from("agent_reglages").select("profil").eq("organization_id", org).maybeSingle();
+  return data ? (profilAgent(data.profil)?.urlTarifs ?? null) : null;
+}
+
+/** Le mail « le lien de ta visio change », demandé au site avec le lien personnel. */
+async function prevenirCliente(lienPersonnel: string | null): Promise<boolean> {
+  const lu = lireLienPersonnel(lienPersonnel);
+  if (!lu) return false;
+  try {
+    const r = await fetch(`${lu.site}/api/rdv/notifier`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "comete-hub/confier" },
+      body: JSON.stringify({ lien: lu.jeton, geste: "visio" }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!r.ok) console.error("Confier : le site refuse le mail", r.status);
+    return r.ok;
+  } catch {
+    console.error("Confier : le site ne répond pas");
+    return false;
+  }
+}
+
+/** Un autre rendez-vous confirmé de la closeuse chevauche-t-il celui-ci, pause comprise ? */
+async function dejaPrise(admin: Admin, personneId: string, debut: string, bloqueJusqua: string, sauf?: string) {
+  let q = admin
+    .from("reservation_rendez_vous")
+    .select("id")
+    .eq("personne_id", personneId)
+    .eq("statut", "confirme")
+    .lt("debut", bloqueJusqua)
+    .gt("bloque_jusqu_a", debut);
+  if (sauf) q = q.neq("id", sauf);
+  const { data } = await q.limit(1);
+  return Boolean(data?.length);
+}
+
+export async function confierRendezVous(
+  admin: Admin,
+  org: string,
+  bookingId: string,
+  personneId: string,
+  ids: Identifiants,
+): Promise<Confie> {
+  const [{ data: rdv }, { data: closeuse }, { data: reglages }] = await Promise.all([
+    admin
+      .from("radar_bookings")
+      .select("id, status, scheduled_start, scheduled_end, invitee_uri, invitee_first_name, invitee_last_name, closeuse_id")
+      .eq("id", bookingId)
+      .eq("organization_id", org)
+      .maybeSingle(),
+    admin
+      .from("reservation_personnes")
+      .select("id, user_id, role, google_agenda, google_connecte_le")
+      .eq("id", personneId)
+      .eq("organization_id", org)
+      .maybeSingle(),
+    admin.from("reservation_reglages").select("pause_minutes").eq("organization_id", org).maybeSingle(),
+  ]);
+
+  if (!rdv) return { ok: false, erreur: "Rendez-vous introuvable." };
+  if (rdv.status !== "confirme" || Date.parse(rdv.scheduled_start) <= Date.now()) {
+    return { ok: false, erreur: "Seul un rendez-vous confirmé et à venir se confie." };
+  }
+  if (!closeuse || closeuse.role !== "closeuse") return { ok: false, erreur: "Cette personne n'est pas closeuse ici." };
+  if (!closeuse.google_connecte_le || closeuse.google_agenda === "primary") {
+    return { ok: false, erreur: "Son agenda Google n'est pas relié : elle le fait dans « Mon agenda »." };
+  }
+
+  const pause = (reglages?.pause_minutes ?? 15) * 60_000;
+  const bloque = new Date(Date.parse(rdv.scheduled_end) + pause).toISOString();
+  const espace = await baseEspace(admin, org);
+  const site = await siteDuClient(admin, org);
+
+  const { data: ligne } = await admin
+    .from("reservation_rendez_vous")
+    .select("id, personne_id")
+    .eq("radar_booking_id", bookingId)
+    .eq("statut", "confirme")
+    .maybeSingle();
+
+  let rdvId: string;
+  let lienPersonnel: string | null = null;
+  const calendly = !ligne;
+
+  if (ligne) {
+    // ----------------------- Pris par la page de l'outil -----------------------
+    if (ligne.personne_id === closeuse.id) return { ok: false, erreur: "Ce rendez-vous est déjà chez elle." };
+    if (await dejaPrise(admin, closeuse.id, rdv.scheduled_start, bloque, ligne.id)) {
+      return { ok: false, erreur: "Elle a déjà un rendez-vous sur ce créneau." };
+    }
+    rdvId = ligne.id;
+
+    try {
+      await effacerRendezVous(admin, rdvId, ids);
+    } catch (erreur) {
+      console.error("Confier, effacement Google :", erreur instanceof Error ? erreur.message : "erreur");
+    }
+
+    // Le lien personnel de la cliente : celui que garde l'assistante, sinon un
+    // nouveau (l'ancien cesse alors de marcher ; le mail donne le nouveau).
+    const { data: conv } = await admin
+      .from("agent_conversations")
+      .select("lien_report")
+      .eq("booking_id", bookingId)
+      .maybeSingle();
+    lienPersonnel = lireLienPersonnel(conv?.lien_report ?? null) ? (conv?.lien_report as string) : null;
+    let nouveauJeton: string | null = null;
+    if (!lienPersonnel) {
+      nouveauJeton = randomBytes(32).toString("hex");
+      lienPersonnel = lienMonRdv(site, nouveauJeton);
+    }
+
+    const { error } = await admin
+      .from("reservation_rendez_vous")
+      .update({
+        personne_id: closeuse.id,
+        google_event_id: null,
+        lien_visio: null,
+        ...(nouveauJeton ? { jeton_hash: empreinte(nouveauJeton) } : {}),
+      })
+      .eq("id", rdvId);
+    if (error) return { ok: false, erreur: `Le rendez-vous n'a pas pu changer de personne : ${error.message}` };
+  } else {
+    // --------------------------- Pris sur Calendly -----------------------------
+    if (await dejaPrise(admin, closeuse.id, rdv.scheduled_start, bloque)) {
+      return { ok: false, erreur: "Elle a déjà un rendez-vous sur ce créneau." };
+    }
+    const jeton = await jetonAgent(admin, org);
+    const invite = jeton ? await lireInvitation(jeton, rdv.invitee_uri) : null;
+    if (!invite?.email) return { ok: false, erreur: "Calendly ne rend pas l'adresse de la cliente : rien n'a changé." };
+
+    const telephone =
+      invite.text_reminder_number ??
+      invite.questions_and_answers?.find((q) => /t[ée]l[ée]phone|num[ée]ro|whatsapp/i.test(q.question))?.answer ??
+      null;
+    const jetonClient = randomBytes(32).toString("hex");
+    lienPersonnel = lienMonRdv(site, jetonClient);
+
+    const { data: cree, error } = await admin
+      .from("reservation_rendez_vous")
+      .insert({
+        organization_id: org,
+        personne_id: closeuse.id,
+        debut: rdv.scheduled_start,
+        fin: rdv.scheduled_end,
+        bloque_jusqu_a: bloque,
+        statut: "confirme",
+        origine: "admin",
+        prenom: invite.first_name ?? rdv.invitee_first_name ?? null,
+        nom: invite.last_name ?? rdv.invitee_last_name ?? null,
+        email: invite.email,
+        telephone,
+        fuseau_cliente: invite.timezone ?? "Europe/Paris",
+        reponses: (invite.questions_and_answers ?? []).map((q) => ({ question: q.question, reponse: q.answer })),
+        jeton_hash: empreinte(jetonClient),
+        radar_booking_id: bookingId,
+      })
+      .select("id")
+      .single();
+    if (error || !cree) return { ok: false, erreur: `Le rendez-vous n'a pas pu être repris : ${error?.message ?? "erreur"}` };
+    rdvId = cree.id;
+  }
+
+  // ----------------------------- La suite commune -----------------------------
+  let lienVisio: string | null = null;
+  try {
+    lienVisio = (await ecrireRendezVous(admin, rdvId, ids, espace)).lienVisio;
+  } catch (erreur) {
+    console.error("Confier, écriture Google :", erreur instanceof Error ? erreur.message : "erreur");
+  }
+
+  await admin
+    .from("radar_bookings")
+    .update({ closeuse_id: closeuse.user_id, updated_at: new Date().toISOString() })
+    .eq("id", bookingId);
+
+  // L'assistante envoie ses rappels avec ce lien : il doit être le nouveau.
+  await admin
+    .from("agent_conversations")
+    .update({ lien_visio: lienVisio, ...(lienPersonnel && !calendly ? { lien_report: lienPersonnel } : {}) })
+    .eq("booking_id", bookingId);
+
+  const mailCliente = await prevenirCliente(lienPersonnel);
+  await prevenirPersonne(admin, rdvId, "nouveau", espace);
+
+  return { ok: true, mailCliente, calendly, lienVisio };
+}

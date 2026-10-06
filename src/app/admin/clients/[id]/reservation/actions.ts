@@ -9,6 +9,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { reecrireDescription } from "@/tools/reservation/agenda";
+import { confierRendezVous } from "@/tools/reservation/confier";
 import { identifiants } from "@/tools/reservation/google";
 import { baseEspace } from "@/tools/reservation/suites";
 
@@ -213,4 +214,30 @@ export async function reecrireDescriptions(
     }
   }
   return ok({ reecrits, echecs });
+}
+
+const confierSchema = z.object({
+  organizationId: organisation,
+  bookingId: z.uuid({ error: "Rendez-vous introuvable." }),
+  personneId: z.uuid({ error: "Closeuse introuvable." }),
+});
+
+/**
+ * Confier à une closeuse un diagnostic pris chez la titulaire (Louis,
+ * 06/10/2026) : son agenda, le nouveau lien à la cliente, Radar, l'assistante.
+ */
+export async function confierUnRendezVous(
+  input: unknown,
+): Promise<ActionResult<{ mailCliente: boolean; calendly: boolean }>> {
+  await requireAdmin();
+  const parsed = confierSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+  const ids = identifiants();
+  if (!ids) return fail("Identifiants Google absents du serveur.");
+
+  const admin = createAdminClient();
+  const r = await confierRendezVous(admin, parsed.data.organizationId, parsed.data.bookingId, parsed.data.personneId, ids);
+  if (!r.ok) return fail(r.erreur);
+  revalidatePath(`/admin/clients/${parsed.data.organizationId}/reservation`);
+  return ok({ mailCliente: r.mailCliente, calendly: r.calendly });
 }

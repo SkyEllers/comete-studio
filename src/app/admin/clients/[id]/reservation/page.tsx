@@ -16,6 +16,7 @@ import {
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { heureEnMots, jourEnMots } from "@/tools/agent/temps";
+import { diagnosticsAConfier } from "@/tools/reservation/a-confier";
 import { agendasGoogle } from "@/tools/reservation/agenda";
 import { parJour } from "@/tools/reservation/creneaux";
 import { depotSupabase } from "@/tools/reservation/depot";
@@ -31,6 +32,7 @@ import {
   ReecrireDescriptions,
   RevoquerJeton,
 } from "./reservation-forms";
+import { ConfierBouton } from "./confier-forms";
 
 /**
  * La réservation d'un client, vue par Louis : qui prend des diagnostics,
@@ -115,7 +117,10 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
       libelle: `${nom(m.profiles)} (${m.role === "closeuse" ? "closeuse" : "titulaire"})`,
     }));
   const noms = new Map(personnes.map((p) => [p.id, nom(p.profiles)]));
-  const vue = reglages ? await apercu(org.id) : null;
+  const [vue, aConfier] = await Promise.all([
+    reglages ? apercu(org.id) : Promise.resolve(null),
+    reglages ? diagnosticsAConfier(admin, org.id) : Promise.resolve([]),
+  ]);
 
   return (
     <>
@@ -234,6 +239,43 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               </ul>
             ) : null}
             <CreerJeton organizationId={org.id} />
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg">Confier à une closeuse</h2>
+            <p className="text-muted-foreground text-sm">
+              Les diagnostics à venir de la titulaire qui tombent dans les horaires d&apos;une closeuse (absences,
+              maximum du jour et ses autres rendez-vous compris ; son agenda Google personnel n&apos;est pas relu). Un
+              clic : l&apos;événement passe de l&apos;agenda de la titulaire au sien, avec sa visio ; la cliente reçoit
+              le nouveau lien ; Radar et l&apos;assistante suivent. Pris sur Calendly : l&apos;événement reste chez la
+              titulaire, à retirer à la main.
+            </p>
+            {aConfier.length ? (
+              <ul className="space-y-2">
+                {aConfier.map((r) => (
+                  <li key={r.bookingId} className="border-line flex flex-wrap items-center gap-2 border-t pt-2 text-sm">
+                    <span className="font-medium">
+                      {jourEnMots(r.debut, reglages.fuseau)}, {heureEnMots(r.debut, reglages.fuseau)}
+                    </span>
+                    <span>{r.prenom}</span>
+                    {r.calendly ? <Badge variant="outline">Calendly</Badge> : null}
+                    <span className="ml-auto flex flex-wrap gap-2">
+                      {r.candidates.map((c) => (
+                        <ConfierBouton
+                          key={c.personneId}
+                          organizationId={org.id}
+                          bookingId={r.bookingId}
+                          personneId={c.personneId}
+                          nom={c.nom}
+                        />
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground text-sm">Aucun diagnostic à confier pour l&apos;instant.</p>
+            )}
           </section>
 
           <section className="space-y-3">
