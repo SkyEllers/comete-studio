@@ -131,6 +131,7 @@ export function EspaceCloseuseClient({
   const [onglet, setOnglet] = useState<Onglet>("rdv");
   const [mois, setMois] = useState(moisDuJour);
   const [aNoterRdv, setANoterRdv] = useState<RdvCloseuse | null>(null);
+  const [devisRdv, setDevisRdv] = useState<RdvCloseuse | null>(null);
   const [facture, setFacture] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [maintenant] = useState(() => Date.now());
@@ -238,6 +239,7 @@ export function EspaceCloseuseClient({
           moisDuJour={moisDuJour}
           aujourdhui={aujourdhui}
           onNoter={setANoterRdv}
+          onDevis={setDevisRdv}
         />
       ) : null}
       {onglet === "ventes" ? <OngletVentes espace={espace} m7={m7} mois={mois} aujourdhui={aujourdhui} /> : null}
@@ -279,6 +281,24 @@ export function EspaceCloseuseClient({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={devisRdv !== null} onOpenChange={(o) => (o ? null : setDevisRdv(null))}>
+        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+          {devisRdv ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Le devis de {devisRdv.prenom}</DialogTitle>
+                <DialogDescription>
+                  {majuscule(jour(devisRdv.debut))} · {heure(devisRdv.debut)}. Prépare-le maintenant : rien ne part tant
+                  que tu ne cliques pas « Envoyer le devis ». Ce que tu remplis reste ici, et dans la fiche du
+                  rendez-vous pendant l&apos;appel.
+                </DialogDescription>
+              </DialogHeader>
+              <BlocDevis key={devisRdv.id} orgSlug={orgSlug} bookingId={devisRdv.id} />
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={facture} onOpenChange={setFacture}>
         <DialogContent className="sm:max-w-lg">
           <Facture releve={releve} mois={mois} nom={espace.nom} />
@@ -298,6 +318,7 @@ function OngletRdv({
   moisDuJour,
   aujourdhui,
   onNoter,
+  onDevis,
 }: {
   orgSlug: string;
   rdvs: RdvCloseuse[];
@@ -306,6 +327,7 @@ function OngletRdv({
   moisDuJour: string;
   aujourdhui: string;
   onNoter: (r: RdvCloseuse) => void;
+  onDevis: (r: RdvCloseuse) => void;
 }) {
   const aFaire = rdvs.filter((r) => aNoter(r, maintenant));
   const aVenir = rdvs.filter(
@@ -333,7 +355,7 @@ function OngletRdv({
 
       <Section titre="À venir" sousTitre="Réservés dans tes créneaux.">
         {aVenir.length ? (
-          aVenir.map((r) => <CarteRdv key={r.id} rdv={r} onNoter={onNoter} />)
+          aVenir.map((r) => <CarteRdv key={r.id} rdv={r} onNoter={onNoter} onDevis={onDevis} />)
         ) : (
           <p className="text-muted-foreground text-sm">Aucun rendez-vous à venir pour l&apos;instant.</p>
         )}
@@ -396,7 +418,18 @@ function Section({ titre, sousTitre, children }: { titre: string; sousTitre?: st
   );
 }
 
-function CarteRdv({ rdv, urgent, onNoter }: { rdv: RdvCloseuse; urgent?: boolean; onNoter: (r: RdvCloseuse) => void }) {
+function CarteRdv({
+  rdv,
+  urgent,
+  onNoter,
+  onDevis,
+}: {
+  rdv: RdvCloseuse;
+  urgent?: boolean;
+  onNoter: (r: RdvCloseuse) => void;
+  /** Préparer le devis avant l'appel (Louis, 06/10/2026) : les rendez-vous à venir seulement. */
+  onDevis?: (r: RdvCloseuse) => void;
+}) {
   const [ouvert, setOuvert] = useState(false);
   const reponses = rdv.reponses ?? [];
   // La première réponse qui n'est pas le téléphone : la raison du rendez-vous.
@@ -424,6 +457,11 @@ function CarteRdv({ rdv, urgent, onNoter }: { rdv: RdvCloseuse; urgent?: boolean
           <Button size="sm" onClick={() => onNoter(rdv)}>
             <PenLine aria-hidden="true" />
             Noter le résultat
+          </Button>
+        ) : onDevis ? (
+          <Button size="sm" variant="outline" onClick={() => onDevis(rdv)}>
+            <FileText aria-hidden="true" />
+            Préparer le devis
           </Button>
         ) : null}
       </div>
@@ -913,8 +951,8 @@ function FormResultat({
         </section>
       ) : null}
 
-      {/* Le devis signé en ligne (P16) : envoyé d'ici, signé par elle, la
-          vente s'inscrit seule à la signature. */}
+      {/* Le devis signé en ligne (P16) : envoyé d'ici, signé par elle ; la
+          vente s'inscrit seule au paiement (06/10/2026). */}
       {tenu ? <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} /> : null}
 
       <div className="grid grid-cols-3 gap-2">

@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Download, FileSignature, Loader2, Mail, RefreshCw, Send } from "lucide-react";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -123,12 +123,19 @@ function Formulaire({
 }) {
   const [enCours, demarrer] = useTransition();
   const [erreur, setErreur] = useState<string | null>(null);
-  const [duree, setDuree] = useState(donnees.dureeParDefaut);
-  const [paiement, setPaiement] = useState<"une_fois" | "plusieurs">("plusieurs");
-  const [prenom, setPrenom] = useState(donnees.preRempli.prenom);
-  const [nom, setNom] = useState(donnees.preRempli.nom);
-  const [email, setEmail] = useState(donnees.preRempli.email);
-  const [telephone, setTelephone] = useState(donnees.preRempli.telephone);
+  // Le devis préparé avant l'appel (Louis, 06/10/2026) : ce qui a été rempli
+  // se garde dans ce navigateur jusqu'à l'envoi, par rendez-vous.
+  const brouillon = useMemo(() => lireBrouillon(bookingId), [bookingId]);
+  const [duree, setDuree] = useState(brouillon?.duree ?? donnees.dureeParDefaut);
+  const [paiement, setPaiement] = useState<"une_fois" | "plusieurs">(brouillon?.paiement ?? "plusieurs");
+  const [prenom, setPrenom] = useState(brouillon?.prenom ?? donnees.preRempli.prenom);
+  const [nom, setNom] = useState(brouillon?.nom ?? donnees.preRempli.nom);
+  const [email, setEmail] = useState(brouillon?.email ?? donnees.preRempli.email);
+  const [telephone, setTelephone] = useState(brouillon?.telephone ?? donnees.preRempli.telephone);
+
+  useEffect(() => {
+    ecrireBrouillon(bookingId, { duree, paiement, prenom, nom, email, telephone });
+  }, [bookingId, duree, paiement, prenom, nom, email, telephone]);
 
   const t = donnees.tarifs;
   const total = t
@@ -147,6 +154,7 @@ function Formulaire({
             setErreur(r.error);
             return;
           }
+          effacerBrouillon(bookingId);
           if (r.data.mailParti) toast.success(`Devis envoyé à ${email}.`);
           else toast.warning("Le devis est prêt, mais le mail n'est pas parti : renvoie-le.");
           onEnvoye();
@@ -322,4 +330,44 @@ export function BlocDevis({ orgSlug, bookingId }: { orgSlug: string; bookingId: 
       )}
     </section>
   );
+}
+
+// --------------------------------------------------- Le brouillon du devis
+
+type Brouillon = {
+  duree: number;
+  paiement: "une_fois" | "plusieurs";
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone: string;
+};
+
+const cleBrouillon = (bookingId: string) => `devis-brouillon:${bookingId}`;
+
+/** Le brouillon gardé dans ce navigateur, ou null (rien, illisible, ou stockage bloqué). */
+function lireBrouillon(bookingId: string): Brouillon | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const b = JSON.parse(window.localStorage.getItem(cleBrouillon(bookingId)) ?? "null") as Brouillon | null;
+    return b && typeof b.duree === "number" && (b.paiement === "une_fois" || b.paiement === "plusieurs") ? b : null;
+  } catch {
+    return null;
+  }
+}
+
+function ecrireBrouillon(bookingId: string, b: Brouillon) {
+  try {
+    window.localStorage.setItem(cleBrouillon(bookingId), JSON.stringify(b));
+  } catch {
+    // Stockage bloqué (navigation privée) : le formulaire marche, sans mémoire.
+  }
+}
+
+function effacerBrouillon(bookingId: string) {
+  try {
+    window.localStorage.removeItem(cleBrouillon(bookingId));
+  } catch {
+    // Rien à faire.
+  }
 }
