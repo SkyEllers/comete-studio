@@ -8,9 +8,9 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { reecrireDescription } from "@/tools/reservation/agenda";
+import { lireJeton, reecrireDescription } from "@/tools/reservation/agenda";
 import { confierRendezVous } from "@/tools/reservation/confier";
-import { identifiants } from "@/tools/reservation/google";
+import { identifiants, jetonAcces, teinterConfie, type Teinte } from "@/tools/reservation/google";
 import { baseEspace } from "@/tools/reservation/suites";
 
 /**
@@ -214,6 +214,65 @@ export async function reecrireDescriptions(
     }
   }
   return ok({ reecrits, echecs });
+}
+
+/**
+ * Les rendez-vous Calendly déjà confiés à une closeuse, à venir : leur
+ * événement chez la titulaire passe en Tomate et « Disponible » (Louis,
+ * 07/10/2026 : ceux confiés avant que « Confier » le fasse tout seul). Sans
+ * risque à relancer : un événement déjà en Tomate le reste.
+ */
+export async function teinterDejaConfies(
+  organizationId: unknown,
+): Promise<ActionResult<{ resultats: { prenom: string; debut: string; resultat: Teinte | "sans_adresse" | "erreur" }[] }>> {
+  await requireAdmin();
+  const org = organisation.safeParse(organizationId);
+  if (!org.success) return failFromZod(org.error);
+  const ids = identifiants();
+  if (!ids) return fail("Identifiants Google absents du serveur.");
+
+  const admin = createAdminClient();
+  const [{ data: rdvs, error }, { data: titulaire }] = await Promise.all([
+    admin
+      .from("radar_bookings")
+      .select("id, scheduled_start, scheduled_end, invitee_first_name, invitee_uri")
+      .eq("organization_id", org.data)
+      .eq("status", "confirme")
+      .not("closeuse_id", "is", null)
+      .gt("scheduled_start", new Date().toISOString())
+      .not("invitee_uri", "like", "reservation:%")
+      .order("scheduled_start"),
+    admin.from("reservation_personnes").select("id").eq("organization_id", org.data).eq("role", "titulaire").maybeSingle(),
+  ]);
+  if (error) return fail(`Rendez-vous : ${error.message}`);
+  const jeton = titulaire ? await lireJeton(admin, titulaire.id) : null;
+  if (!jeton) return fail("L'agenda de la titulaire n'est pas connecté.");
+  const acces = await jetonAcces(jeton, ids);
+
+  const resultats: { prenom: string; debut: string; resultat: Teinte | "sans_adresse" | "erreur" }[] = [];
+  for (const r of rdvs ?? []) {
+    const { data: ligne } = await admin
+      .from("reservation_rendez_vous")
+      .select("email")
+      .eq("radar_booking_id", r.id)
+      .not("email", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const prenom = r.invitee_first_name || "Une cliente";
+    if (!ligne?.email) {
+      resultats.push({ prenom, debut: r.scheduled_start, resultat: "sans_adresse" });
+      continue;
+    }
+    try {
+      const resultat = await teinterConfie(acces, { debut: r.scheduled_start, fin: r.scheduled_end, email: ligne.email });
+      resultats.push({ prenom, debut: r.scheduled_start, resultat });
+    } catch (erreur) {
+      console.error("Tomate, déjà confiés :", erreur instanceof Error ? erreur.message : "erreur");
+      resultats.push({ prenom, debut: r.scheduled_start, resultat: "erreur" });
+    }
+  }
+  return ok({ resultats });
 }
 
 const confierSchema = z.object({

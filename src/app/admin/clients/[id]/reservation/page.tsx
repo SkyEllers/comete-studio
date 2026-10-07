@@ -32,7 +32,7 @@ import {
   ReecrireDescriptions,
   RevoquerJeton,
 } from "./reservation-forms";
-import { ConfierBouton } from "./confier-forms";
+import { ConfierBouton, TeinterDejaConfies } from "./confier-forms";
 
 /**
  * La réservation d'un client, vue par Louis : qui prend des diagnostics,
@@ -261,6 +261,7 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               « Disponible » (si elle a reconnecté son agenda avec le droit de le modifier). Ne jamais le supprimer :
               Google enverrait « Événement annulé » à la cliente (vu le 07/10/2026).
             </p>
+            <TeinterDejaConfies organizationId={org.id} />
             {confiables.length ? (
               <ul className="space-y-2">
                 {confiables.map((r) => (

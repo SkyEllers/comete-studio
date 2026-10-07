@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
-import { confierUnRendezVous } from "./actions";
+import { confierUnRendezVous, teinterDejaConfies } from "./actions";
 
 export function ConfierBouton(props: { organizationId: string; bookingId: string; personneId: string; nom: string }) {
   const [enCours, startTransition] = useTransition();
@@ -44,6 +44,54 @@ export function ConfierBouton(props: { organizationId: string; bookingId: string
       }
     >
       {enCours ? "En cours…" : `Confier à ${props.nom}`}
+    </Button>
+  );
+}
+
+const QUAND = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "Europe/Paris",
+  weekday: "short",
+  day: "numeric",
+  month: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const RESULTAT: Record<string, string> = {
+  teinte: "en Tomate",
+  introuvable: "introuvable dans son agenda",
+  sans_droit: "pas le droit de le modifier",
+  sans_adresse: "adresse de la cliente inconnue",
+  erreur: "erreur Google",
+};
+
+/** Les rendez-vous Calendly confiés avant le 07/10 : leur événement chez la titulaire en Tomate et « Disponible ». */
+export function TeinterDejaConfies({ organizationId }: { organizationId: string }) {
+  const [enCours, startTransition] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={enCours}
+      onClick={() =>
+        startTransition(async () => {
+          const r = await teinterDejaConfies(organizationId);
+          if (!r.ok) {
+            toast.error(r.error);
+            return;
+          }
+          const faits = r.data.resultats.filter((x) => x.resultat === "teinte").length;
+          const autres = r.data.resultats.filter((x) => x.resultat !== "teinte");
+          toast.success(`${faits} sur ${r.data.resultats.length} rendez-vous Calendly confiés passés en Tomate.`, {
+            description: autres.length
+              ? autres.map((x) => `${x.prenom} (${QUAND.format(new Date(x.debut))}) : ${RESULTAT[x.resultat] ?? x.resultat}`).join(" · ")
+              : undefined,
+            duration: 20_000,
+          });
+        })
+      }
+    >
+      {enCours ? "En cours…" : "Passer en Tomate les rendez-vous Calendly déjà confiés"}
     </Button>
   );
 }
