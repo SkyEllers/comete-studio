@@ -1204,8 +1204,8 @@ export type Database = {
           paiement: string
           paiement_lien_le: string | null
           paye_le: string | null
-          premier_rappel_le: string | null
           pdf_chemin: string | null
+          premier_rappel_le: string | null
           prenom: string
           relance_le: string | null
           relances: number
@@ -1246,8 +1246,8 @@ export type Database = {
           paiement: string
           paiement_lien_le?: string | null
           paye_le?: string | null
-          premier_rappel_le?: string | null
           pdf_chemin?: string | null
+          premier_rappel_le?: string | null
           prenom: string
           relance_le?: string | null
           relances?: number
@@ -1288,8 +1288,8 @@ export type Database = {
           paiement?: string
           paiement_lien_le?: string | null
           paye_le?: string | null
-          premier_rappel_le?: string | null
           pdf_chemin?: string | null
+          premier_rappel_le?: string | null
           prenom?: string
           relance_le?: string | null
           relances?: number
@@ -2797,6 +2797,89 @@ export type Database = {
           },
         ]
       }
+      radar_r2: {
+        Row: {
+          appelee_le: string | null
+          booking_id: string
+          closeuse_id: string
+          demandee_le: string
+          fiche: Json
+          fiche_effacee_le: string | null
+          joindre: string
+          mail_cliente: boolean
+          mail_closeuse: boolean
+          mail_titulaire: boolean
+          note_titulaire: string | null
+          organization_id: string
+          resultat: string | null
+          telephone: string | null
+          updated_at: string
+        }
+        Insert: {
+          appelee_le?: string | null
+          booking_id: string
+          closeuse_id: string
+          demandee_le?: string
+          fiche?: Json
+          fiche_effacee_le?: string | null
+          joindre: string
+          mail_cliente?: boolean
+          mail_closeuse?: boolean
+          mail_titulaire?: boolean
+          note_titulaire?: string | null
+          organization_id: string
+          resultat?: string | null
+          telephone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appelee_le?: string | null
+          booking_id?: string
+          closeuse_id?: string
+          demandee_le?: string
+          fiche?: Json
+          fiche_effacee_le?: string | null
+          joindre?: string
+          mail_cliente?: boolean
+          mail_closeuse?: boolean
+          mail_titulaire?: boolean
+          note_titulaire?: string | null
+          organization_id?: string
+          resultat?: string | null
+          telephone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_r2_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_r2_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_r2_closeuse_id_fkey"
+            columns: ["closeuse_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_r2_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_settings: {
         Row: {
           calendly_org_uri: string | null
@@ -3897,6 +3980,7 @@ export type Database = {
         Returns: number
       }
       radar_purger_journal: { Args: { anciennete?: string }; Returns: number }
+      radar_purger_r2: { Args: { anciennete?: string }; Returns: number }
       radar_purger_rendezvous: {
         Args: { anciennete?: string }
         Returns: number
