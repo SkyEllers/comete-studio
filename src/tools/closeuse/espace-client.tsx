@@ -355,9 +355,10 @@ function OngletRdv({
   onDevis: (r: RdvCloseuse) => void;
 }) {
   const aFaire = rdvs.filter((r) => aNoter(r, maintenant));
-  const aVenir = rdvs.filter(
-    (r) => r.statut === "confirme" && !bilanPossible(r.debut, maintenant),
-  );
+  // Jusqu'à sa fin, le rendez-vous reste ici avec « Préparer le devis » : la
+  // closeuse l'envoie pendant l'appel. Il ne disparaissait des deux listes
+  // entre dix minutes après le début et la fin (vu le 07/10/2026).
+  const aVenir = rdvs.filter((r) => r.statut === "confirme");
   const enAttente = rdvs.filter((r) => r.raison?.recontacter && !r.recontactFait);
   const cle = (r: RdvCloseuse) => r.raison!.recontacterLe ?? r.raison!.recontacter ?? "";
   const recontacter = enAttente
