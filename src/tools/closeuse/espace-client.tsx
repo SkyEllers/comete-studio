@@ -12,13 +12,15 @@ import {
   PenLine,
   Phone,
   ShoppingBag,
+  UserX,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
+  annulerAbsence,
   noterAbsente,
   noterNonVente,
   noterRecontactee,
@@ -381,7 +383,9 @@ function OngletRdv({
 
       <Section titre="À venir" sousTitre="Réservés dans tes créneaux.">
         {aVenir.length ? (
-          aVenir.map((r) => <CarteRdv key={r.id} rdv={r} onNoter={onNoter} onDevis={onDevis} />)
+          aVenir.map((r) => (
+            <CarteRdv key={r.id} rdv={r} orgSlug={orgSlug} maintenant={maintenant} onNoter={onNoter} onDevis={onDevis} />
+          ))
         ) : (
           <p className="text-muted-foreground text-sm">Aucun rendez-vous à venir pour l&apos;instant.</p>
         )}
@@ -444,19 +448,67 @@ function Section({ titre, sousTitre, children }: { titre: string; sousTitre?: st
   );
 }
 
+/** « Elle n'est pas venue » se note dès 10 minutes après le début (Louis, 07/10/2026). */
+const ABSENTE_APRES_MS = 10 * 60_000;
+
 function CarteRdv({
   rdv,
   urgent,
+  orgSlug,
+  maintenant,
   onNoter,
   onDevis,
 }: {
   rdv: RdvCloseuse;
   urgent?: boolean;
+  /** Les rendez-vous à venir : pour « Elle n'est pas venue » pendant le créneau. */
+  orgSlug?: string;
+  maintenant?: number;
   onNoter: (r: RdvCloseuse) => void;
   /** Préparer le devis avant l'appel (Louis, 06/10/2026) : les rendez-vous à venir seulement. */
   onDevis?: (r: RdvCloseuse) => void;
 }) {
   const [ouvert, setOuvert] = useState(false);
+  const [enCours, startTransition] = useTransition();
+  const router = useRouter();
+  // Avant la fin prévue, le rendez-vous n'est pas encore « À noter » : une
+  // cliente absente ne se notait qu'après la fin (vu le 07/10/2026, Peggy
+  // Auger à 18h15 pour un 18h-18h45). Le bouton apparaît 10 minutes après le
+  // début, même si la page est restée ouverte.
+  const absenteDes = Date.parse(rdv.debut) + ABSENTE_APRES_MS;
+  const [absentePossible, setAbsentePossible] = useState(maintenant !== undefined && maintenant >= absenteDes);
+  useEffect(() => {
+    if (absentePossible || maintenant === undefined || !orgSlug) return;
+    const attente = Math.max(0, absenteDes - Date.now());
+    // setTimeout plafonne à environ 24 jours : au-delà, rien à afficher.
+    if (attente > 2_000_000_000) return;
+    const minuterie = setTimeout(() => setAbsentePossible(true), attente);
+    return () => clearTimeout(minuterie);
+  }, [absentePossible, absenteDes, maintenant, orgSlug]);
+
+  const noterPasVenue = () => {
+    if (!orgSlug) return;
+    if (!window.confirm(`${rdv.prenom} n'est pas venue ? Le rendez-vous passe en « Pas venue ».`)) return;
+    startTransition(async () => {
+      const r = await noterAbsente(orgSlug, { bookingId: rdv.id });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      toast.success("C'est noté : pas venue", {
+        duration: 10_000,
+        action: {
+          label: "Annuler",
+          onClick: async () => {
+            const retour = await annulerAbsence(orgSlug, { bookingId: rdv.id });
+            if (!retour.ok) toast.error(retour.error);
+            router.refresh();
+          },
+        },
+      });
+      router.refresh();
+    });
+  };
   const reponses = rdv.reponses ?? [];
   // La première réponse qui n'est pas le téléphone : la raison du rendez-vous.
   const motif = reponses.find((x) => !/t[ée]l[ée]phone/i.test(x.q));
@@ -484,11 +536,21 @@ function CarteRdv({
             <PenLine aria-hidden="true" />
             Noter le résultat
           </Button>
-        ) : onDevis ? (
-          <Button size="sm" variant="outline" onClick={() => onDevis(rdv)}>
-            <FileText aria-hidden="true" />
-            Préparer le devis
-          </Button>
+        ) : onDevis || absentePossible ? (
+          <div className="flex flex-wrap gap-2">
+            {absentePossible && orgSlug ? (
+              <Button size="sm" variant="outline" disabled={enCours} onClick={noterPasVenue}>
+                <UserX aria-hidden="true" />
+                {enCours ? "En cours…" : "Elle n'est pas venue"}
+              </Button>
+            ) : null}
+            {onDevis ? (
+              <Button size="sm" variant="outline" onClick={() => onDevis(rdv)}>
+                <FileText aria-hidden="true" />
+                Préparer le devis
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
       {motif ? <p className="mt-3 text-sm">{motif.r}</p> : null}
