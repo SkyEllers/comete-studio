@@ -156,7 +156,8 @@ export async function pdfDuDevis(c: Contenu, s: Signature | null): Promise<Uint8
   );
 
   if (!s) e.texte("APERÇU · devis pas encore signé", { taille: 9, gras: true, couleur: GRIS });
-  e.texte(c.titre.toUpperCase(), { taille: 18, gras: true });
+  // Sous la mention d'aperçu, le titre descend d'une ligne (il la chevauchait).
+  e.texte(c.titre.toUpperCase(), { taille: 18, gras: true, avant: s ? 0 : 10 });
   e.texte(c.sousTitre, { taille: 11, couleur: GRIS, avant: 2 });
 
   e.texte("Accompagnée :", { gras: true, avant: 14 });
