@@ -120,6 +120,7 @@ export function EspaceCloseuseClient({
   moisDuJour,
   aujourdhui,
   vueDeLouis,
+  voisines = null,
 }: {
   orgSlug: string;
   organizationId: string;
@@ -127,6 +128,8 @@ export function EspaceCloseuseClient({
   moisDuJour: string;
   aujourdhui: string;
   vueDeLouis: boolean;
+  /** Pour Louis seulement : la closeuse d'avant et d'après chez ce client (Louis, 07/10/2026). */
+  voisines?: { precedente: string; suivante: string; rang: number; total: number } | null;
 }) {
   const [onglet, setOnglet] = useState<Onglet>("rdv");
   const [mois, setMois] = useState(moisDuJour);
@@ -153,6 +156,25 @@ export function EspaceCloseuseClient({
     <>
       <PageHeader
         title={prenom ? `Bonjour ${prenom}` : "Ton espace"}
+        aCoteDuTitre={
+          vueDeLouis && voisines ? (
+            <span className="flex items-center gap-1">
+              <Button asChild variant="ghost" size="icon-sm">
+                <Link href={`/app/${orgSlug}/closeuse?c=${voisines.precedente}`} aria-label="Closeuse précédente">
+                  <ChevronLeft aria-hidden="true" />
+                </Link>
+              </Button>
+              <span className="text-muted-foreground text-xs tabular-nums">
+                {voisines.rang} / {voisines.total}
+              </span>
+              <Button asChild variant="ghost" size="icon-sm">
+                <Link href={`/app/${orgSlug}/closeuse?c=${voisines.suivante}`} aria-label="Closeuse suivante">
+                  <ChevronRight aria-hidden="true" />
+                </Link>
+              </Button>
+            </span>
+          ) : null
+        }
         description="Tes rendez-vous, ce que tu as vendu, et ce que tu factures à la fin du mois."
         action={
           <Button asChild variant="outline">
