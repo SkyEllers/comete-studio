@@ -3,7 +3,8 @@ import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Les diagnostics à venir de la titulaire qu'une closeuse pourrait prendre :
+ * Tous les diagnostics à venir de la titulaire, et pour chacun les closeuses
+ * qui pourraient le prendre (les autres avec leur raison) :
  * dans ses horaires habituels (heure de Paris, 45 minutes comprises), hors de
  * ses absences, sous son maximum du jour, sans chevaucher un de ses rendez-vous,
  * et libre dans son agenda Google (Louis, 07/10/2026 : Marion se voyait
@@ -23,7 +24,10 @@ export type AConfier = {
   debut: string;
   prenom: string;
   calendly: boolean;
+  /** Les closeuses qui peuvent le prendre (vide : personne n'est disponible). */
   candidates: ACandidate[];
+  /** Les autres, avec la raison (Louis, 07/10/2026 : savoir quoi demander dans le groupe). */
+  ecartees: { nom: string; raison: string }[];
 };
 
 const PARIS = new Intl.DateTimeFormat("fr-FR", {
@@ -110,34 +114,36 @@ export async function diagnosticsAConfier(admin: Admin, org: string, lireOccupe:
   return liste.map((r) => {
     const p = aParis(r.scheduled_start);
     const fin = p.minutes + Math.round((Date.parse(r.scheduled_end) - Date.parse(r.scheduled_start)) / 60_000);
-    const candidates = closeuses
-      .filter((c) =>
-        (horaires ?? []).some(
-          (h) => h.personne_id === c.id && h.jour === p.jour && enMinutes(h.debut) <= p.minutes && fin <= enMinutes(h.fin),
-        ),
-      )
-      .filter((c) => !(absences ?? []).some((a) => a.personne_id === c.id && a.du <= p.date && p.date <= a.au))
-      .filter((c) => {
-        if (!lireOccupe) return true;
+    const d = Date.parse(r.scheduled_start);
+    const f = Date.parse(r.scheduled_end);
+
+    /** Pourquoi cette closeuse ne peut pas le prendre, ou null si elle peut. */
+    const raison = (c: (typeof closeuses)[number]): string | null => {
+      const dansSesHoraires = (horaires ?? []).some(
+        (h) => h.personne_id === c.id && h.jour === p.jour && enMinutes(h.debut) <= p.minutes && fin <= enMinutes(h.fin),
+      );
+      if (!dansSesHoraires) return "hors de ses horaires";
+      if ((absences ?? []).some((a) => a.personne_id === c.id && a.du <= p.date && p.date <= a.au)) return "absente";
+      const siens = lignes.filter((l) => l.personne_id === c.id);
+      if (siens.filter((l) => aParis(l.debut).date === p.date).length >= c.max) return "maximum du jour atteint";
+      if (siens.some((l) => l.debut < r.scheduled_end && l.bloque_jusqu_a > r.scheduled_start)) return "déjà un rendez-vous à ce moment";
+      if (lireOccupe) {
+        if (!c.google) return "agenda Google non connecté";
         const occ = occupes.get(c.id);
-        if (!occ) return false;
-        const d = Date.parse(r.scheduled_start);
-        const f = Date.parse(r.scheduled_end);
-        return !occ.some((o) => o.debut < f && o.fin > d);
-      })
-      .filter((c) => {
-        const siens = lignes.filter((l) => l.personne_id === c.id);
-        const ceJour = siens.filter((l) => aParis(l.debut).date === p.date).length;
-        const chevauche = siens.some((l) => l.debut < r.scheduled_end && l.bloque_jusqu_a > r.scheduled_start);
-        return ceJour < c.max && !chevauche;
-      })
-      .map((c) => ({ personneId: c.id, nom: c.nom }));
+        if (!occ) return "agenda Google illisible";
+        if (occ.some((o) => o.debut < f && o.fin > d)) return "occupée dans son agenda Google";
+      }
+      return null;
+    };
+
+    const avis = closeuses.filter((c) => parId.has(c.id)).map((c) => ({ c, pourquoi: raison(c) }));
     return {
       bookingId: r.id,
       debut: r.scheduled_start,
       prenom: r.invitee_first_name || "Une cliente",
       calendly: !surOutil.has(r.id),
-      candidates: candidates.filter((c) => parId.has(c.personneId)),
+      candidates: avis.filter((a) => a.pourquoi === null).map(({ c }) => ({ personneId: c.id, nom: c.nom })),
+      ecartees: avis.filter((a) => a.pourquoi !== null).map(({ c, pourquoi }) => ({ nom: c.nom, raison: pourquoi! })),
     };
-  }).filter((r) => r.candidates.length > 0);
+  });
 }

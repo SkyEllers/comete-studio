@@ -123,10 +123,13 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
       libelle: `${nom(m.profiles)} (${m.role === "closeuse" ? "closeuse" : "titulaire"})`,
     }));
   const noms = new Map(personnes.map((p) => [p.id, nom(p.profiles)]));
-  const [vue, aConfier] = await Promise.all([
+  const [vue, tousAConfier] = await Promise.all([
     reglages ? apercu(org.id) : Promise.resolve(null),
     reglages ? diagnosticsAConfier(admin, org.id, lireOccupe(admin)) : Promise.resolve([]),
   ]);
+
+  const confiables = tousAConfier.filter((r) => r.candidates.length > 0);
+  const sansPersonne = tousAConfier.filter((r) => r.candidates.length === 0);
 
   return (
     <>
@@ -250,15 +253,15 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
           <section className="space-y-3">
             <h2 className="text-lg">Confier à une closeuse</h2>
             <p className="text-muted-foreground text-sm">
-              Les diagnostics à venir de la titulaire qui tombent dans les horaires d&apos;une closeuse (absences,
-              maximum du jour et ses autres rendez-vous compris ; son agenda Google personnel n&apos;est pas relu). Un
-              clic : l&apos;événement passe de l&apos;agenda de la titulaire au sien, avec sa visio ; la cliente reçoit
-              le nouveau lien ; Radar et l&apos;assistante suivent. Pris sur Calendly : l&apos;événement reste chez la
-              titulaire, à retirer à la main.
+              Les diagnostics à venir de la titulaire, avec chaque closeuse qui peut le prendre : dans ses horaires, hors
+              de ses absences, sous son maximum du jour, sans chevaucher ses rendez-vous, et libre dans son agenda Google
+              (un événement « Disponible » ne bloque pas). Un clic : l&apos;événement passe de l&apos;agenda de la
+              titulaire au sien, avec sa visio ; la cliente reçoit le nouveau lien ; Radar et l&apos;assistante suivent.
+              Pris sur Calendly : l&apos;événement reste chez la titulaire, ne le supprime jamais.
             </p>
-            {aConfier.length ? (
+            {confiables.length ? (
               <ul className="space-y-2">
-                {aConfier.map((r) => (
+                {confiables.map((r) => (
                   <li key={r.bookingId} className="border-line flex flex-wrap items-center gap-2 border-t pt-2 text-sm">
                     <span className="font-medium">
                       {jourEnMots(r.debut, reglages.fuseau)}, {heureEnMots(r.debut, reglages.fuseau)}
@@ -281,6 +284,32 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               </ul>
             ) : (
               <p className="text-muted-foreground text-sm">Aucun diagnostic à confier pour l&apos;instant.</p>
+            )}
+
+            <h3 className="pt-3 text-base">Personne n&apos;est disponible ({sansPersonne.length})</h3>
+            <p className="text-muted-foreground text-sm">
+              Les diagnostics de la titulaire qu&apos;aucune closeuse ne peut prendre aujourd&apos;hui, et pourquoi.
+              Une closeuse qui ouvre ce créneau dans « Mon agenda » le fait passer dans la liste du dessus.
+            </p>
+            {sansPersonne.length ? (
+              <ul className="space-y-2">
+                {sansPersonne.map((r) => (
+                  <li key={r.bookingId} className="border-line border-t pt-2 text-sm">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">
+                        {jourEnMots(r.debut, reglages.fuseau)}, {heureEnMots(r.debut, reglages.fuseau)}
+                      </span>
+                      <span>{r.prenom}</span>
+                      {r.calendly ? <Badge variant="outline">Calendly</Badge> : null}
+                    </span>
+                    <span className="text-muted-foreground mt-0.5 block text-xs">
+                      {r.ecartees.map((e) => `${e.nom} : ${e.raison}`).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground text-sm">Tous les diagnostics à venir ont une closeuse possible.</p>
             )}
           </section>
 
