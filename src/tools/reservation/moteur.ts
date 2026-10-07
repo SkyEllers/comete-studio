@@ -67,8 +67,12 @@ export type Prise = { ok: true; id: string } | { ok: false; raison: Echec; messa
 
 export type Depot = {
   reglages(org: string): Promise<ReglagesLus | null>;
-  /** Les personnes actives du client. */
-  personnes(org: string): Promise<PersonneLue[]>;
+  /**
+   * Les personnes actives du client. `titulaireInactive` : la titulaire en plus,
+   * même passée inactive (elle ne prend plus de diagnostics mais reçoit les
+   * premiers rendez-vous après un devis, Louis, 07/10/2026).
+   */
+  personnes(org: string, o?: { titulaireInactive?: boolean }): Promise<PersonneLue[]>;
   /** Les rendez-vous confirmés qui touchent cette période. */
   diagnostics(org: string, de: number, a: number): Promise<Diagnostic[]>;
   /** Un rendez-vous confirmé de ce client, ou null. */
@@ -127,7 +131,9 @@ async function lire(
   const regles = options.dureeMinutes ? { ...lus, dureeMinutes: options.dureeMinutes } : lus;
 
   const ecartees: Ecartee[] = [];
-  const toutes = (await depot.personnes(org)).filter((p) => !options.titulaireSeule || p.role === "titulaire");
+  const toutes = (await depot.personnes(org, { titulaireInactive: options.titulaireSeule })).filter(
+    (p) => !options.titulaireSeule || p.role === "titulaire",
+  );
   const personnes = toutes.filter((p) => {
     if (!p.agendaConnecte) ecartees.push({ personneId: p.id, raison: "sans_agenda" });
     return p.agendaConnecte;

@@ -22,7 +22,10 @@
 --    rendez-vous qu'il remplace, son genre et son devis.
 --
 -- 3. Le maximum par jour et la pause comptent tous les rendez-vous de la
---    personne, quel que soit leur genre : rien ne change ici.
+--    personne, quel que soit leur genre : rien ne change ici. Mais une
+--    titulaire passée inactive (elle ne prend plus de diagnostics, Peggy
+--    depuis l'arrivée des closeuses) prend encore ses premiers rendez-vous :
+--    Louis, 07/10/2026, « 4 rendez-vous max par jour ».
 --
 -- 4. Les rappels : `rappel_le` (le mail de la veille d'un premier
 --    rendez-vous) et `devis.premier_rappel_le` (le rappel à la cliente qui a
@@ -65,7 +68,8 @@ declare
   nouveau  uuid;
 begin
   select * into p from public.reservation_personnes where id = personne;
-  if not found or not p.actif then
+  if not found
+     or (not p.actif and not (p.role = 'titulaire' and donnees->>'genre' = 'premier')) then
     raise exception 'personne_indisponible';
   end if;
 

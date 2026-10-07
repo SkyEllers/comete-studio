@@ -286,6 +286,15 @@ describe("le moteur : le premier rendez-vous après un devis (0055)", () => {
     assert.deepEqual(prise, { ok: false, raison: "plus_libre" });
   });
 
+  it("demande au dépôt la titulaire même inactive (elle ne prend plus de diagnostics)", async () => {
+    const { depot } = faux({ personnes: [personne("peggy", "titulaire")] });
+    const demandes: unknown[] = [];
+    const espion = { ...depot, personnes: async (org: string, o?: { titulaireInactive?: boolean }) => (demandes.push(o), depot.personnes(org)) };
+    await creneauxLibres("org", maintenant, espion, libres, premier);
+    await creneauxLibres("org", maintenant, espion, libres);
+    assert.deepEqual(demandes, [{ titulaireInactive: true }, { titulaireInactive: undefined }]);
+  });
+
   it("ses diagnostics déjà pris lui bloquent le créneau, pause comprise", async () => {
     const { depot } = faux({
       personnes: [personne("peggy", "titulaire")],

@@ -67,13 +67,14 @@ export function depotSupabase(db: Admin): Depot {
       };
     },
 
-    async personnes(org): Promise<PersonneLue[]> {
+    async personnes(org, o = {}): Promise<PersonneLue[]> {
+      const lues = db
+        .from("reservation_personnes")
+        .select("id, user_id, role, fuseau, max_par_jour, google_connecte_le, google_agenda")
+        .eq("organization_id", org);
       const [personnes, horaires, absences] = await Promise.all([
-        db
-          .from("reservation_personnes")
-          .select("id, user_id, role, fuseau, max_par_jour, google_connecte_le, google_agenda")
-          .eq("organization_id", org)
-          .eq("actif", true),
+        // Les actives ; la titulaire en plus, même inactive, pour un premier rendez-vous (0055).
+        o.titulaireInactive ? lues.or("actif.eq.true,role.eq.titulaire") : lues.eq("actif", true),
         db.from("reservation_horaires").select("personne_id, jour, debut, fin").eq("organization_id", org),
         db.from("reservation_absences").select("personne_id, du, au").eq("organization_id", org),
       ]);
