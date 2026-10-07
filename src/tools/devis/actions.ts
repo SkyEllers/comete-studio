@@ -131,6 +131,11 @@ const envoiSchema = z.object({
   nom: z.string().trim().max(100),
   email: z.email({ error: "Son adresse mail ne ressemble pas à une adresse mail." }).max(254),
   telephone: z.string().trim().max(40),
+  objet: z
+    .string()
+    .trim()
+    .min(1, { error: "Écris l'objet du devis : sa situation et ce qu'elle veut, avec ses mots." })
+    .max(2000, { error: "L'objet du devis tient en 2 000 caractères." }),
   // 0 : l'investigation seule (`INVESTIGATION_SEULE`).
   dureeMois: z.coerce.number().int().min(0, { error: "La durée va de 1 à 24 mois." }).max(24, { error: "La durée va de 1 à 24 mois." }),
   paiement: z.enum(["une_fois", "plusieurs"], { error: "Choisis en 1 fois ou en plusieurs fois." }),
@@ -161,6 +166,7 @@ export async function envoyerLeDevis(
     nom: q.nom || null,
     email: q.email.toLowerCase(),
     telephone: q.telephone || null,
+    objet: q.objet,
     dureeMois: q.dureeMois,
     paiement: q.paiement,
   });

@@ -5,6 +5,7 @@ import { lisible, pdfDuDevis } from "./pdf.ts";
 import { devisPeggy } from "./profils/peggy.ts";
 import {
   adresseDuDevis,
+  blocObjet,
   contenu,
   empreinte,
   euros,
@@ -128,6 +129,23 @@ describe("le contenu signé", () => {
     });
     assert.equal(Buffer.from(pdf.slice(0, 5)).toString(), "%PDF-");
     assert.ok(pdf.length > 5_000);
+  });
+
+  it("l'objet du devis (0053) : en tête, avant l'offre, un paragraphe par bloc", () => {
+    const avec = contenu(devisPeggy, cliente, m, "2026-10-08", "Des ballonnements depuis l'été.\n\nElle veut  comprendre\nce qui se passe.");
+    assert.deepEqual(avec.blocs[0], { titre: "Objet du devis", paragraphes: ["Des ballonnements depuis l'été.", "Elle veut comprendre ce qui se passe."] });
+    assert.equal(avec.blocs[1].titre, "Objet de votre accompagnement personnalisé");
+    assert.equal(blocObjet("  \n "), null);
+  });
+
+  it("sans objet, un devis d'avant garde le même contenu et la même empreinte", () => {
+    assert.equal(empreinte(contenu(devisPeggy, cliente, m, "2026-10-08", null)), empreinte(c));
+  });
+
+  it("fabrique l'aperçu de la closeuse, sans signature ni dossier de preuve", async () => {
+    const pdf = await pdfDuDevis(contenu(devisPeggy, cliente, m, "2026-10-08", "Objet d'essai."), null);
+    assert.equal(Buffer.from(pdf.slice(0, 5)).toString(), "%PDF-");
+    assert.ok(pdf.length > 3_000);
   });
 
   it("remplace ce que la police ne sait pas écrire", () => assert.equal(lisible("✔ ok — « oui » 🙂"), "- ok - « oui » ?"));

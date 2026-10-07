@@ -195,8 +195,21 @@ export function nomComplet(c: Pick<Cliente, "prenom" | "nom">): string {
   return [c.nom?.trim(), c.prenom.trim()].filter(Boolean).join(" ");
 }
 
-export function contenu(p: ProfilDevis, cliente: Cliente, m: Montants, valide: string): Contenu {
+/**
+ * L'objet du devis, écrit par la closeuse (0053, Louis, 07/10/2026) : en tête,
+ * avant l'offre. Un paragraphe par bloc de texte séparé d'une ligne vide.
+ */
+export function blocObjet(objet: string | null | undefined): Bloc | null {
+  const paragraphes = (objet ?? "")
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return paragraphes.length ? { titre: "Objet du devis", paragraphes } : null;
+}
+
+export function contenu(p: ProfilDevis, cliente: Cliente, m: Montants, valide: string, objet: string | null = null): Contenu {
   const seule = investigationSeule(m);
+  const enTete = blocObjet(objet);
   const investissement: Bloc = seule
     ? {
         titre: "Investissement",
@@ -254,6 +267,7 @@ export function contenu(p: ProfilDevis, cliente: Cliente, m: Montants, valide: s
     montants: m,
     valideJusquAu: valide,
     blocs: [
+      ...(enTete ? [enTete] : []),
       ...(seule ? (p.avantInvestigationSeule ?? p.avant) : p.avant),
       investissement,
       modalites,

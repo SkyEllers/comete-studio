@@ -135,13 +135,18 @@ export class Ecrivain {
   }
 }
 
-export async function pdfDuDevis(c: Contenu, s: Signature): Promise<Uint8Array> {
+/**
+ * Le PDF du devis. Sans signature (`null`), c'est l'aperçu de la closeuse
+ * (Louis, 07/10/2026) : le même texte que la cliente, marqué « aperçu », sans
+ * dossier de preuve.
+ */
+export async function pdfDuDevis(c: Contenu, s: Signature | null): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(lisible(`${c.titre} - ${nomComplet(c.cliente)}`));
   doc.setAuthor(lisible(c.vendeur.signataire));
   doc.setCreator("Comète Studio");
   doc.setProducer("Comète Studio");
-  doc.setCreationDate(new Date(s.signeLe));
+  doc.setCreationDate(s ? new Date(s.signeLe) : new Date());
 
   const e = new Ecrivain(
     doc,
@@ -150,6 +155,7 @@ export async function pdfDuDevis(c: Contenu, s: Signature): Promise<Uint8Array> 
     c.enTete,
   );
 
+  if (!s) e.texte("APERÇU · devis pas encore signé", { taille: 9, gras: true, couleur: GRIS });
   e.texte(c.titre.toUpperCase(), { taille: 18, gras: true });
   e.texte(c.sousTitre, { taille: 11, couleur: GRIS, avant: 2 });
 
@@ -168,6 +174,14 @@ export async function pdfDuDevis(c: Contenu, s: Signature): Promise<Uint8Array> 
   for (const b of c.blocs) e.bloc(b);
 
   // ------------------------------ La signature ------------------------------
+  if (!s) {
+    e.place(60);
+    e.texte("Signature des 2 parties", { taille: 11, gras: true, avant: 16 });
+    e.texte(`Pour le prestataire : ${c.vendeur.signataire}, offre émise par ${c.vendeur.nom}.`, { avant: 3 });
+    e.texte("Pour l'accompagnée : à signer en ligne, par le lien reçu par mail.", { avant: 3 });
+    e.texte(`Version du texte : ${c.version}`, { taille: 7.5, couleur: GRIS, avant: 6 });
+    return doc.save();
+  }
   e.place(150);
   e.texte("Signature des 2 parties", { taille: 11, gras: true, avant: 16 });
   e.texte(`Pour le prestataire : ${c.vendeur.signataire}, offre émise par ${c.vendeur.nom}.`, { avant: 3 });

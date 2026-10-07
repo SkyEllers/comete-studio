@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Download, FileSignature, Loader2, Mail, RefreshCw, Send } from "lucide-react";
+import { Check, Download, Eye, FileSignature, Loader2, Mail, RefreshCw, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import { envoyerLeDevis, lireBlocDevis, renvoyerLeDevis, type BlocDevisDonnees, type EtatDevis } from "./actions";
@@ -76,6 +77,14 @@ function Etat({ orgSlug, bookingId, devis, onRenvoye }: { orgSlug: string; booki
         {devis.payeLe ? <li>Paiement mis en place le {quand(devis.payeLe)}</li> : null}
       </ul>
       <div className="flex flex-wrap gap-2">
+        {devis.statut !== "signe" ? (
+          <Button asChild variant="outline" size="sm">
+            <a href={`/app/${orgSlug}/devis/${devis.id}/apercu`} target="_blank" rel="noopener">
+              <Eye aria-hidden="true" />
+              Voir le devis
+            </a>
+          </Button>
+        ) : null}
         {devis.statut === "signe" ? (
           <Button asChild variant="outline" size="sm">
             <a href={`/app/${orgSlug}/devis/${devis.id}/pdf`} target="_blank" rel="noopener">
@@ -133,10 +142,11 @@ function Formulaire({
   const [nom, setNom] = useState(brouillon?.nom ?? donnees.preRempli.nom);
   const [email, setEmail] = useState(brouillon?.email ?? donnees.preRempli.email);
   const [telephone, setTelephone] = useState(brouillon?.telephone ?? donnees.preRempli.telephone);
+  const [objet, setObjet] = useState(brouillon?.objet ?? "");
 
   useEffect(() => {
-    ecrireBrouillon(bookingId, { duree, paiement, prenom, nom, email, telephone });
-  }, [bookingId, duree, paiement, prenom, nom, email, telephone]);
+    ecrireBrouillon(bookingId, { duree, paiement, prenom, nom, email, telephone, objet });
+  }, [bookingId, duree, paiement, prenom, nom, email, telephone, objet]);
 
   const t = donnees.tarifs;
   // Durée 0 : l'investigation seule, en 1 fois (Louis, 07/10/2026).
@@ -160,6 +170,7 @@ function Formulaire({
             nom,
             email,
             telephone,
+            objet,
             dureeMois: duree,
             paiement: seule ? "une_fois" : paiement,
           });
@@ -174,6 +185,21 @@ function Formulaire({
         });
       }}
     >
+      <div>
+        <Label className="mb-1 text-xs" htmlFor={`devis-objet-${bookingId}`}>
+          Objet du devis (en tête du devis, avant l&apos;offre)
+        </Label>
+        <Textarea
+          id={`devis-objet-${bookingId}`}
+          className="min-h-24"
+          value={objet}
+          onChange={(e) => setObjet(e.target.value)}
+          maxLength={2000}
+          required
+          placeholder="À partir de tes notes : sa situation et ce qu'elle veut, avec ses mots. Une ligne vide fait un nouveau paragraphe."
+        />
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label className="mb-1 text-xs" htmlFor={`devis-duree-${bookingId}`}>
@@ -359,6 +385,8 @@ type Brouillon = {
   nom: string;
   email: string;
   telephone: string;
+  /** Absent des brouillons d'avant le 07/10/2026. */
+  objet?: string;
 };
 
 const cleBrouillon = (bookingId: string) => `devis-brouillon:${bookingId}`;

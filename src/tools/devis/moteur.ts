@@ -43,6 +43,8 @@ export type LigneDevis = {
   email: string;
   telephone: string | null;
   adresse: string | null;
+  /** L'objet écrit par la closeuse (0053), null pour les devis d'avant. */
+  objet: string | null;
   duree_mois: number;
   paiement: Paiement;
   investigation_cents: number;
@@ -67,7 +69,7 @@ export type LigneDevis = {
 };
 
 const COLONNES =
-  "id, organization_id, booking_id, closeuse_id, cree_par, prenom, nom, email, telephone, adresse, duree_mois, paiement, investigation_cents, mensualite_cents, remise_une_fois_cents, total_cents, devise, vendeur, version_texte, valide_jusqu_au, statut, envoye_le, ouvert_le, relance_le, relances, signe_le, demarrage_immediat, empreinte_contenu, pdf_chemin, paiement_lien_le, paye_le";
+  "id, organization_id, booking_id, closeuse_id, cree_par, prenom, nom, email, telephone, adresse, objet, duree_mois, paiement, investigation_cents, mensualite_cents, remise_une_fois_cents, total_cents, devise, vendeur, version_texte, valide_jusqu_au, statut, envoye_le, ouvert_le, relance_le, relances, signe_le, demarrage_immediat, empreinte_contenu, pdf_chemin, paiement_lien_le, paye_le";
 
 /*
  * Les tables du devis (0050) ne sont pas encore dans les types générés de la
@@ -98,6 +100,7 @@ export function contenuDe(p: ProfilDevis, d: LigneDevis): Contenu {
     { prenom: d.prenom, nom: d.nom, email: d.email, telephone: d.telephone, adresse: d.adresse },
     m,
     d.valide_jusqu_au,
+    d.objet,
   );
 }
 
@@ -123,6 +126,8 @@ export type Demande = {
   nom: string | null;
   email: string;
   telephone: string | null;
+  /** L'objet du devis, écrit par la closeuse (0053). */
+  objet: string | null;
   dureeMois: number;
   paiement: Paiement;
 };
@@ -161,6 +166,7 @@ export async function creerDevis(admin: Admin, q: Demande): Promise<{ id: string
       nom: q.nom,
       email: q.email,
       telephone: q.telephone,
+      objet: q.objet,
       duree_mois: m.dureeMois,
       paiement: m.paiement,
       investigation_cents: m.investigationCents,
