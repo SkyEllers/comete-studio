@@ -249,7 +249,7 @@ export async function confierRendezVous(
         .maybeSingle();
       const jeton = titulaire ? await lireJeton(admin, titulaire.id) : null;
       agendaTitulaire = jeton
-        ? await teinterConfie(await jetonAcces(jeton, ids), { debut: rdv.scheduled_start, fin: rdv.scheduled_end, email: emailCalendly })
+        ? await teinterConfie(await jetonAcces(jeton, ids), { debut: rdv.scheduled_start, fin: rdv.scheduled_end, email: emailCalendly, nom: [rdv.invitee_first_name, rdv.invitee_last_name].filter(Boolean).join(" ") })
         : "sans_droit";
     } catch (erreur) {
       console.error("Confier, Tomate chez la titulaire :", erreur instanceof Error ? erreur.message : "erreur");

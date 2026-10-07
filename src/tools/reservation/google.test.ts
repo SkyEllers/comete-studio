@@ -264,6 +264,15 @@ describe("Google : un rendez-vous Calendly confié, en Tomate et Disponible (07/
     assert.deepEqual(JSON.parse(String(appels[1].init?.body)), { colorId: "11", transparency: "transparent" });
   });
 
+  it("à défaut de l'adresse, retrouve l'événement par le nom dans le titre", async () => {
+    const { f, appels } = faux([
+      { corps: { items: [{ id: "cal2", summary: "Virginie Rouhaud et Peggy Girault", start: { dateTime: "2026-10-08T18:30:00+02:00" }, attendees: [{ email: "autre@x.fr" }] }] } },
+      { corps: { id: "cal2" } },
+    ]);
+    assert.equal(await teinterConfie("ya29", { ...r, nom: "Virginie Rouhaud" }, f), "teinte");
+    assert.match(appels[1].url, /events\/cal2\?/);
+  });
+
   it("ne touche à rien si l'événement n'est pas trouvé", async () => {
     const { f, appels } = faux([{ corps: { items: [{ id: "a", start: { dateTime: "2026-10-08T18:30:00+02:00" }, attendees: [] }] } }]);
     assert.equal(await teinterConfie("ya29", r, f), "introuvable");

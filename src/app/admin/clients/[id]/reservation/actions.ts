@@ -235,7 +235,7 @@ export async function teinterDejaConfies(
   const [{ data: rdvs, error }, { data: titulaire }] = await Promise.all([
     admin
       .from("radar_bookings")
-      .select("id, scheduled_start, scheduled_end, invitee_first_name, invitee_uri")
+      .select("id, scheduled_start, scheduled_end, invitee_first_name, invitee_last_name, invitee_uri")
       .eq("organization_id", org.data)
       .eq("status", "confirme")
       .not("closeuse_id", "is", null)
@@ -265,7 +265,12 @@ export async function teinterDejaConfies(
       continue;
     }
     try {
-      const resultat = await teinterConfie(acces, { debut: r.scheduled_start, fin: r.scheduled_end, email: ligne.email });
+      const resultat = await teinterConfie(acces, {
+        debut: r.scheduled_start,
+        fin: r.scheduled_end,
+        email: ligne.email,
+        nom: [r.invitee_first_name, r.invitee_last_name].filter(Boolean).join(" "),
+      });
       resultats.push({ prenom, debut: r.scheduled_start, resultat });
     } catch (erreur) {
       console.error("Tomate, déjà confiés :", erreur instanceof Error ? erreur.message : "erreur");

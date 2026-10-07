@@ -192,7 +192,7 @@ export type Teinte = "teinte" | "introuvable" | "sans_droit";
  */
 export async function teinterConfie(
   acces: string,
-  r: { debut: string; fin: string; email: string },
+  r: { debut: string; fin: string; email: string; nom?: string | null },
   f: Fetch = fetch,
 ): Promise<Teinte> {
   const debut = Date.parse(r.debut);
@@ -208,11 +208,17 @@ export async function teinterConfie(
   if (liste.status === 403) return "sans_droit";
   const corps = await lire(liste, "recherche de l'événement Calendly");
   const email = r.email.trim().toLowerCase();
-  const evenement = ((corps.items as Record<string, unknown>[] | undefined) ?? []).find((e) => {
+  const items = ((corps.items as Record<string, unknown>[] | undefined) ?? []).filter((e) => {
     const depart = (e.start as { dateTime?: string } | undefined)?.dateTime;
-    const invites = (e.attendees as { email?: string }[] | undefined) ?? [];
-    return depart !== undefined && Date.parse(depart) === debut && invites.some((i) => i.email?.trim().toLowerCase() === email);
+    return depart !== undefined && Date.parse(depart) === debut;
   });
+  // D'abord la cliente parmi les invités ; à défaut, son nom dans le titre
+  // (« Prénom Nom et Peggy Girault »), certains types Calendly n'inscrivant pas
+  // la même adresse (Virginie, 07/10/2026).
+  const nom = (r.nom ?? "").trim().toLowerCase();
+  const evenement =
+    items.find((e) => ((e.attendees as { email?: string }[] | undefined) ?? []).some((i) => i.email?.trim().toLowerCase() === email)) ??
+    (nom.length >= 3 ? items.find((e) => typeof e.summary === "string" && e.summary.toLowerCase().includes(nom)) : undefined);
   if (!evenement || typeof evenement.id !== "string") return "introuvable";
   const maj = await f(
     `${API}/calendars/${AGENDA_PRINCIPAL}/events/${encodeURIComponent(evenement.id)}?sendUpdates=none`,
