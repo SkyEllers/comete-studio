@@ -93,7 +93,7 @@ try {
   const lien = cree.lien;
   const { data: ligne } = await admin.from("devis").select("*").eq("id", cree.id).single();
   verifie("empreinte du lien", ligne.jeton_hash === createHash("sha256").update(lien).digest("hex"));
-  verifie("total en plusieurs fois", ligne.total_cents === 152_000, String(ligne.total_cents));
+  verifie("total en plusieurs fois", ligne.total_cents === 140_000, String(ligne.total_cents));
   verifie("validité d'une semaine", Boolean(ligne.valide_jusqu_au));
   const { data: liens } = await admin.from("devis_liens").select("lien").eq("devis_id", cree.id);
   verifie("lien rangé à part", liens?.[0]?.lien === lien);
@@ -113,7 +113,7 @@ try {
   verifie("C1 voit le journal", (await voit("c1", "devis_evenements")) >= 1);
   const ecrit = await par(jetons.c1)("PATCH", `devis?id=eq.${cree.id}`, { total_cents: 1 });
   const { data: intact } = await admin.from("devis").select("total_cents").eq("id", cree.id).single();
-  verifie("personne n'écrit en direct", intact.total_cents === 152_000, `statut ${ecrit.status}`);
+  verifie("personne n'écrit en direct", intact.total_cents === 140_000, `statut ${ecrit.status}`);
 
   // ------------------------------ Lire, ouvrir -----------------------------
   const d = await moteur.devisDuLien(admin, orgs.a.id, lien);
@@ -165,7 +165,7 @@ try {
     .select("sale_amount_cents, sale_fois, sale_premier_cents, sale_note")
     .eq("id", r1.id)
     .single();
-  verifie("payé : la vente est dans Radar", vente.sale_amount_cents === 152_000, JSON.stringify(vente));
+  verifie("payé : la vente est dans Radar", vente.sale_amount_cents === 140_000, JSON.stringify(vente));
   verifie("6 paiements, 670 € le premier", vente.sale_fois === 6 && vente.sale_premier_cents === 67_000, JSON.stringify(vente));
   const { data: activite } = await admin
     .from("radar_booking_activities")

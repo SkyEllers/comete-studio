@@ -20,12 +20,13 @@ import {
 const cliente = { prenom: "Camille", nom: "Martin", email: "camille@example.com", telephone: "06 00 00 00 00", adresse: "1 rue de la Paix, 75002 Paris" };
 
 describe("les montants", () => {
-  it("500 € puis 170 € par mois, 50 € de moins en une fois", () => {
+  it("500 € puis 150 € par mois, 50 € de moins en une fois (07/10/2026)", () => {
     const m = montants(devisPeggy, 6, "plusieurs");
-    assert.equal(m.totalEchelonneCents, 152_000);
-    assert.equal(m.totalUneFoisCents, 147_000);
-    assert.equal(m.totalCents, 152_000);
-    assert.equal(montants(devisPeggy, 6, "une_fois").totalCents, 147_000);
+    assert.equal(m.totalEchelonneCents, 140_000);
+    assert.equal(m.totalUneFoisCents, 135_000);
+    assert.equal(m.totalCents, 140_000);
+    assert.equal(montants(devisPeggy, 6, "une_fois").totalCents, 135_000);
+    assert.equal(montants(devisPeggy, 12, "plusieurs").totalCents, 230_000);
   });
   it("refuse une durée hors de 0 à 24 mois", () => {
     assert.throws(() => montants(devisPeggy, -1, "une_fois"));
@@ -80,9 +81,9 @@ describe("le contenu signé", () => {
 
   it("porte les totaux, le choix et le formulaire de rétractation", () => {
     const texte = JSON.stringify(c.blocs);
-    assert.match(texte, /Total en échelonnement : 1 520 €/);
-    assert.match(texte, /Total en paiement 1 fois : 1 470 €/);
-    assert.match(texte, /Votre choix : paiement en plusieurs fois, 1 520 € au total/);
+    assert.match(texte, /Total en échelonnement : 1 400 €/);
+    assert.match(texte, /Total en paiement 1 fois : 1 350 €/);
+    assert.match(texte, /Votre choix : paiement en plusieurs fois, 1 400 € au total/);
     assert.match(texte, /Formulaire de rétractation/);
     assert.match(texte, /valable jusqu'au 8 octobre 2026 inclus/);
   });

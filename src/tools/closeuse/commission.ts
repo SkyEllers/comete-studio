@@ -75,7 +75,7 @@ export function moisSuivant(m: string): string {
 
 /**
  * Les montants de chaque paiement. Le premier peut être différent (500 € puis
- * 170 € par mois chez Peggy) ; le reste se répartit à parts égales, et le
+ * 150 € par mois chez Peggy) ; le reste se répartit à parts égales, et le
  * dernier absorbe l'arrondi pour que la somme tombe juste.
  */
 export function echeancier(montantCents: number, fois: number, premierCents: number | null): number[] {
