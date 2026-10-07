@@ -11,7 +11,7 @@ import { BoutonSynthese, BoutonsLecon } from "./boutons";
 
 /**
  * Analyses — ce que les appels des closeuses et de la titulaire apprennent
- * (0055, Louis, 07/10/2026). Louis seul : le détail de chaque personne, le
+ * (0056, Louis, 07/10/2026). Louis seul : le détail de chaque personne, le
  * carnet de leçons, le portrait de la cliente, et ce qu'il faudra regarder au
  * prochain recrutement.
  */

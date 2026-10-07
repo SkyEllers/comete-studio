@@ -10,7 +10,7 @@ import { CLES_POINTS } from "@/tools/analyse/grille";
 import { analyserUn, synthetiser } from "@/tools/analyse/moteur";
 
 /**
- * Les gestes de Louis sur l'analyse des diagnostics (0055). Toujours
+ * Les gestes de Louis sur l'analyse des diagnostics (0056). Toujours
  * `requireAdmin()` d'abord, puis le service role.
  */
 

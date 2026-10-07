@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { passerHorloge } from "@/tools/analyse/moteur";
 
 /**
- * L'horloge de l'analyse des diagnostics (0055).
+ * L'horloge de l'analyse des diagnostics (0056).
  *
  * La base l'appelle toutes les dix minutes (pg_cron et pg_net,
  * `analyse_horloge()`), avec le secret de l'horloge de l'agent (0039) : même

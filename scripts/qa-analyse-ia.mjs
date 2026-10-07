@@ -1,5 +1,5 @@
 /**
- * Banc de QA — l'analyse des diagnostics (0055), contre la vraie API.
+ * Banc de QA — l'analyse des diagnostics (0056), contre la vraie API.
  *
  *   npm run qa:analyse-ia
  *

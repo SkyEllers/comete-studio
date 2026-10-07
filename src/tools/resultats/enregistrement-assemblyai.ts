@@ -222,7 +222,7 @@ export async function entretenirEnregistrements(
       lignes.map((l) => l.booking_id),
     );
   if (error) console.error(`[diagnostic] purge : lignes non effacées (${error.message})`);
-  // L'analyse de l'appel (0055) part avec lui : sa fiche et ses passages suivent
+  // L'analyse de l'appel (0056) part avec lui : sa fiche et ses passages suivent
   // par la clé étrangère. Le carnet de leçons, sans nom, reste.
   const { error: analyses } = await admin
     .from("radar_analyses")

@@ -10,7 +10,7 @@ import type { AppelAnalyse, VueCloseuse } from "./queries";
 import { BadgeIssue, DetailAnalyse, ListePassages, TableComparaison } from "./vue-analyse";
 
 /**
- * L'onglet « Mes analyses » de l'espace d'une closeuse (0055). Visible dès le
+ * L'onglet « Mes analyses » de l'espace d'une closeuse (0056). Visible dès le
  * départ, il s'ouvre à son dixième rendez-vous tenu ; avant, il dit combien
  * il en reste (Louis, 07/10/2026). Louis le voit ouvert, avec un bandeau.
  */

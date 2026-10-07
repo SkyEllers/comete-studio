@@ -12,7 +12,7 @@ import { lireFiche, lireRangee, lireSynthese, type AnalyseRangee, type Fiche, ty
  * Ce que lisent les écrans de l'analyse. Service role, toujours après la
  * garde de la page (`requireCloseuse`, `requireAdmin`) : une closeuse a le
  * droit de voir les chiffres d'ensemble de l'équipe, pas les lignes des
- * autres, et ces chiffres se calculent ici. La RLS de la 0055 garde les
+ * autres, et ces chiffres se calculent ici. La RLS de la 0056 garde les
  * mêmes portes pour qui lirait les tables avec sa session.
  */
 

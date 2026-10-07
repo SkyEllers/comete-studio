@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0055 — L'analyse des diagnostics (Louis, 07/10/2026)
+-- 0056 — L'analyse des diagnostics (Louis, 07/10/2026)
 --
 -- Chaque diagnostic enregistré et transcrit (0049) est lu par Claude : douze
 -- repères sur la façon de mener l'appel, les alertes (les règles qu'on ne

@@ -3,7 +3,7 @@ import "server-only";
 import type { z } from "zod";
 
 /**
- * L'appel à Claude de l'analyse des diagnostics (0055).
+ * L'appel à Claude de l'analyse des diagnostics (0056).
  *
  * `fetch` natif, comme l'agent et Sas (CLAUDE.md du hub, §2). Claude Opus 5.5,
  * réflexion adaptative à l'effort `high` : lire 45 minutes d'appel et dire

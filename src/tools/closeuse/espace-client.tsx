@@ -148,7 +148,7 @@ export function EspaceCloseuseClient({
   vueDeLouis: boolean;
   /** Pour Louis seulement : la closeuse d'avant et d'après chez ce client (Louis, 07/10/2026). */
   voisines?: { precedente: string; suivante: string; rang: number; total: number } | null;
-  /** L'analyse de ses appels (0055) ; null chez un client sans analyse : pas d'onglet. */
+  /** L'analyse de ses appels (0056) ; null chez un client sans analyse : pas d'onglet. */
   analyses?: { vue: VueCloseuse; titulaire: string } | null;
 }) {
   const [onglet, setOnglet] = useState<Onglet>("rdv");

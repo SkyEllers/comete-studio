@@ -23,7 +23,7 @@ import {
 import { analyseLue, lireFiche, lireRangee, SCHEMA_ANALYSE, SCHEMA_SYNTHESE, syntheseLue, versRangee } from "./schema";
 
 /**
- * Le moteur de l'analyse des diagnostics (0055).
+ * Le moteur de l'analyse des diagnostics (0056).
  *
  * - `passerHorloge` : appelé toutes les dix minutes par la base
  *   (`api/analyse/horloge`). Il analyse les appels prêts, un à la fois tant

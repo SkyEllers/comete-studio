@@ -48,7 +48,7 @@ npm run test         # tests unitaires (node --test) : attribution Radar, classe
 npm run qa:radar     # Radar : tables, vue, Vault, actions, webhook ; demande un serveur
 npm run qa:sas       # Sas : isolation, porte d'entrée, contraintes des idées et des boîtes
 npm run qa:sas-ia    # Sas : le prompt contre la vraie API Anthropic (deux appels)
-npm run qa:analyse-ia # Analyse des diagnostics (0055) : les vrais diagnostics transcrits, lus par la vraie API, rien n'est écrit (~0,35 $ par appel ; --seul <n>, --montrer)
+npm run qa:analyse-ia # Analyse des diagnostics (0056) : les vrais diagnostics transcrits, lus par la vraie API, rien n'est écrit (~0,35 $ par appel ; --seul <n>, --montrer)
 npm run qa:sonde     # Sonde : isolation, sel, tâches de nuit, point de collecte ; demande un serveur
 npm run qa:export    # Export Radar : cloisonnement, liste blanche, pagination ; demande un serveur
 npm run qa:pulsar    # Pulsar : isolation, chronomètres en parallèle (4 au plus), quarts d'heure, client interne
