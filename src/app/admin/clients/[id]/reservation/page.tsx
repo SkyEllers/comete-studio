@@ -257,7 +257,9 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               de ses absences, sous son maximum du jour, sans chevaucher ses rendez-vous, et libre dans son agenda Google
               (un événement « Disponible » ne bloque pas). Un clic : l&apos;événement passe de l&apos;agenda de la
               titulaire au sien, avec sa visio ; la cliente reçoit le nouveau lien ; Radar et l&apos;assistante suivent.
-              Pris sur Calendly : l&apos;événement reste chez la titulaire, ne le supprime jamais.
+              Pris sur Calendly : l&apos;événement reste dans l&apos;agenda de la titulaire. Elle peut le supprimer de
+              son agenda Google seulement si « Sync cancellations » est coupé dans Calendly (Calendar connections, Add
+              to calendar, Edit) ; sinon, le supprimer annule le rendez-vous chez Calendly (06/10/2026).
             </p>
             {confiables.length ? (
               <ul className="space-y-2">

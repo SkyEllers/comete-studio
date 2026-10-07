@@ -28,7 +28,9 @@ export function ConfierBouton(props: { organizationId: string; bookingId: string
           toast.success(`Confié à ${props.nom}`, {
             description: [
               r.data.mailCliente ? "La cliente a reçu le nouveau lien." : "Le mail à la cliente n'est pas parti : à lui envoyer à la main.",
-              r.data.calendly ? "Pris sur Calendly : Peggy retire l'événement de son agenda." : null,
+              r.data.calendly
+                ? "Pris sur Calendly : l'événement reste dans l'agenda de Peggy. Elle peut le supprimer seulement si « Sync cancellations » est coupé dans Calendly ; sinon le rendez-vous s'annule."
+                : null,
             ]
               .filter(Boolean)
               .join(" "),
