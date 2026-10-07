@@ -2146,6 +2146,198 @@ export type Database = {
           },
         ]
       }
+      radar_analyse_fiches: {
+        Row: {
+          booking_id: string
+          fiche: Json
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          fiche: Json
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          fiche?: Json
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      radar_analyse_lecons: {
+        Row: {
+          appuis: string[]
+          booking_id: string | null
+          creee_le: string
+          decidee_le: string | null
+          id: string
+          nb_appuis: number
+          note: string | null
+          organization_id: string
+          origine: string
+          point: string
+          sens: string
+          statut: string
+          texte: string
+          updated_at: string
+        }
+        Insert: {
+          appuis?: string[]
+          booking_id?: string | null
+          creee_le?: string
+          decidee_le?: string | null
+          id?: string
+          nb_appuis?: number
+          note?: string | null
+          organization_id: string
+          origine?: string
+          point?: string
+          sens?: string
+          statut?: string
+          texte: string
+          updated_at?: string
+        }
+        Update: {
+          appuis?: string[]
+          booking_id?: string | null
+          creee_le?: string
+          decidee_le?: string | null
+          id?: string
+          nb_appuis?: number
+          note?: string | null
+          organization_id?: string
+          origine?: string
+          point?: string
+          sens?: string
+          statut?: string
+          texte?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      radar_analyse_passages: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          moment: string
+          organization_id: string
+          par_titulaire: boolean
+          pourquoi: string | null
+          texte: string
+          vente: boolean
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          moment: string
+          organization_id: string
+          par_titulaire?: boolean
+          pourquoi?: string | null
+          texte: string
+          vente?: boolean
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          moment?: string
+          organization_id?: string
+          par_titulaire?: boolean
+          pourquoi?: string | null
+          texte?: string
+          vente?: boolean
+        }
+        Relationships: []
+      }
+      radar_analyse_syntheses: {
+        Row: {
+          contenu: Json
+          faite_le: string
+          id: string
+          modele: string | null
+          nb_appels: number
+          organization_id: string
+          usage: Json | null
+        }
+        Insert: {
+          contenu: Json
+          faite_le?: string
+          id?: string
+          modele?: string | null
+          nb_appels?: number
+          organization_id: string
+          usage?: Json | null
+        }
+        Update: {
+          contenu?: Json
+          faite_le?: string
+          id?: string
+          modele?: string | null
+          nb_appels?: number
+          organization_id?: string
+          usage?: Json | null
+        }
+        Relationships: []
+      }
+      radar_analyses: {
+        Row: {
+          lecture: Json | null
+          booking_id: string
+          closeuse_id: string | null
+          commencee_le: string | null
+          erreur: string | null
+          etat: string
+          faite_le: string | null
+          issue: string | null
+          issue_cle: string | null
+          lecons_actives: number | null
+          modele: string | null
+          organization_id: string
+          tentatives: number
+          updated_at: string
+          usage: Json | null
+        }
+        Insert: {
+          lecture?: Json | null
+          booking_id: string
+          closeuse_id?: string | null
+          commencee_le?: string | null
+          erreur?: string | null
+          etat?: string
+          faite_le?: string | null
+          issue?: string | null
+          issue_cle?: string | null
+          lecons_actives?: number | null
+          modele?: string | null
+          organization_id: string
+          tentatives?: number
+          updated_at?: string
+          usage?: Json | null
+        }
+        Update: {
+          lecture?: Json | null
+          booking_id?: string
+          closeuse_id?: string | null
+          commencee_le?: string | null
+          erreur?: string | null
+          etat?: string
+          faite_le?: string | null
+          issue?: string | null
+          issue_cle?: string | null
+          lecons_actives?: number | null
+          modele?: string | null
+          organization_id?: string
+          tentatives?: number
+          updated_at?: string
+          usage?: Json | null
+        }
+        Relationships: []
+      }
       radar_booking_activities: {
         Row: {
           booking_id: string
@@ -3933,6 +4125,14 @@ export type Database = {
       is_org_owner: { Args: { org: string }; Returns: boolean }
       org_du_chemin: { Args: { object_name: string }; Returns: string }
       radar_clear_secrets: { Args: { org: string }; Returns: number }
+      radar_analyse_ouverte: {
+        Args: { closeuse: string; org: string }
+        Returns: boolean
+      }
+      radar_analyse_tenus: {
+        Args: { closeuse: string; org: string }
+        Returns: number
+      }
       radar_client_set_status: {
         Args: {
           booking_id: string

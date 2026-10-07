@@ -18,6 +18,7 @@
     "import:radar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/radar-import-historique.mjs",
     "qa:sas": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas.mjs",
     "qa:sas-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sas-ia.mjs",
+    "qa:analyse-ia": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-analyse-ia.mjs",
     "qa:sonde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-sonde.mjs",
     "qa:pulsar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-pulsar.mjs",
     "qa:closeuse": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-closeuse.mjs",

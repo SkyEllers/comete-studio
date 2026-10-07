@@ -53,6 +53,8 @@ import {
 import { noterSansEnregistrement } from "@/tools/resultats/enregistrement-actions";
 import type { Enregistrement, ResumeDiagnostic } from "@/tools/resultats/enregistrement-format";
 import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
+import { OngletAnalyses } from "@/tools/analyse/onglet-client";
+import type { VueCloseuse } from "@/tools/analyse/queries";
 import { BlocDevis } from "@/tools/devis/bloc-client";
 import { BlocMesFactures } from "./factures-client";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
@@ -80,12 +82,13 @@ import type { EspaceCloseuse, RdvCloseuse } from "./queries";
  * quand elle change de mois.
  */
 
-type Onglet = "rdv" | "ventes" | "commission" | "regles";
+type Onglet = "rdv" | "ventes" | "commission" | "analyses" | "regles";
 
 const ONGLETS: { id: Onglet; label: string }[] = [
   { id: "rdv", label: "Mes rendez-vous" },
   { id: "ventes", label: "Mes ventes" },
   { id: "commission", label: "Ma commission" },
+  { id: "analyses", label: "Mes analyses" },
   { id: "regles", label: "Comment ça marche" },
 ];
 
@@ -135,6 +138,7 @@ export function EspaceCloseuseClient({
   aujourdhui,
   vueDeLouis,
   voisines = null,
+  analyses = null,
 }: {
   orgSlug: string;
   organizationId: string;
@@ -144,6 +148,8 @@ export function EspaceCloseuseClient({
   vueDeLouis: boolean;
   /** Pour Louis seulement : la closeuse d'avant et d'après chez ce client (Louis, 07/10/2026). */
   voisines?: { precedente: string; suivante: string; rang: number; total: number } | null;
+  /** L'analyse de ses appels (0055) ; null chez un client sans analyse : pas d'onglet. */
+  analyses?: { vue: VueCloseuse; titulaire: string } | null;
 }) {
   const [onglet, setOnglet] = useState<Onglet>("rdv");
   const [mois, setMois] = useState(moisDuJour);
@@ -251,7 +257,7 @@ export function EspaceCloseuseClient({
       ) : null}
 
       <div role="tablist" className="border-line mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b">
-        {ONGLETS.map((o) => (
+        {ONGLETS.filter((o) => o.id !== "analyses" || analyses).map((o) => (
           <button
             key={o.id}
             role="tab"
@@ -289,6 +295,9 @@ export function EspaceCloseuseClient({
           <BlocMesFactures orgSlug={orgSlug} />
           <OngletCommission releve={releve} mois={mois} moisDuJour={moisDuJour} onFacture={() => setFacture(true)} />
         </div>
+      ) : null}
+      {onglet === "analyses" && analyses ? (
+        <OngletAnalyses vue={analyses.vue} titulaire={analyses.titulaire} prenom={prenom} />
       ) : null}
       {onglet === "regles" ? <OngletRegles espace={espace} /> : null}
 

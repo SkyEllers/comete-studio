@@ -222,5 +222,15 @@ export async function entretenirEnregistrements(
       lignes.map((l) => l.booking_id),
     );
   if (error) console.error(`[diagnostic] purge : lignes non effacées (${error.message})`);
+  // L'analyse de l'appel (0055) part avec lui : sa fiche et ses passages suivent
+  // par la clé étrangère. Le carnet de leçons, sans nom, reste.
+  const { error: analyses } = await admin
+    .from("radar_analyses")
+    .delete()
+    .in(
+      "booking_id",
+      lignes.map((l) => l.booking_id),
+    );
+  if (analyses) console.error(`[diagnostic] purge : analyses non effacées (${analyses.message})`);
   return { rapatries, effaces: error ? 0 : lignes.length };
 }

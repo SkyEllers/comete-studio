@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 
 import { requireCloseuse } from "@/lib/access";
 import { createClient } from "@/lib/supabase/server";
+import { profilDuClient } from "@/tools/analyse/profils";
+import { getVueCloseuse } from "@/tools/analyse/queries";
 import { EspaceCloseuseClient } from "@/tools/closeuse/espace-client";
 import { getEspaceCloseuse } from "@/tools/closeuse/queries";
 import { aujourdhuiAParis } from "@/tools/resultats/format";
@@ -26,7 +28,11 @@ export default async function CloseusePage({
   const { org, role, closeuseId } = await requireCloseuse(orgSlug, c);
 
   const aujourdhui = aujourdhuiAParis();
-  const espace = await getEspaceCloseuse(org.id, closeuseId, aujourdhui);
+  const [espace, vueAnalyses] = await Promise.all([
+    getEspaceCloseuse(org.id, closeuseId, aujourdhui),
+    getVueCloseuse(org.id, closeuseId, role === "admin"),
+  ]);
+  const titulaire = profilDuClient(org.slug)?.titulaire ?? "";
 
   // Pour Louis : passer d'une closeuse à l'autre chez ce client (07/10/2026),
   // dans l'ordre de l'onglet Closeuses, en boucle.
@@ -59,6 +65,7 @@ export default async function CloseusePage({
       aujourdhui={aujourdhui}
       vueDeLouis={role === "admin"}
       voisines={voisines}
+      analyses={vueAnalyses ? { vue: vueAnalyses, titulaire } : null}
     />
   );
 }

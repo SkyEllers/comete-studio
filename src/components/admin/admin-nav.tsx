@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/admin/agent", label: "Agent" },
   { href: "/admin/automatisations", label: "Automatisations" },
   { href: "/admin/closeuse", label: "Closeuses" },
+  { href: "/admin/analyses", label: "Analyses" },
 ];
 
 export function AdminNav({ className }: { className?: string }) {
