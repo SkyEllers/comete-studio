@@ -2165,7 +2165,22 @@ export type Database = {
           organization_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "radar_analyse_fiches_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_analyses"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "radar_analyse_fiches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       radar_analyse_lecons: {
         Row: {
@@ -2216,7 +2231,29 @@ export type Database = {
           texte?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "radar_analyse_lecons_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_analyse_lecons_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_analyse_lecons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       radar_analyse_passages: {
         Row: {
@@ -2252,7 +2289,22 @@ export type Database = {
           texte?: string
           vente?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "radar_analyse_passages_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_analyses"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "radar_analyse_passages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       radar_analyse_syntheses: {
         Row: {
@@ -2282,11 +2334,18 @@ export type Database = {
           organization_id?: string
           usage?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "radar_analyse_syntheses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       radar_analyses: {
         Row: {
-          lecture: Json | null
           booking_id: string
           closeuse_id: string | null
           commencee_le: string | null
@@ -2296,6 +2355,7 @@ export type Database = {
           issue: string | null
           issue_cle: string | null
           lecons_actives: number | null
+          lecture: Json | null
           modele: string | null
           organization_id: string
           tentatives: number
@@ -2303,7 +2363,6 @@ export type Database = {
           usage: Json | null
         }
         Insert: {
-          lecture?: Json | null
           booking_id: string
           closeuse_id?: string | null
           commencee_le?: string | null
@@ -2313,6 +2372,7 @@ export type Database = {
           issue?: string | null
           issue_cle?: string | null
           lecons_actives?: number | null
+          lecture?: Json | null
           modele?: string | null
           organization_id: string
           tentatives?: number
@@ -2320,7 +2380,6 @@ export type Database = {
           usage?: Json | null
         }
         Update: {
-          lecture?: Json | null
           booking_id?: string
           closeuse_id?: string | null
           commencee_le?: string | null
@@ -2330,13 +2389,43 @@ export type Database = {
           issue?: string | null
           issue_cle?: string | null
           lecons_actives?: number | null
+          lecture?: Json | null
           modele?: string | null
           organization_id?: string
           tentatives?: number
           updated_at?: string
           usage?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "radar_analyses_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_analyses_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_analyses_closeuse_id_fkey"
+            columns: ["closeuse_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_analyses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       radar_booking_activities: {
         Row: {
@@ -4105,6 +4194,7 @@ export type Database = {
         Args: { kind: string; org: string; value: string }
         Returns: undefined
       }
+      analyse_horloge: { Args: never; Returns: number }
       can_access_board: { Args: { b: string }; Returns: boolean }
       can_access_files: { Args: { org: string }; Returns: boolean }
       can_access_files_path: { Args: { object_name: string }; Returns: boolean }
@@ -4124,7 +4214,6 @@ export type Database = {
       is_member: { Args: { org: string }; Returns: boolean }
       is_org_owner: { Args: { org: string }; Returns: boolean }
       org_du_chemin: { Args: { object_name: string }; Returns: string }
-      radar_clear_secrets: { Args: { org: string }; Returns: number }
       radar_analyse_ouverte: {
         Args: { closeuse: string; org: string }
         Returns: boolean
@@ -4133,6 +4222,7 @@ export type Database = {
         Args: { closeuse: string; org: string }
         Returns: number
       }
+      radar_clear_secrets: { Args: { org: string }; Returns: number }
       radar_client_set_status: {
         Args: {
           booking_id: string
