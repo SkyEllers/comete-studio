@@ -9,7 +9,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lireJeton, reecrireDescription } from "@/tools/reservation/agenda";
-import { confierRendezVous } from "@/tools/reservation/confier";
+import { confierRendezVous, rendreATitulaire } from "@/tools/reservation/confier";
 import { identifiants, jetonAcces, teinterConfie, type Teinte } from "@/tools/reservation/google";
 import { baseEspace } from "@/tools/reservation/suites";
 
@@ -301,6 +301,26 @@ export async function confierUnRendezVous(
 
   const admin = createAdminClient();
   const r = await confierRendezVous(admin, parsed.data.organizationId, parsed.data.bookingId, parsed.data.personneId, ids);
+  if (!r.ok) return fail(r.erreur);
+  revalidatePath(`/admin/clients/${parsed.data.organizationId}/reservation`);
+  return ok({ mailCliente: r.mailCliente, calendly: r.calendly, agendaTitulaire: r.agendaTitulaire });
+}
+
+const rendreSchema = z.object({
+  organizationId: organisation,
+  bookingId: z.uuid({ error: "Rendez-vous introuvable." }),
+});
+
+/** Rendre à la titulaire un diagnostic confié (Louis, 07/10/2026 : une closeuse se désiste). */
+export async function rendreUnRendezVous(
+  input: unknown,
+): Promise<ActionResult<{ mailCliente: boolean; calendly: boolean; agendaTitulaire: string | null }>> {
+  await requireAdmin();
+  const parsed = rendreSchema.safeParse(input);
+  if (!parsed.success) return failFromZod(parsed.error);
+  const ids = identifiants();
+  if (!ids) return fail("Identifiants Google absents du serveur.");
+  const r = await rendreATitulaire(createAdminClient(), parsed.data.organizationId, parsed.data.bookingId, ids);
   if (!r.ok) return fail(r.erreur);
   revalidatePath(`/admin/clients/${parsed.data.organizationId}/reservation`);
   return ok({ mailCliente: r.mailCliente, calendly: r.calendly, agendaTitulaire: r.agendaTitulaire });

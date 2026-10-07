@@ -16,7 +16,7 @@ import {
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { heureEnMots, jourEnMots } from "@/tools/agent/temps";
-import { diagnosticsAConfier, type LireOccupe } from "@/tools/reservation/a-confier";
+import { diagnosticsAConfier, diagnosticsConfies, type LireOccupe } from "@/tools/reservation/a-confier";
 import { agendasGoogle, lecteurOccupe } from "@/tools/reservation/agenda";
 import { parJour } from "@/tools/reservation/creneaux";
 import { depotSupabase } from "@/tools/reservation/depot";
@@ -32,7 +32,7 @@ import {
   ReecrireDescriptions,
   RevoquerJeton,
 } from "./reservation-forms";
-import { ConfierBouton, TeinterDejaConfies } from "./confier-forms";
+import { ConfierBouton, RendreBouton, TeinterDejaConfies } from "./confier-forms";
 
 /**
  * La réservation d'un client, vue par Louis : qui prend des diagnostics,
@@ -123,9 +123,12 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
       libelle: `${nom(m.profiles)} (${m.role === "closeuse" ? "closeuse" : "titulaire"})`,
     }));
   const noms = new Map(personnes.map((p) => [p.id, nom(p.profiles)]));
-  const [vue, tousAConfier] = await Promise.all([
+  const titulaireLue = personnes.find((p) => p.role === "titulaire");
+  const nomTitulaire = titulaireLue ? nom(titulaireLue.profiles).split(" ")[0] : "la titulaire";
+  const [vue, tousAConfier, dejaConfies] = await Promise.all([
     reglages ? apercu(org.id) : Promise.resolve(null),
     reglages ? diagnosticsAConfier(admin, org.id, lireOccupe(admin)) : Promise.resolve([]),
+    reglages ? diagnosticsConfies(admin, org.id) : Promise.resolve([]),
   ]);
 
   const confiables = tousAConfier.filter((r) => r.candidates.length > 0);
@@ -313,6 +316,32 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               </ul>
             ) : (
               <p className="text-muted-foreground text-sm">Tous les diagnostics à venir ont une closeuse possible.</p>
+            )}
+
+            <h3 className="pt-3 text-base">Déjà confiés ({dejaConfies.length})</h3>
+            <p className="text-muted-foreground text-sm">
+              Une closeuse se désiste : « Rendre » remet le rendez-vous à la titulaire (son agenda, Radar, l&apos;assistante)
+              et envoie à la cliente le nouveau lien de visio. Pris sur Calendly : son événement reprend sa couleur et
+              « Occupé ».
+            </p>
+            {dejaConfies.length ? (
+              <ul className="space-y-2">
+                {dejaConfies.map((r) => (
+                  <li key={r.bookingId} className="border-line flex flex-wrap items-center gap-2 border-t pt-2 text-sm">
+                    <span className="font-medium">
+                      {jourEnMots(r.debut, reglages.fuseau)}, {heureEnMots(r.debut, reglages.fuseau)}
+                    </span>
+                    <span>{r.prenom}</span>
+                    <span className="text-muted-foreground">chez {r.closeuse}</span>
+                    {r.calendly ? <Badge variant="outline">Calendly</Badge> : null}
+                    <span className="ml-auto">
+                      <RendreBouton organizationId={org.id} bookingId={r.bookingId} prenom={r.prenom} titulaire={nomTitulaire} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground text-sm">Aucun diagnostic confié à venir.</p>
             )}
           </section>
 

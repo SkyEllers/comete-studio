@@ -15,6 +15,7 @@ import {
   idEvenement,
   jetonAcces,
   occupe,
+  deteindreConfie,
   teinterConfie,
 } from "./google.ts";
 
@@ -277,6 +278,16 @@ describe("Google : un rendez-vous Calendly confié, en Tomate et Disponible (07/
     const { f, appels } = faux([{ corps: { items: [{ id: "a", start: { dateTime: "2026-10-08T18:30:00+02:00" }, attendees: [] }] } }]);
     assert.equal(await teinterConfie("ya29", r, f), "introuvable");
     assert.equal(appels.length, 1);
+  });
+
+  it("rendu à la titulaire : couleur de l'agenda et « Occupé », sans prévenir personne", async () => {
+    const { f, appels } = faux([
+      { corps: { items: [{ id: "calendly1", start: { dateTime: "2026-10-08T18:30:00+02:00" }, attendees: [{ email: "sandrine@exemple.fr" }] }] } },
+      { corps: { id: "calendly1" } },
+    ]);
+    assert.equal(await deteindreConfie("ya29", r, f), "teinte");
+    assert.match(appels[1].url, /sendUpdates=none$/);
+    assert.deepEqual(JSON.parse(String(appels[1].init?.body)), { colorId: null, transparency: "opaque" });
   });
 
   it("sans le droit de modifier : le dit, sans erreur", async () => {

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
-import { confierUnRendezVous, teinterDejaConfies } from "./actions";
+import { confierUnRendezVous, rendreUnRendezVous, teinterDejaConfies } from "./actions";
 
 export function ConfierBouton(props: { organizationId: string; bookingId: string; personneId: string; nom: string }) {
   const [enCours, startTransition] = useTransition();
@@ -92,6 +92,44 @@ export function TeinterDejaConfies({ organizationId }: { organizationId: string 
       }
     >
       {enCours ? "En cours…" : "Passer en Tomate les rendez-vous Calendly déjà confiés"}
+    </Button>
+  );
+}
+
+/** Rendre à la titulaire un diagnostic confié (Louis, 07/10/2026). */
+export function RendreBouton(props: { organizationId: string; bookingId: string; prenom: string; titulaire: string }) {
+  const [enCours, startTransition] = useTransition();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={enCours}
+      onClick={() => {
+        const question = `Rendre le rendez-vous de ${props.prenom} à ${props.titulaire} ? La cliente reçoit un nouveau lien de visio.`;
+        if (!window.confirm(question)) return;
+        startTransition(async () => {
+          const r = await rendreUnRendezVous({ organizationId: props.organizationId, bookingId: props.bookingId });
+          if (!r.ok) {
+            toast.error(r.error);
+            return;
+          }
+          toast.success(`Rendu à ${props.titulaire}`, {
+            description: [
+              r.data.mailCliente ? "La cliente a reçu le nouveau lien." : "Le mail à la cliente n'est pas parti : à lui envoyer à la main.",
+              r.data.calendly
+                ? r.data.agendaTitulaire === "teinte"
+                  ? "Son événement Calendly reprend sa couleur et « Occupé »."
+                  : "Son événement Calendly n'a pas pu reprendre sa couleur : le faire à la main."
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" "),
+            duration: 10_000,
+          });
+        });
+      }}
+    >
+      {enCours ? "En cours…" : `Rendre à ${props.titulaire}`}
     </Button>
   );
 }

@@ -147,3 +147,29 @@ export async function diagnosticsAConfier(admin: Admin, org: string, lireOccupe:
     };
   });
 }
+
+export type DejaConfie = { bookingId: string; debut: string; prenom: string; closeuse: string; calendly: boolean };
+
+/** Les diagnostics à venir déjà confiés à une closeuse, pour « Rendre à la titulaire » (07/10/2026). */
+export async function diagnosticsConfies(admin: Admin, org: string): Promise<DejaConfie[]> {
+  const { data: rdvs } = await admin
+    .from("radar_bookings")
+    .select("id, scheduled_start, invitee_first_name, invitee_uri, closeuse_id")
+    .eq("organization_id", org)
+    .eq("status", "confirme")
+    .not("closeuse_id", "is", null)
+    .gt("scheduled_start", new Date().toISOString())
+    .ilike("event_type_name", "%diagnostic%")
+    .order("scheduled_start");
+  const ids = [...new Set((rdvs ?? []).map((r) => r.closeuse_id).filter((x): x is string => Boolean(x)))];
+  const { data: profils } = ids.length
+    ? await admin.from("profiles").select("id, full_name").in("id", ids)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  return (rdvs ?? []).map((r) => ({
+    bookingId: r.id,
+    debut: r.scheduled_start,
+    prenom: r.invitee_first_name || "Une cliente",
+    closeuse: profils?.find((p) => p.id === r.closeuse_id)?.full_name ?? "Closeuse",
+    calendly: !String(r.invitee_uri).startsWith("reservation:"),
+  }));
+}

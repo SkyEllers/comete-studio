@@ -195,6 +195,27 @@ export async function teinterConfie(
   r: { debut: string; fin: string; email: string; nom?: string | null },
   f: Fetch = fetch,
 ): Promise<Teinte> {
+  return changerTeinte(acces, r, true, f);
+}
+
+/**
+ * L'inverse, quand un rendez-vous Calendly est rendu à la titulaire (Louis,
+ * 07/10/2026) : couleur de l'agenda et « Occupé ».
+ */
+export async function deteindreConfie(
+  acces: string,
+  r: { debut: string; fin: string; email: string; nom?: string | null },
+  f: Fetch = fetch,
+): Promise<Teinte> {
+  return changerTeinte(acces, r, false, f);
+}
+
+async function changerTeinte(
+  acces: string,
+  r: { debut: string; fin: string; email: string; nom?: string | null },
+  tomate: boolean,
+  f: Fetch,
+): Promise<Teinte> {
   const debut = Date.parse(r.debut);
   const params = new URLSearchParams({
     timeMin: new Date(debut - 60_000).toISOString(),
@@ -225,7 +246,9 @@ export async function teinterConfie(
     {
       method: "PATCH",
       headers: { authorization: `Bearer ${acces}`, "content-type": "application/json" },
-      body: JSON.stringify({ colorId: COULEUR_TOMATE, transparency: "transparent" }),
+      body: JSON.stringify(
+        tomate ? { colorId: COULEUR_TOMATE, transparency: "transparent" } : { colorId: null, transparency: "opaque" },
+      ),
     },
   );
   if (maj.status === 403) return "sans_droit";
