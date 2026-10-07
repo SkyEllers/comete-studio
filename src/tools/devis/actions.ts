@@ -28,6 +28,8 @@ export type EtatDevis = {
   prenom: string;
   email: string;
   dureeMois: number;
+  /** La cliente ne prend que l'investigation (Louis, 07/10/2026). */
+  investigationSeule: boolean;
   paiement: Paiement;
   totalCents: number;
   envoyeLe: string;
@@ -59,7 +61,7 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
   const [{ data: dernier }, { data: resa }] = await Promise.all([
     brut(admin)
       .from("devis")
-      .select("id, statut, prenom, email, duree_mois, paiement, total_cents, envoye_le, ouvert_le, relances, valide_jusqu_au, signe_le, paye_le, paiement_lien_le")
+      .select("id, statut, prenom, email, duree_mois, mensualite_cents, paiement, total_cents, envoye_le, ouvert_le, relances, valide_jusqu_au, signe_le, paye_le, paiement_lien_le")
       .eq("booking_id", lu.rdv.id)
       .neq("statut", "annule")
       .order("created_at", { ascending: false })
@@ -93,6 +95,7 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
           prenom: dernier.prenom,
           email: dernier.email,
           dureeMois: dernier.duree_mois,
+          investigationSeule: dernier.mensualite_cents === 0,
           paiement: dernier.paiement,
           totalCents: dernier.total_cents,
           envoyeLe: dernier.envoye_le,
@@ -128,7 +131,8 @@ const envoiSchema = z.object({
   nom: z.string().trim().max(100),
   email: z.email({ error: "Son adresse mail ne ressemble pas à une adresse mail." }).max(254),
   telephone: z.string().trim().max(40),
-  dureeMois: z.coerce.number().int().min(1, { error: "La durée va de 1 à 24 mois." }).max(24, { error: "La durée va de 1 à 24 mois." }),
+  // 0 : l'investigation seule (`INVESTIGATION_SEULE`).
+  dureeMois: z.coerce.number().int().min(0, { error: "La durée va de 1 à 24 mois." }).max(24, { error: "La durée va de 1 à 24 mois." }),
   paiement: z.enum(["une_fois", "plusieurs"], { error: "Choisis en 1 fois ou en plusieurs fois." }),
 });
 

@@ -58,6 +58,8 @@ export type ProfilDevis = {
   versionTexte: string;
   /** Le texte avant l'investissement (l'objet, les phases). */
   avant: Bloc[];
+  /** Le même pour une investigation seule (sans les phases qu'elle n'achète pas) ; `avant` à défaut. */
+  avantInvestigationSeule?: Bloc[];
   /** Ce que comprend la mensualité, en puces. */
   mensualiteComprend: string[];
   /** Le texte après l'investissement (conditions, rétractation…). */
@@ -78,9 +80,20 @@ export type Montants = {
   totalCents: number;
 };
 
+/**
+ * La durée 0 veut dire « investigation seule » (Louis, 07/10/2026) : la
+ * cliente ne prend que l'investigation, en 1 fois, sans accompagnement. Elle
+ * se garde en base comme 1 mois à 0 € (la colonne `duree_mois` va de 1 à 24) :
+ * c'est la mensualité à 0 qui la reconnaît ensuite (`investigationSeule`).
+ */
+export const INVESTIGATION_SEULE = 0;
+
 export function montants(p: Pick<ProfilDevis, "investigationCents" | "mensualiteCents" | "remiseUneFoisCents">, dureeMois: number, paiement: Paiement): Montants {
-  if (!Number.isInteger(dureeMois) || dureeMois < 1 || dureeMois > 24) {
+  if (!Number.isInteger(dureeMois) || dureeMois < 0 || dureeMois > 24) {
     throw new Error("La durée va de 1 à 24 mois.");
+  }
+  if (dureeMois === INVESTIGATION_SEULE) {
+    return montants({ investigationCents: p.investigationCents, mensualiteCents: 0, remiseUneFoisCents: 0 }, 1, "une_fois");
   }
   const totalEchelonneCents = p.investigationCents + p.mensualiteCents * dureeMois;
   const totalUneFoisCents = totalEchelonneCents - p.remiseUneFoisCents;
@@ -94,6 +107,11 @@ export function montants(p: Pick<ProfilDevis, "investigationCents" | "mensualite
     paiement,
     totalCents: paiement === "une_fois" ? totalUneFoisCents : totalEchelonneCents,
   };
+}
+
+/** La cliente ne prend que l'investigation : pas de mensualité. */
+export function investigationSeule(m: Pick<Montants, "mensualiteCents">): boolean {
+  return m.mensualiteCents === 0;
 }
 
 /** « 1 250 € », « 1 250,50 € ». */
@@ -180,7 +198,19 @@ export function nomComplet(c: Pick<Cliente, "prenom" | "nom">): string {
 }
 
 export function contenu(p: ProfilDevis, cliente: Cliente, m: Montants, valide: string): Contenu {
-  const investissement: Bloc = {
+  const seule = investigationSeule(m);
+  const investissement: Bloc = seule
+    ? {
+        titre: "Investissement",
+        paragraphes: [
+          `${euros(m.investigationCents)} : investigation initiale seule. Analyses, tests et investigations nécessaires pour comprendre votre fonctionnement.`,
+        ],
+        apres: [
+          "L'accompagnement mensuel n'est pas compris dans ce devis.",
+          `Votre choix : paiement en 1 fois, ${euros(m.totalCents)}.`,
+        ],
+      }
+    : {
     titre: "Investissement",
     paragraphes: [
       `${euros(m.investigationCents)} : investigation initiale. Analyses, tests et investigations nécessaires pour comprendre votre fonctionnement et construire votre stratégie personnalisée.`,
@@ -225,7 +255,14 @@ export function contenu(p: ProfilDevis, cliente: Cliente, m: Montants, valide: s
     vendeur: p.vendeur,
     montants: m,
     valideJusquAu: valide,
-    blocs: [...p.avant, investissement, modalites, conditions, ...p.apres, formulaireRetractation(p.vendeur)],
+    blocs: [
+      ...(seule ? (p.avantInvestigationSeule ?? p.avant) : p.avant),
+      investissement,
+      modalites,
+      conditions,
+      ...p.apres,
+      formulaireRetractation(p.vendeur),
+    ],
   };
 }
 

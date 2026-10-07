@@ -9,6 +9,8 @@ import {
   empreinte,
   euros,
   expire,
+  INVESTIGATION_SEULE,
+  investigationSeule,
   lienValide,
   montants,
   rappelDu,
@@ -25,9 +27,26 @@ describe("les montants", () => {
     assert.equal(m.totalCents, 152_000);
     assert.equal(montants(devisPeggy, 6, "une_fois").totalCents, 147_000);
   });
-  it("refuse une durée hors de 1 à 24 mois", () => {
-    assert.throws(() => montants(devisPeggy, 0, "une_fois"));
+  it("refuse une durée hors de 0 à 24 mois", () => {
+    assert.throws(() => montants(devisPeggy, -1, "une_fois"));
     assert.throws(() => montants(devisPeggy, 25, "une_fois"));
+  });
+  it("l'investigation seule : 500 € en 1 fois, sans mensualité ni remise (Louis, 07/10/2026)", () => {
+    for (const paiement of ["une_fois", "plusieurs"] as const) {
+      const m = montants(devisPeggy, INVESTIGATION_SEULE, paiement);
+      assert.equal(m.totalCents, 50_000);
+      assert.equal(m.paiement, "une_fois");
+      assert.equal(m.mensualiteCents, 0);
+      assert.equal(m.remiseUneFoisCents, 0);
+      assert.equal(m.dureeMois, 1);
+      assert.equal(investigationSeule(m), true);
+    }
+    assert.equal(investigationSeule(montants(devisPeggy, 1, "plusieurs")), false);
+  });
+  it("relu depuis la base (1 mois à 0 €), le devis reste une investigation seule", () => {
+    const m = montants({ investigationCents: 50_000, mensualiteCents: 0, remiseUneFoisCents: 0 }, 1, "une_fois");
+    assert.equal(m.totalCents, 50_000);
+    assert.equal(investigationSeule(m), true);
   });
   it("écrit les euros à la française", () => {
     assert.equal(euros(140_000), "1 400 €");
@@ -66,6 +85,24 @@ describe("le contenu signé", () => {
     assert.match(texte, /Votre choix : paiement en plusieurs fois, 1 520 € au total/);
     assert.match(texte, /Formulaire de rétractation/);
     assert.match(texte, /valable jusqu'au 8 octobre 2026 inclus/);
+  });
+
+  it("l'investigation seule : la phase 1, 500 € en 1 fois, ni mensualité ni autres phases", () => {
+    const seule = contenu(devisPeggy, cliente, montants(devisPeggy, INVESTIGATION_SEULE, "une_fois"), "2026-10-08");
+    const texte = JSON.stringify(seule.blocs);
+    assert.match(texte, /500 € : investigation initiale seule/);
+    assert.match(texte, /Paiement en 1 fois : 500 €/);
+    assert.match(texte, /1\. Phase d'investigation/);
+    assert.match(texte, /Formulaire de rétractation/);
+    assert.doesNotMatch(texte, /par mois/);
+    assert.doesNotMatch(texte, /2\. Phase de transformation/);
+    assert.doesNotMatch(texte, /Objet de votre accompagnement/);
+  });
+
+  it("l'accompagnement garde ses quatre phases", () => {
+    const texte = JSON.stringify(c.blocs);
+    assert.match(texte, /Objet de votre accompagnement/);
+    assert.match(texte, /4\. Phase d'envol/);
   });
 
   it("l'empreinte change dès qu'un mot change", () => {

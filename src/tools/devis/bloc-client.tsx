@@ -55,7 +55,8 @@ function Etat({ orgSlug, bookingId, devis, onRenvoye }: { orgSlug: string; booki
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={devis.statut === "signe" ? "default" : "outline"}>{libelle}</Badge>
         <span className="text-muted-foreground">
-          {euros(devis.totalCents)} · {devis.dureeMois} mois · {devis.paiement === "une_fois" ? "en 1 fois" : "en plusieurs fois"}
+          {euros(devis.totalCents)} · {devis.investigationSeule ? "investigation seule" : `${devis.dureeMois} mois`} ·{" "}
+          {devis.paiement === "une_fois" ? "en 1 fois" : "en plusieurs fois"}
         </span>
       </div>
       <ul className="text-muted-foreground space-y-0.5 text-xs">
@@ -138,8 +139,12 @@ function Formulaire({
   }, [bookingId, duree, paiement, prenom, nom, email, telephone]);
 
   const t = donnees.tarifs;
+  // Durée 0 : l'investigation seule, en 1 fois (Louis, 07/10/2026).
+  const seule = duree === 0;
   const total = t
-    ? t.investigationCents + t.mensualiteCents * duree - (paiement === "une_fois" ? t.remiseUneFoisCents : 0)
+    ? seule
+      ? t.investigationCents
+      : t.investigationCents + t.mensualiteCents * duree - (paiement === "une_fois" ? t.remiseUneFoisCents : 0)
     : 0;
 
   return (
@@ -149,7 +154,15 @@ function Formulaire({
         e.preventDefault();
         setErreur(null);
         demarrer(async () => {
-          const r = await envoyerLeDevis(orgSlug, { bookingId, prenom, nom, email, telephone, dureeMois: duree, paiement });
+          const r = await envoyerLeDevis(orgSlug, {
+            bookingId,
+            prenom,
+            nom,
+            email,
+            telephone,
+            dureeMois: duree,
+            paiement: seule ? "une_fois" : paiement,
+          });
           if (!r.ok) {
             setErreur(r.error);
             return;
@@ -164,7 +177,7 @@ function Formulaire({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label className="mb-1 text-xs" htmlFor={`devis-duree-${bookingId}`}>
-            Durée de l&apos;accompagnement
+            Ce qu&apos;elle prend
           </Label>
           <select
             id={`devis-duree-${bookingId}`}
@@ -172,44 +185,49 @@ function Formulaire({
             value={duree}
             onChange={(e) => setDuree(Number(e.target.value))}
           >
+            {t ? <option value={0}>Investigation seule ({euros(t.investigationCents)})</option> : null}
             {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
-                {n} mois
+                Accompagnement {n} mois
               </option>
             ))}
           </select>
         </div>
-        <fieldset>
-          <legend className="mb-1 text-xs">Paiement</legend>
-          <div className="flex gap-2">
-            {(
-              [
-                ["plusieurs", "En plusieurs fois"],
-                ["une_fois", "En 1 fois"],
-              ] as const
-            ).map(([valeur, texte]) => (
-              <button
-                key={valeur}
-                type="button"
-                onClick={() => setPaiement(valeur)}
-                className={cn(
-                  "border-line h-9 flex-1 rounded-md border px-2 text-sm",
-                  paiement === valeur && "border-ember bg-ember/10",
-                )}
-                aria-pressed={paiement === valeur}
-              >
-                {texte}
-              </button>
-            ))}
-          </div>
-        </fieldset>
+        {seule ? null : (
+          <fieldset>
+            <legend className="mb-1 text-xs">Paiement</legend>
+            <div className="flex gap-2">
+              {(
+                [
+                  ["plusieurs", "En plusieurs fois"],
+                  ["une_fois", "En 1 fois"],
+                ] as const
+              ).map(([valeur, texte]) => (
+                <button
+                  key={valeur}
+                  type="button"
+                  onClick={() => setPaiement(valeur)}
+                  className={cn(
+                    "border-line h-9 flex-1 rounded-md border px-2 text-sm",
+                    paiement === valeur && "border-ember bg-ember/10",
+                  )}
+                  aria-pressed={paiement === valeur}
+                >
+                  {texte}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        )}
       </div>
 
       {t ? (
         <p className="text-sm">
           <span className="font-medium">{euros(total)}</span>{" "}
           <span className="text-muted-foreground">
-            {paiement === "une_fois"
+            {seule
+              ? "en 1 fois, sans accompagnement mensuel"
+              : paiement === "une_fois"
               ? `en 1 fois (${euros(t.remiseUneFoisCents)} de moins)`
               : `: ${euros(t.investigationCents)}, puis ${duree} × ${euros(t.mensualiteCents)} par mois`}
           </span>

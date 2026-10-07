@@ -1,4 +1,4 @@
-import type { ProfilDevis } from "../regles.ts";
+import type { Bloc, ProfilDevis } from "../regles.ts";
 
 /**
  * Le devis de Peggy, repris mot pour mot de son modèle LibreOffice
@@ -18,6 +18,27 @@ import type { ProfilDevis } from "../regles.ts";
  * L'entreprise est la LLC tant que l'EURL n'est pas immatriculée ; à ce
  * moment, changer `vendeur` et `versionTexte`.
  */
+const PHASE_INVESTIGATION: Bloc = {
+  titre: "1. Phase d'investigation : comprendre votre fonctionnement",
+  paragraphes: [
+    "Avant de proposer une stratégie, mon rôle est d'abord de comprendre pourquoi votre corps fonctionne aujourd'hui comme il fonctionne.",
+    "Je ne travaille jamais à partir de suppositions. Mon rôle est de rassembler les différentes pièces du puzzle afin d'identifier les causes pouvant expliquer votre fatigue, vos ballonnements et les difficultés que vous rencontrez pour retrouver votre poids d'équilibre.",
+    "Selon vos besoins, cette phase peut inclure :",
+  ],
+  puces: [
+    "analyse du microbiote avec GniomCheck",
+    "bilan OligoCheck",
+    "questionnaires émotionnels",
+    "analyse du rapport au corps",
+    "exploration des croyances limitantes",
+    "bilan neuromédiateurs et analyse de vos habitudes de vie",
+    "autres outils pertinents selon votre situation comme test du stress, test d'addiction au sucre, bilan de potentiels …",
+  ],
+  apres: [
+    "Les outils d'investigation sont sélectionnés exclusivement par la thérapeute selon les besoins identifiés lors du rendez-vous diagnostic et pourront évoluer au cours de l'accompagnement.",
+  ],
+};
+
 export const devisPeggy: ProfilDevis = {
   slug: "peggy",
   site: "https://www.peggygirault.fr",
@@ -42,7 +63,11 @@ export const devisPeggy: ProfilDevis = {
   remiseUneFoisCents: 5_000,
   dureeParDefaut: 6,
   validiteJours: 7,
-  versionTexte: "peggy-2026-09-28",
+  // 07/10/2026 : l'investigation seule (le texte de l'accompagnement ne change pas).
+  versionTexte: "peggy-2026-10-07",
+
+  // L'investigation seule (Louis, 07/10/2026) : la phase 1 seulement.
+  avantInvestigationSeule: [PHASE_INVESTIGATION],
 
   avant: [
     {
@@ -52,26 +77,7 @@ export const devisPeggy: ProfilDevis = {
         "Cet accompagnement comprend 4 grandes phases.",
       ],
     },
-    {
-      titre: "1. Phase d'investigation : comprendre votre fonctionnement",
-      paragraphes: [
-        "Avant de proposer une stratégie, mon rôle est d'abord de comprendre pourquoi votre corps fonctionne aujourd'hui comme il fonctionne.",
-        "Je ne travaille jamais à partir de suppositions. Mon rôle est de rassembler les différentes pièces du puzzle afin d'identifier les causes pouvant expliquer votre fatigue, vos ballonnements et les difficultés que vous rencontrez pour retrouver votre poids d'équilibre.",
-        "Selon vos besoins, cette phase peut inclure :",
-      ],
-      puces: [
-        "analyse du microbiote avec GniomCheck",
-        "bilan OligoCheck",
-        "questionnaires émotionnels",
-        "analyse du rapport au corps",
-        "exploration des croyances limitantes",
-        "bilan neuromédiateurs et analyse de vos habitudes de vie",
-        "autres outils pertinents selon votre situation comme test du stress, test d'addiction au sucre, bilan de potentiels …",
-      ],
-      apres: [
-        "Les outils d'investigation sont sélectionnés exclusivement par la thérapeute selon les besoins identifiés lors du rendez-vous diagnostic et pourront évoluer au cours de l'accompagnement.",
-      ],
-    },
+    PHASE_INVESTIGATION,
     {
       titre: "2. Phase de transformation : construire une stratégie sur mesure",
       paragraphes: [

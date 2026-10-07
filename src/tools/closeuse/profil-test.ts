@@ -389,6 +389,7 @@ export type DevisTest = {
   statut: string;
   totalCents: number;
   dureeMois: number;
+  investigationSeule: boolean;
   ouvert: boolean;
   paye: boolean;
 };
@@ -400,7 +401,7 @@ export async function devisDuProfilTest(): Promise<DevisTest[]> {
   if (!org || !profil) return [];
   const { data } = await brut(admin)
     .from("devis")
-    .select("id, prenom, statut, total_cents, duree_mois, ouvert_le, paye_le, created_at")
+    .select("id, prenom, statut, total_cents, duree_mois, mensualite_cents, ouvert_le, paye_le, created_at")
     .eq("organization_id", org.id)
     .neq("statut", "annule")
     .order("created_at", { ascending: false })
@@ -411,6 +412,7 @@ export async function devisDuProfilTest(): Promise<DevisTest[]> {
     statut: string;
     total_cents: number;
     duree_mois: number;
+    mensualite_cents: number;
     ouvert_le: string | null;
     paye_le: string | null;
   }[]).map((d) => ({
@@ -419,6 +421,7 @@ export async function devisDuProfilTest(): Promise<DevisTest[]> {
     statut: d.statut,
     totalCents: d.total_cents,
     dureeMois: d.duree_mois,
+    investigationSeule: d.mensualite_cents === 0,
     ouvert: Boolean(d.ouvert_le),
     paye: Boolean(d.paye_le),
   }));

@@ -145,7 +145,7 @@ export default async function CloseusePage() {
               <li key={d.id} className="border-line flex flex-wrap items-center gap-2 border-t pt-2 text-sm">
                 <span className="font-medium">{d.prenom}</span>
                 <span className="text-muted-foreground">
-                  {euros(d.totalCents)}, {d.dureeMois} mois ·{" "}
+                  {euros(d.totalCents)}, {d.investigationSeule ? "investigation seule" : `${d.dureeMois} mois`} ·{" "}
                   {d.statut === "signe" ? (d.paye ? "signé et payé" : "signé, paiement en attente") : d.statut === "envoye" ? (d.ouvert ? "ouvert" : "envoyé") : d.statut}
                 </span>
                 <span className="ml-auto flex gap-2">
