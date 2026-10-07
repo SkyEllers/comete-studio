@@ -19,8 +19,9 @@ import { envoyerLeDevis, lireBlocDevis, renvoyerLeDevis, type BlocDevisDonnees, 
  * Après le diagnostic, la closeuse (ou Peggy) choisit la durée et « en 1
  * fois » ou « en plusieurs fois », vérifie le mail de la cliente, et clique
  * « Envoyer le devis ». La cliente le reçoit, le signe en un clic ; un rappel
- * part chaque jour tant qu'elle n'a pas signé ; signé, la vente s'inscrit
- * seule dans Radar et le lien de paiement Stripe lui part.
+ * part chaque jour tant qu'elle n'a pas signé ; signé, le lien de paiement
+ * Stripe lui part, et la vente s'inscrit seule dans Radar quand elle a payé
+ * (06/10/2026).
  */
 
 const euros = (cents: number) =>
@@ -72,9 +73,9 @@ function Etat({ orgSlug, bookingId, devis, onRenvoye }: { orgSlug: string; booki
             Un rappel par jour jusqu&apos;au {jourSeul(devis.valideJusquAu)}.
           </li>
         ) : null}
-        {devis.signeLe ? <li>Signé le {quand(devis.signeLe)} : la vente est dans Radar.</li> : null}
+        {devis.signeLe ? <li>Signé le {quand(devis.signeLe)}</li> : null}
         {devis.paiementLienLe && !devis.payeLe ? <li>Page de paiement ouverte le {quand(devis.paiementLienLe)}</li> : null}
-        {devis.payeLe ? <li>Paiement mis en place le {quand(devis.payeLe)}</li> : null}
+        {devis.payeLe ? <li>Paiement mis en place le {quand(devis.payeLe)} : la vente est inscrite.</li> : null}
       </ul>
       <div className="flex flex-wrap gap-2">
         {devis.statut !== "signe" ? (
@@ -301,8 +302,8 @@ function Formulaire({
         ) : null}
       </div>
       <p className="text-muted-foreground text-xs">
-        Elle le reçoit par mail et le signe en un clic. Un rappel part chaque jour tant qu&apos;elle n&apos;a pas signé. Signé, la vente
-        s&apos;inscrit seule et le lien de paiement lui part.
+        Elle le reçoit par mail et le signe en un clic. Un rappel part chaque jour tant qu&apos;elle n&apos;a pas signé. Signé, le lien
+        de paiement lui part ; payé, la vente s&apos;inscrit seule.
       </p>
     </form>
   );
