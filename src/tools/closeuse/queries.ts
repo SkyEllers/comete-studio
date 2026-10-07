@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getEnregistrements } from "@/tools/resultats/enregistrement";
 import type { Enregistrement } from "@/tools/resultats/enregistrement-format";
+import type { R2Vu } from "@/tools/r2/regles";
 import { etatsParRendezVous, TYPES_NON_VENTE, type Raison } from "@/tools/resultats/non-vente";
 
 import { calculer, type Grille, type Incident, type Vente } from "./commission";
@@ -27,6 +28,8 @@ export type RdvCloseuse = {
   reponses: { q: string; r: string }[] | null;
   /** Où en est la cliente avec l'assistante (0041), ou null. */
   agentSuivi: string | null;
+  /** Le R2 avec la titulaire, s'il est demandé (0054). */
+  r2: R2Vu | null;
 };
 
 export type EspaceCloseuse = {
@@ -86,6 +89,20 @@ export async function getEspaceCloseuse(
           getEnregistrements(ids),
         ]);
 
+  // 0054 : pas encore dans les types générés. Lu avec la session (RLS).
+  const { data: r2s } = ids.length
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from("radar_r2")
+        .select("booking_id, demandee_le, resultat, appelee_le, note_titulaire")
+        .in("booking_id", ids)
+    : { data: [] };
+  const r2Par = new Map<string, R2Vu>(
+    ((r2s ?? []) as { booking_id: string; demandee_le: string; resultat: R2Vu["resultat"]; appelee_le: string | null; note_titulaire: string | null }[]).map(
+      (r) => [r.booking_id, { demandeeLe: r.demandee_le, resultat: r.resultat, appeleeLe: r.appelee_le, noteTitulaire: r.note_titulaire }],
+    ),
+  );
+
   const premierPar = new Map((premiers ?? []).map((p) => [p.id, p.sale_premier_cents]));
   const suiviPar = new Map((premiers ?? []).map((p) => [p.id, p.agent_suivi]));
   const reponsesPar = new Map(
@@ -123,6 +140,7 @@ export async function getEspaceCloseuse(
         recontactFait: etats[id]?.fait ?? false,
         reponses: reponsesPar.get(id) ?? null,
         agentSuivi: suiviPar.get(id) ?? null,
+        r2: r2Par.get(id) ?? null,
       };
     });
 

@@ -51,7 +51,7 @@ export type Confie =
 const empreinte = (jeton: string) => createHash("sha256").update(jeton).digest("hex");
 
 /** Le site du client, lu dans le profil de l'agent (comme `agent/outil.ts`). */
-async function siteDuClient(admin: Admin, org: string): Promise<string | null> {
+export async function siteDuClient(admin: Admin, org: string): Promise<string | null> {
   const { data } = await admin.from("agent_reglages").select("profil").eq("organization_id", org).maybeSingle();
   return data ? (profilAgent(data.profil)?.urlTarifs ?? null) : null;
 }

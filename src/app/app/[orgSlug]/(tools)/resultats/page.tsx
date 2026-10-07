@@ -47,6 +47,7 @@ import {
   sansCommission,
 } from "@/tools/resultats/queries";
 import { BlocDuAuxCloseuses } from "@/tools/closeuse/factures-client";
+import { BlocR2 } from "@/tools/r2/bloc-client";
 import { ARecontacter } from "@/tools/resultats/non-vente-client";
 import {
   AppelsDeDemain,
@@ -224,6 +225,11 @@ async function TableauDeBord({
           tant qu'il n'y en a pas. */}
       <div className="mb-8 empty:hidden">
         <BlocDuAuxCloseuses orgSlug={orgSlug} />
+      </div>
+
+      {/* Les R2 demandés par les closeuses (0054) : rien tant qu'il n'y en a pas. */}
+      <div className="mb-8 empty:hidden">
+        <BlocR2 orgSlug={orgSlug} />
       </div>
 
       {recontacts && recontacts.lignes.length > 0 ? (

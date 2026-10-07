@@ -41,6 +41,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { libelleSuivi } from "@/tools/agent/suivi";
 import {
@@ -55,6 +56,17 @@ import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
 import { BlocDevis } from "@/tools/devis/bloc-client";
 import { BlocMesFactures } from "./factures-client";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
+import { demanderR2 } from "@/tools/r2/actions";
+import {
+  CHAMPS_FICHE,
+  FREINS,
+  PRETE,
+  libelleResultat,
+  manqueR2,
+  type CleFiche,
+  type CleFrein,
+  type ClePrete,
+} from "@/tools/r2/regles";
 import { libelleMois, moisPrecedent, moisSuivant } from "@/tools/resultats/mois";
 import { LIBELLES_MOTIF, MOTIFS, type Motif, type Raison } from "@/tools/resultats/non-vente";
 import { Tuile } from "@/tools/resultats/tuiles";
@@ -106,7 +118,7 @@ function quandRappeler(raison: Raison) {
 
 function aNoter(r: RdvCloseuse, maintenant: number) {
   return (
-    r.statut === "honore" && !r.vente && !r.declinee && !r.raison && bilanPossible(r.debut, maintenant)
+    r.statut === "honore" && !r.vente && !r.declinee && !r.raison && !r.r2 && bilanPossible(r.debut, maintenant)
   );
 }
 
@@ -368,7 +380,7 @@ function OngletRdv({
     .sort((a, b) => cle(a).localeCompare(cle(b)));
   const plusTard = enAttente.length - recontacter.length;
   const faits = rdvs
-    .filter((r) => r.vente || r.declinee || r.raison || r.statut === "no_show" || r.statut === "annule")
+    .filter((r) => r.vente || r.declinee || r.raison || r.r2 || r.statut === "no_show" || r.statut === "annule")
     .reverse();
 
   return (
@@ -419,7 +431,13 @@ function OngletRdv({
                 <span className="w-36 shrink-0 font-medium">{r.prenom}</span>
                 <BadgeResultat rdv={r} />
                 <BadgeEnregistrement rdv={r} enregistrement={enregistrements[r.id]} />
-                {r.statut !== "annule" ? (
+                {r.r2?.resultat === "demarrer" && !r.vente ? (
+                  // Après le R2, c'est la closeuse qui envoie le devis (Louis, 07/10/2026).
+                  <Button size="sm" className="ml-auto" onClick={() => onNoter(r)}>
+                    <FileText aria-hidden="true" />
+                    Envoyer le devis
+                  </Button>
+                ) : r.statut !== "annule" ? (
                   <button
                     className="text-muted-foreground hover:text-foreground ml-auto text-xs underline-offset-4 hover:underline"
                     onClick={() => onNoter(r)}
@@ -628,6 +646,13 @@ function BadgeResultat({ rdv }: { rdv: RdvCloseuse }) {
     return (
       <Badge className="bg-success/15 text-success">
         Vendu · {montant(rdv.vente.montantCents)} HT{rdv.vente.fois > 1 ? ` en ${rdv.vente.fois} fois` : ""}
+      </Badge>
+    );
+  }
+  if (rdv.r2 && !rdv.raison && !rdv.declinee) {
+    return (
+      <Badge variant="outline" className={cn(rdv.r2.resultat === "demarrer" && "border-success text-success")}>
+        R2 avec Peggy · {rdv.r2.resultat ? libelleResultat(rdv.r2.resultat).toLowerCase() : "à appeler"}
       </Badge>
     );
   }
@@ -935,7 +960,15 @@ function FormResultat({
 }) {
   const router = useRouter();
   const [enCours, startTransition] = useTransition();
-  const depart: "vente" | "non" | "absente" = rdv.vente ? "vente" : rdv.statut === "no_show" ? "absente" : rdv.raison || rdv.declinee ? "non" : "vente";
+  const depart: "vente" | "non" | "absente" | "r2" = rdv.vente
+    ? "vente"
+    : rdv.statut === "no_show"
+      ? "absente"
+      : rdv.raison || rdv.declinee
+        ? "non"
+        : rdv.r2
+          ? "r2"
+          : "vente";
   const [type, setType] = useState(depart);
   const [montantSaisi, setMontant] = useState(rdv.vente ? String(rdv.vente.montantCents / 100) : "");
   const jourRdv = rdv.debut.slice(0, 10);
@@ -951,13 +984,21 @@ function FormResultat({
   const [resume, setResume] = useState<ResumeDiagnostic>(enregistrement?.resume ?? RESUME_VIDE);
   const [envoiVideo, setEnvoiVideo] = useState(false);
   const dernierJour = plusMois(aujourdhui, 24);
+  // Le R2 avec Peggy (0054) : la fiche de son protocole.
+  const [fiche, setFiche] = useState<Partial<Record<CleFiche, string>>>({});
+  const [freins, setFreins] = useState<CleFrein[]>([]);
+  const [prete, setPrete] = useState<ClePrete>("oui");
+  const [joindre, setJoindre] = useState("");
+  const [telR2, setTelR2] = useState(() => telephone(rdv) ?? "");
+  const demandeR2 = { fiche, freins, prete, joindre, telephone: telR2 };
+  const manque = type === "r2" && !rdv.r2 ? manqueR2(demandeR2) : null;
 
   /*
    * L'enregistrement du diagnostic (0049) : exigé la première fois qu'on note
    * ce qui s'est passé à un rendez-vous tenu. Une vidéo déposée, ou « je n'en
    * ai pas » avec le résumé écrit.
    */
-  const dejaNote = Boolean(rdv.vente || rdv.declinee || rdv.raison);
+  const dejaNote = Boolean(rdv.vente || rdv.declinee || rdv.raison || rdv.r2);
   const tenu = type !== "absente";
   const regle = Boolean(enregistrement) || (sansVideo && resumeRempli(resume));
   const bloque = tenu && !dejaNote && !regle;
@@ -975,6 +1016,25 @@ function FormResultat({
           toast.error(r.error);
           return;
         }
+      }
+      if (type === "r2") {
+        const r = await demanderR2(orgSlug, { bookingId: rdv.id, ...demandeR2 });
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        toast.success("R2 demandé", {
+          description: [
+            r.data.mailTitulaire ? "Peggy a reçu ta fiche par mail." : "Le mail à Peggy n'est pas parti : préviens-la.",
+            r.data.mailCliente
+              ? "La cliente a reçu un mail : Peggy va l'appeler."
+              : "Le mail à la cliente n'est pas parti : dis-lui que Peggy va l'appeler.",
+          ].join(" "),
+          duration: 10_000,
+        });
+        onFini();
+        router.refresh();
+        return;
       }
       const resultat =
         type === "vente"
@@ -995,6 +1055,7 @@ function FormResultat({
     { id: "vente", label: "Elle a acheté" },
     { id: "non", label: "Elle n'a pas acheté" },
     { id: "absente", label: "Elle n'est pas venue" },
+    { id: "r2", label: "R2 avec Peggy" },
   ];
 
   return (
@@ -1043,7 +1104,7 @@ function FormResultat({
           vente s'inscrit seule au paiement (06/10/2026). */}
       {tenu ? <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} /> : null}
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {choix.map((c) => (
           <button
             key={c.id}
@@ -1147,18 +1208,161 @@ function FormResultat({
         </div>
       ) : null}
 
+      {type === "r2" ? (
+        rdv.r2 ? (
+          <div className="border-line space-y-1 rounded-lg border p-3 text-sm">
+            <p>
+              R2 demandé le {dateLongue(rdv.r2.demandeeLe.slice(0, 10))}.{" "}
+              {rdv.r2.resultat
+                ? `Peggy l'a appelée : ${libelleResultat(rdv.r2.resultat).toLowerCase()}.`
+                : "Peggy ne l'a pas encore appelée."}
+            </p>
+            {rdv.r2.noteTitulaire ? <p className="text-muted-foreground whitespace-pre-line">{rdv.r2.noteTitulaire}</p> : null}
+            {rdv.r2.resultat === "demarrer" && !rdv.vente ? (
+              <p className="font-medium">Elle veut démarrer : envoie-lui le devis ci-dessus.</p>
+            ) : null}
+          </div>
+        ) : (
+          <FormulaireR2
+            fiche={fiche}
+            setFiche={setFiche}
+            freins={freins}
+            setFreins={setFreins}
+            prete={prete}
+            setPrete={setPrete}
+            joindre={joindre}
+            setJoindre={setJoindre}
+            telephone={telR2}
+            setTelephone={setTelR2}
+          />
+        )
+      ) : null}
+
       <DialogFooter>
         <Button variant="outline" onClick={onFini} disabled={enCours}>
           Annuler
         </Button>
         <Button
           onClick={envoyer}
-          disabled={enCours || envoiVideo || bloque || (type === "vente" && !montantSaisi.trim())}
-          title={bloque ? "Dépose la vidéo, ou dis que tu n'en as pas et écris le résumé." : undefined}
+          disabled={
+            enCours ||
+            envoiVideo ||
+            bloque ||
+            (type === "vente" && !montantSaisi.trim()) ||
+            (type === "r2" && (Boolean(rdv.r2) || manque !== null))
+          }
+          title={
+            bloque
+              ? "Dépose la vidéo, ou dis que tu n'en as pas et écris le résumé."
+              : type === "r2" && manque
+                ? manque
+                : undefined
+          }
         >
-          Enregistrer
+          {type === "r2" ? "Envoyer à Peggy" : "Enregistrer"}
         </Button>
       </DialogFooter>
+      {type === "r2" && manque && !bloque ? <p className="text-muted-foreground text-right text-xs">{manque}</p> : null}
     </>
+  );
+}
+
+/**
+ * La fiche du protocole R2 de Peggy (« Protocole R2 expert », kit des
+ * closeuses) : ce qu'elle doit savoir pour reprendre là où la closeuse s'est
+ * arrêtée, et quand joindre la cliente (Louis, 07/10/2026).
+ */
+function FormulaireR2(p: {
+  fiche: Partial<Record<CleFiche, string>>;
+  setFiche: (f: Partial<Record<CleFiche, string>>) => void;
+  freins: CleFrein[];
+  setFreins: (f: CleFrein[]) => void;
+  prete: ClePrete;
+  setPrete: (v: ClePrete) => void;
+  joindre: string;
+  setJoindre: (v: string) => void;
+  telephone: string;
+  setTelephone: (v: string) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <p className="text-muted-foreground text-sm">
+        Peggy reçoit cette fiche par mail et rappelle la cliente au téléphone. La cliente reçoit un mail : Peggy va
+        l&apos;appeler. Si elle veut démarrer après, c&apos;est toi qui envoies le devis.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="r2-tel">Son téléphone</Label>
+          <Input id="r2-tel" inputMode="tel" value={p.telephone} onChange={(e) => p.setTelephone(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="r2-joindre">Quand Peggy peut la joindre</Label>
+          <Input
+            id="r2-joindre"
+            value={p.joindre}
+            onChange={(e) => p.setJoindre(e.target.value)}
+            placeholder="En semaine après 18h"
+          />
+        </div>
+      </div>
+      {CHAMPS_FICHE.map((c) => (
+        <div key={c.cle} className="space-y-1.5">
+          <Label htmlFor={`r2-${c.cle}`}>
+            {c.libelle}
+            {c.requis ? "" : <span className="text-muted-foreground font-normal"> (si tu l&apos;as)</span>}
+          </Label>
+          {c.aide ? <p className="text-muted-foreground text-xs">{c.aide}</p> : null}
+          <Textarea
+            id={`r2-${c.cle}`}
+            rows={c.cle === "questions" || c.cle === "chronologie" ? 4 : 2}
+            value={p.fiche[c.cle] ?? ""}
+            onChange={(e) => p.setFiche({ ...p.fiche, [c.cle]: e.target.value })}
+          />
+          {c.cle === "questions" ? (
+            <>
+              <p className="pt-2 text-sm font-medium">Son frein principal</p>
+              <div className="flex flex-wrap gap-2">
+                {FREINS.map((f) => {
+                  const actif = p.freins.includes(f.cle);
+                  return (
+                    <button
+                      key={f.cle}
+                      type="button"
+                      aria-pressed={actif}
+                      onClick={() => p.setFreins(actif ? p.freins.filter((x) => x !== f.cle) : [...p.freins, f.cle])}
+                      className={cn(
+                        "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                        actif ? "border-ember bg-ember/10" : "border-line hover:bg-muted",
+                      )}
+                    >
+                      {f.libelle}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="pt-2 text-sm font-medium">
+                Si Peggy répond à ses questions, est-elle prête à envisager l&apos;accompagnement ?
+              </p>
+              <div className="flex gap-2">
+                {PRETE.map((x) => (
+                  <button
+                    key={x.cle}
+                    type="button"
+                    aria-pressed={p.prete === x.cle}
+                    onClick={() => p.setPrete(x.cle)}
+                    className={cn(
+                      "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                      p.prete === x.cle ? "border-ember bg-ember/10" : "border-line hover:bg-muted",
+                    )}
+                  >
+                    {x.libelle}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
+      ))}
+    </section>
   );
 }
