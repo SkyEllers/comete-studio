@@ -27,9 +27,12 @@ import { baseEspace } from "./suites.ts";
  * Un rendez-vous pris sur Calendly n'a pas de ligne dans l'outil : on la crée
  * (origine `admin`), avec l'adresse et les réponses lues chez Calendly.
  * L'événement Calendly reste dans l'agenda de la titulaire (`calendly: true`
- * dans la réponse). Elle peut le retirer de son agenda Google seulement si la
- * synchronisation des annulations (« Sync cancellations ») est coupée dans
- * Calendly : sinon le retirer annule le rendez-vous (06/10/2026, cinq clientes).
+ * dans la réponse). Elle peut le retirer de son agenda Google : la
+ * synchronisation des annulations est coupée dans le Calendly de Peggy depuis
+ * le 07/10/2026 (testé : le rendez-vous reste actif). Avant, le retirer
+ * l'annulait (06/10, cinq clientes). Toujours « Ne pas envoyer » quand Google
+ * propose de prévenir les invités : la cliente recevrait « Événement annulé »
+ * (vu au test du 07/10).
  */
 
 type Admin = ReturnType<typeof createAdminClient>;
