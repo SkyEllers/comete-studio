@@ -16,8 +16,8 @@ import {
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { heureEnMots, jourEnMots } from "@/tools/agent/temps";
-import { diagnosticsAConfier } from "@/tools/reservation/a-confier";
-import { agendasGoogle } from "@/tools/reservation/agenda";
+import { diagnosticsAConfier, type LireOccupe } from "@/tools/reservation/a-confier";
+import { agendasGoogle, lecteurOccupe } from "@/tools/reservation/agenda";
 import { parJour } from "@/tools/reservation/creneaux";
 import { depotSupabase } from "@/tools/reservation/depot";
 import { identifiants } from "@/tools/reservation/google";
@@ -63,6 +63,12 @@ async function apercu(organizationId: string): Promise<Apercu> {
   } catch (erreur) {
     return { etat: "erreur", message: erreur instanceof Error ? erreur.message : String(erreur) };
   }
+}
+
+/** L'occupé Google d'une personne, pour la liste « Confier » ; null sans identifiants Google. */
+function lireOccupe(admin: ReturnType<typeof createAdminClient>): LireOccupe | null {
+  const ids = identifiants();
+  return ids ? lecteurOccupe(admin, ids) : null;
 }
 
 type Profil = { full_name: string | null; email: string } | null;
@@ -119,7 +125,7 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
   const noms = new Map(personnes.map((p) => [p.id, nom(p.profiles)]));
   const [vue, aConfier] = await Promise.all([
     reglages ? apercu(org.id) : Promise.resolve(null),
-    reglages ? diagnosticsAConfier(admin, org.id) : Promise.resolve([]),
+    reglages ? diagnosticsAConfier(admin, org.id, lireOccupe(admin)) : Promise.resolve([]),
   ]);
 
   return (

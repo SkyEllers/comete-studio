@@ -114,14 +114,20 @@ function porteJetons(db: Admin, ids: Identifiants) {
   };
 }
 
+/** L'occupé de l'agenda principal d'une personne, par son identifiant (page de réservation, liste « Confier »). */
+export function lecteurOccupe(db: Admin, ids: Identifiants) {
+  const jeton = porteJetons(db, ids);
+  return async (personneId: string, de: number, a: number) => occupe(await jeton(personneId), AGENDA_PRINCIPAL, de, a);
+}
+
 /** Les agendas du moteur, sur Google. */
 export function agendasGoogle(db: Admin, ids: Identifiants): Agendas {
-  const jeton = porteJetons(db, ids);
+  const lire = lecteurOccupe(db, ids);
   return {
     async occupe(p: PersonneLue, de: number, a: number) {
       // L'occupé se lit dans son agenda à elle ; ses diagnostics, eux,
       // viennent de la base (pause et maximum).
-      return occupe(await jeton(p.id), AGENDA_PRINCIPAL, de, a);
+      return lire(p.id, de, a);
     },
   };
 }
