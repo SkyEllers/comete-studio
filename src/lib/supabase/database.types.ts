@@ -1198,6 +1198,7 @@ export type Database = {
           jeton_hash: string
           mensualite_cents: number
           nom: string | null
+          objet: string | null
           organization_id: string
           ouvert_le: string | null
           paiement: string
@@ -1238,6 +1239,7 @@ export type Database = {
           jeton_hash: string
           mensualite_cents: number
           nom?: string | null
+          objet?: string | null
           organization_id: string
           ouvert_le?: string | null
           paiement: string
@@ -1278,6 +1280,7 @@ export type Database = {
           jeton_hash?: string
           mensualite_cents?: number
           nom?: string | null
+          objet?: string | null
           organization_id?: string
           ouvert_le?: string | null
           paiement?: string
