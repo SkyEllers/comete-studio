@@ -12,6 +12,8 @@ import {
   expire,
   INVESTIGATION_SEULE,
   investigationSeule,
+  MICROBIOTE_SEUL,
+  microbioteSeul,
   lienValide,
   montants,
   rappelDu,
@@ -29,8 +31,8 @@ describe("les montants", () => {
     assert.equal(montants(devisPeggy, 6, "une_fois").totalCents, 135_000);
     assert.equal(montants(devisPeggy, 12, "plusieurs").totalCents, 230_000);
   });
-  it("refuse une durée hors de 0 à 24 mois", () => {
-    assert.throws(() => montants(devisPeggy, -1, "une_fois"));
+  it("refuse une durée hors de -1 à 24 mois", () => {
+    assert.throws(() => montants(devisPeggy, -2, "une_fois"));
     assert.throws(() => montants(devisPeggy, 25, "une_fois"));
   });
   it("l'investigation seule : 500 € en 1 fois, sans mensualité ni remise (Louis, 07/10/2026)", () => {
@@ -44,6 +46,18 @@ describe("les montants", () => {
       assert.equal(investigationSeule(m), true);
     }
     assert.equal(investigationSeule(montants(devisPeggy, 1, "plusieurs")), false);
+  });
+  it("le bilan microbiote seul : 365 € en 1 fois, ou 2 × 190 € (Louis, 07/10/2026)", () => {
+    const une = montants(devisPeggy, MICROBIOTE_SEUL, "une_fois");
+    assert.equal(une.totalCents, 36_500);
+    assert.equal(microbioteSeul(une), true);
+    const deux = montants(devisPeggy, MICROBIOTE_SEUL, "plusieurs");
+    assert.equal(deux.totalCents, 38_000);
+    assert.equal(deux.dureeMois, 2);
+    assert.equal(deux.mensualiteCents, 19_000);
+    assert.equal(deux.investigationCents, 0);
+    assert.equal(microbioteSeul(montants(devisPeggy, 6, "plusieurs")), false);
+    assert.throws(() => montants({ ...devisPeggy, microbiote: undefined }, MICROBIOTE_SEUL, "une_fois"));
   });
   it("relu depuis la base (1 mois à 0 €), le devis reste une investigation seule", () => {
     const m = montants({ investigationCents: 50_000, mensualiteCents: 0, remiseUneFoisCents: 0 }, 1, "une_fois");
@@ -99,6 +113,20 @@ describe("le contenu signé", () => {
     assert.doesNotMatch(texte, /par mois/);
     assert.doesNotMatch(texte, /2\. Phase de transformation/);
     assert.doesNotMatch(texte, /Objet de votre accompagnement/);
+  });
+
+  it("le bilan microbiote seul : le texte de Peggy, ses montants, ni phases ni mensualités", () => {
+    const relu = montants({ investigationCents: 0, mensualiteCents: 19_000, remiseUneFoisCents: 1_500 }, 2, "plusieurs");
+    const micro = contenu(devisPeggy, cliente, relu, "2026-10-08", "Des ballonnements depuis l'été.");
+    const texte = JSON.stringify(micro.blocs);
+    assert.equal(micro.sousTitre, "Bilan microbiote & plan d'actions personnalisé");
+    assert.equal(micro.blocs[0].titre, "Objet du devis");
+    assert.match(texte, /Objet de votre prestation personnalisée/);
+    assert.match(texte, /Total : 365 €/);
+    assert.match(texte, /Paiement en 2 fois : 190 € à la mise en place, puis 190 € le mois suivant/);
+    assert.match(texte, /Formulaire de rétractation/);
+    assert.doesNotMatch(texte, /Phase de transformation/);
+    assert.doesNotMatch(texte, /—/);
   });
 
   it("l'accompagnement garde ses quatre phases", () => {

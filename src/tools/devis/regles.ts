@@ -60,6 +60,22 @@ export type ProfilDevis = {
   avantInvestigationSeule?: Bloc[];
   /** Ce que comprend la mensualité, en puces. */
   mensualiteComprend: string[];
+  /**
+   * Le bilan microbiote seul (devis de Peggy du 07/10/2026) : sa propre offre,
+   * son propre texte. En une fois (`prixCents`), ou en deux paiements égaux
+   * (`paiementCents` × 2, `fraisCents` de frais d'échelonnement compris).
+   */
+  microbiote?: {
+    titre: string;
+    sousTitre: string;
+    prixCents: number;
+    paiementCents: number;
+    fraisCents: number;
+    /** Le détail du prix, une ligne par élément. */
+    detail: string[];
+    avant: Bloc[];
+    apres: Bloc[];
+  };
   /** Le texte après l'investissement (conditions, rétractation…). */
   apres: Bloc[];
 };
@@ -86,9 +102,26 @@ export type Montants = {
  */
 export const INVESTIGATION_SEULE = 0;
 
-export function montants(p: Pick<ProfilDevis, "investigationCents" | "mensualiteCents" | "remiseUneFoisCents">, dureeMois: number, paiement: Paiement): Montants {
-  if (!Number.isInteger(dureeMois) || dureeMois < 0 || dureeMois > 24) {
+/**
+ * La durée -1 veut dire « bilan microbiote seul » (Louis, 07/10/2026). Il se
+ * garde en base comme 2 mois de `paiementCents` sans investigation, la remise
+ * en une fois valant les frais d'échelonnement : c'est l'investigation à 0
+ * qui le reconnaît ensuite (`formule`).
+ */
+export const MICROBIOTE_SEUL = -1;
+
+export function montants(
+  p: Pick<ProfilDevis, "investigationCents" | "mensualiteCents" | "remiseUneFoisCents" | "microbiote">,
+  dureeMois: number,
+  paiement: Paiement,
+): Montants {
+  if (!Number.isInteger(dureeMois) || dureeMois < -1 || dureeMois > 24) {
     throw new Error("La durée va de 1 à 24 mois.");
+  }
+  if (dureeMois === MICROBIOTE_SEUL) {
+    const b = p.microbiote;
+    if (!b) throw new Error("Pas de bilan microbiote dans ce devis.");
+    return montants({ investigationCents: 0, mensualiteCents: b.paiementCents, remiseUneFoisCents: b.fraisCents }, 2, paiement);
   }
   if (dureeMois === INVESTIGATION_SEULE) {
     return montants({ investigationCents: p.investigationCents, mensualiteCents: 0, remiseUneFoisCents: 0 }, 1, "une_fois");
@@ -110,6 +143,11 @@ export function montants(p: Pick<ProfilDevis, "investigationCents" | "mensualite
 /** La cliente ne prend que l'investigation : pas de mensualité. */
 export function investigationSeule(m: Pick<Montants, "mensualiteCents">): boolean {
   return m.mensualiteCents === 0;
+}
+
+/** Le bilan microbiote seul : pas d'investigation (0, 07/10/2026). */
+export function microbioteSeul(m: Pick<Montants, "investigationCents">): boolean {
+  return m.investigationCents === 0;
 }
 
 /** « 1 250 € », « 1 250,50 € ». */
@@ -207,7 +245,54 @@ export function blocObjet(objet: string | null | undefined): Bloc | null {
   return paragraphes.length ? { titre: "Objet du devis", paragraphes } : null;
 }
 
+/** Le devis du bilan microbiote seul : le texte de Peggy du 07/10/2026, ses montants. */
+function contenuMicrobiote(p: ProfilDevis, cliente: Cliente, m: Montants, valide: string, objet: string | null): Contenu {
+  const b = p.microbiote!;
+  const enTete = blocObjet(objet);
+  const investissement: Bloc = {
+    titre: "Investissement",
+    paragraphes: [`${euros(m.totalUneFoisCents)} : bilan microbiote et restitution personnalisée.`, "Détail de la prestation :"],
+    puces: b.detail,
+    apres: [
+      `Total : ${euros(m.totalUneFoisCents)}.`,
+      `Ou paiement en 2 fois : 2 × ${euros(m.mensualiteCents)} (${euros(m.remiseUneFoisCents)} de frais d'échelonnement).`,
+      m.paiement === "une_fois"
+        ? `Votre choix : paiement en 1 fois, ${euros(m.totalCents)}.`
+        : `Votre choix : paiement en 2 fois, ${euros(m.totalCents)} au total.`,
+    ],
+  };
+  const modalites: Bloc = {
+    titre: "Modalités de paiement",
+    paragraphes: [
+      "Juste après la signature, vous recevez un lien de paiement sécurisé (Stripe). Vous payez par carte bancaire, ou par prélèvement SEPA si vous le préférez.",
+      m.paiement === "une_fois"
+        ? `Paiement en 1 fois : ${euros(m.totalCents)}.`
+        : `Paiement en 2 fois : ${euros(m.mensualiteCents)} à la mise en place, puis ${euros(m.mensualiteCents)} le mois suivant, prélevés automatiquement.`,
+      "Le paiement est mis en place AVANT le rendez-vous de lancement.",
+    ],
+  };
+  const conditions: Bloc = {
+    titre: "Conditions",
+    paragraphes: [
+      `Ce devis est valable jusqu'au ${dateEnMots(valide)} inclus.`,
+      `La signature du devis vaut acceptation des conditions générales de vente disponibles sur le site : ${p.site.replace(/^https?:\/\//, "")}/cgv`,
+    ],
+  };
+  return {
+    version: p.versionTexte,
+    titre: b.titre,
+    sousTitre: b.sousTitre,
+    enTete: p.enTete,
+    cliente,
+    vendeur: p.vendeur,
+    montants: m,
+    valideJusquAu: valide,
+    blocs: [...(enTete ? [enTete] : []), ...b.avant, investissement, modalites, conditions, ...b.apres, formulaireRetractation(p.vendeur)],
+  };
+}
+
 export function contenu(p: ProfilDevis, cliente: Cliente, m: Montants, valide: string, objet: string | null = null): Contenu {
+  if (microbioteSeul(m) && p.microbiote) return contenuMicrobiote(p, cliente, m, valide, objet);
   const seule = investigationSeule(m);
   const enTete = blocObjet(objet);
   const investissement: Bloc = seule

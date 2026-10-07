@@ -64,8 +64,9 @@ export const devisPeggy: ProfilDevis = {
   remiseUneFoisCents: 5_000,
   dureeParDefaut: 6,
   validiteJours: 7,
-  // 07/10/2026 : l'investigation seule (le texte de l'accompagnement ne change pas).
-  versionTexte: "peggy-2026-10-07",
+  // 07/10/2026 : l'investigation seule, puis le bilan microbiote seul (le texte
+  // de l'accompagnement ne change pas).
+  versionTexte: "peggy-2026-10-07-microbiote",
 
   // L'investigation seule (Louis, 07/10/2026) : la phase 1 seulement.
   avantInvestigationSeule: [PHASE_INVESTIGATION],
@@ -123,6 +124,120 @@ export const devisPeggy: ProfilDevis = {
       ],
     },
   ],
+
+  // Le bilan microbiote seul : le devis Word de Peggy du 07/10/2026
+  // (« Devis_microbiote_only.docx »), sauf le RIB, le paiement par virement
+  // (remplacé par le lien Stripe) et la validité (écrite par l'outil).
+  microbiote: {
+    titre: "Devis personnalisé",
+    sousTitre: "Bilan microbiote & plan d'actions personnalisé",
+    prixCents: 36_500,
+    paiementCents: 19_000,
+    fraisCents: 1_500,
+    detail: [
+      "200 € : kit d'analyse du microbiote, analyse laboratoire et frais de port inclus",
+      "15 € : rendez-vous de lancement de 15 minutes avec Peggy Girault",
+      "40 € : document de restitution : bilan + plan d'actions personnalisé en 4 parties",
+      "110 € : rendez-vous individuel de restitution de 45 minutes avec Peggy Girault",
+    ],
+    avant: [
+      {
+        titre: "Objet de votre prestation personnalisée",
+        paragraphes: [
+          "Votre prestation « Bilan microbiote & plan d'actions personnalisé »",
+          "Cette prestation est une investigation ciblée sur votre microbiote intestinal. Elle comprend l'analyse, la restitution et un plan d'actions personnalisé. Elle ne comprend pas de suivi mensuel dans le temps.",
+        ],
+      },
+      {
+        titre: "1. Lancement de l'investigation",
+        paragraphes: [
+          "Un rendez-vous de 15 minutes avec Peggy Girault permet de vous présenter le kit, de vous expliquer le prélèvement et de lancer l'investigation dans de bonnes conditions.",
+        ],
+        puces: ["rendez-vous de lancement : 15 minutes", "présentation du kit et du prélèvement", "explication du déroulement de l'investigation"],
+      },
+      {
+        titre: "2. Analyse du microbiote",
+        paragraphes: [
+          "Vous recevez à domicile un kit d'analyse du microbiote intestinal. Le prélèvement est ensuite analysé par un laboratoire partenaire. Le tarif du kit inclut les frais de port.",
+        ],
+        puces: ["kit d'analyse du microbiote", "analyse réalisée par le laboratoire partenaire", "réception du compte rendu biologique"],
+      },
+      {
+        titre: "3. Bilan & plan d'actions personnalisé",
+        paragraphes: [
+          "À partir des résultats de votre microbiote, Peggy Girault prépare un document de restitution comprenant votre bilan et un plan d'actions personnalisé en 4 parties :",
+        ],
+        puces: ["alimentation personnalisée", "hygiène émotionnelle", "activité physique adaptée", "compléments alimentaires"],
+      },
+      {
+        titre: "4. Rendez-vous de restitution",
+        paragraphes: [
+          "Un rendez-vous individuel de 45 minutes avec Peggy Girault permet de vous expliquer les résultats, de répondre à vos questions et de vous présenter les priorités de votre plan d'actions.",
+        ],
+      },
+    ],
+    apres: [
+      {
+        titre: "Remarque importante",
+        paragraphes: [
+          "Cette prestation est centrée sur l'analyse du microbiote et sa restitution personnalisée. Elle ne comprend ni suivi mensuel, ni accès au programme Étincelle ta Vie, ni accompagnement continu entre les rendez-vous.",
+        ],
+      },
+      {
+        titre: "Cadre de la prestation",
+        paragraphes: [
+          "Les recommandations sont établies à partir des résultats du laboratoire et des informations recueillies dans le cadre de cette prestation. Aucune promesse de résultat ne peut être formulée.",
+        ],
+      },
+      {
+        titre: "Déroulement",
+        puces: [
+          "1. Paiement et signature du devis.",
+          "2. Rendez-vous de lancement de 15 minutes.",
+          "3. Envoi du kit à l'adresse indiquée par la cliente.",
+          "4. Réalisation du prélèvement et retour au laboratoire.",
+          "5. Analyse des résultats par le laboratoire.",
+          "6. Préparation du bilan et du plan d'actions personnalisé.",
+          "7. Rendez-vous de restitution de 45 minutes.",
+        ],
+      },
+      {
+        titre: "Modalité de prise de rendez-vous",
+        paragraphes: [
+          "La cliente réserve son rendez-vous de restitution via le lien communiqué. Il est conseillé de le planifier environ 7 semaines après le prélèvement afin de tenir compte du délai moyen d'analyse du laboratoire.",
+          "La signature vaut acceptation des 2 parties. Les CGV sont approuvées par le présent devis et consultables sur le site www.peggygirault.fr/cgv.",
+        ],
+      },
+      {
+        titre: "Droit de rétractation",
+        paragraphes: [
+          "Conformément au Code de la consommation, vous disposez d'un délai de 14 jours à compter de la date de signature du devis pour exercer votre droit de rétractation. En cas de rétractation dans ce délai, le remboursement sera effectué dans un délai maximal de 14 jours suivant la réception de votre demande, déduction faite des prestations éventuellement exécutées avant la rétractation, conformément aux dispositions légales applicables :",
+        ],
+        puces: [
+          "200 € si le kit d'analyse microbiote a déjà été commandé ou expédié",
+          "15 € si le rendez-vous de lancement de 15 minutes a déjà été réalisé",
+          "40 € si le document de restitution a déjà été préparé ou transmis",
+          "110 € si le rendez-vous de restitution de 45 minutes a déjà été réalisé",
+          "ainsi que toute autre prestation effectivement exécutée à votre demande avant la fin du délai de rétractation.",
+        ],
+      },
+      {
+        titre: "Procédure de rétractation",
+        paragraphes: [
+          "Pour exercer votre droit de rétractation, adressez votre demande par écrit à Peggy Girault, par courrier recommandé avec accusé de réception à l'adresse indiquée sur le présent devis.",
+        ],
+      },
+      {
+        titre: "Clause : non-substitution à l'avis médical (valable Europe)",
+        paragraphes: [
+          "La prestation proposée par Peggy Girault s'inscrit dans une démarche de bien-être, de prévention et d'hygiène de vie.",
+          "Elle ne constitue pas un acte médical et ne se substitue en aucun cas à un diagnostic, un traitement ou un suivi médical réalisé par un médecin ou tout autre professionnel de santé habilité.",
+          "La cliente est invitée à maintenir son suivi médical habituel et à consulter un professionnel de santé compétent pour toute question relevant du domaine médical.",
+          "Les Parties déclarent et reconnaissent que les négociations ayant précédé la conclusion de ce devis ont été conduites de bonne foi, et avoir bénéficié, pendant ces négociations, de toutes les informations nécessaires et utiles pour leur permettre de s'engager en toute connaissance de cause, et s'être mutuellement communiqué toute information susceptible de déterminer leur consentement et qu'elles pouvaient légitimement ignorer.",
+        ],
+      },
+    ],
+  },
 
   mensualiteComprend: [
     "1 rendez-vous individuel mensuel",

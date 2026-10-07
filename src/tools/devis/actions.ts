@@ -30,6 +30,8 @@ export type EtatDevis = {
   dureeMois: number;
   /** La cliente ne prend que l'investigation (Louis, 07/10/2026). */
   investigationSeule: boolean;
+  /** Le bilan microbiote seul (07/10/2026). */
+  microbiote: boolean;
   paiement: Paiement;
   totalCents: number;
   envoyeLe: string;
@@ -47,7 +49,13 @@ export type BlocDevisDonnees = {
   devis: EtatDevis | null;
   preRempli: { prenom: string; nom: string; email: string; telephone: string };
   dureeParDefaut: number;
-  tarifs: { investigationCents: number; mensualiteCents: number; remiseUneFoisCents: number } | null;
+  tarifs: {
+    investigationCents: number;
+    mensualiteCents: number;
+    remiseUneFoisCents: number;
+    /** Le bilan microbiote seul, s'il est proposé. */
+    microbiote: { prixCents: number; paiementCents: number; fraisCents: number } | null;
+  } | null;
 };
 
 export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise<ActionResult<BlocDevisDonnees>> {
@@ -61,7 +69,7 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
   const [{ data: dernier }, { data: resa }] = await Promise.all([
     brut(admin)
       .from("devis")
-      .select("id, statut, prenom, email, duree_mois, mensualite_cents, paiement, total_cents, envoye_le, ouvert_le, relances, valide_jusqu_au, signe_le, paye_le, paiement_lien_le")
+      .select("id, statut, prenom, email, duree_mois, investigation_cents, mensualite_cents, paiement, total_cents, envoye_le, ouvert_le, relances, valide_jusqu_au, signe_le, paye_le, paiement_lien_le")
       .eq("booking_id", lu.rdv.id)
       .neq("statut", "annule")
       .order("created_at", { ascending: false })
@@ -96,6 +104,7 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
           email: dernier.email,
           dureeMois: dernier.duree_mois,
           investigationSeule: dernier.mensualite_cents === 0,
+          microbiote: dernier.investigation_cents === 0,
           paiement: dernier.paiement,
           totalCents: dernier.total_cents,
           envoyeLe: dernier.envoye_le,
@@ -120,6 +129,13 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
           investigationCents: profil.investigationCents,
           mensualiteCents: profil.mensualiteCents,
           remiseUneFoisCents: profil.remiseUneFoisCents,
+          microbiote: profil.microbiote
+            ? {
+                prixCents: profil.microbiote.prixCents,
+                paiementCents: profil.microbiote.paiementCents,
+                fraisCents: profil.microbiote.fraisCents,
+              }
+            : null,
         }
       : null,
   });
@@ -136,8 +152,8 @@ const envoiSchema = z.object({
     .trim()
     .min(1, { error: "Écris l'objet du devis : sa situation et ce qu'elle veut, avec ses mots." })
     .max(2000, { error: "L'objet du devis tient en 2 000 caractères." }),
-  // 0 : l'investigation seule (`INVESTIGATION_SEULE`).
-  dureeMois: z.coerce.number().int().min(0, { error: "La durée va de 1 à 24 mois." }).max(24, { error: "La durée va de 1 à 24 mois." }),
+  // 0 : l'investigation seule (`INVESTIGATION_SEULE`) ; -1 : le bilan microbiote seul (`MICROBIOTE_SEUL`).
+  dureeMois: z.coerce.number().int().min(-1, { error: "La durée va de 1 à 24 mois." }).max(24, { error: "La durée va de 1 à 24 mois." }),
   paiement: z.enum(["une_fois", "plusieurs"], { error: "Choisis en 1 fois ou en plusieurs fois." }),
 });
 

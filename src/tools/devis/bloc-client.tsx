@@ -57,7 +57,8 @@ function Etat({ orgSlug, bookingId, devis, onRenvoye }: { orgSlug: string; booki
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={devis.statut === "signe" ? "default" : "outline"}>{libelle}</Badge>
         <span className="text-muted-foreground">
-          {euros(devis.totalCents)} · {devis.investigationSeule ? "investigation seule" : `${devis.dureeMois} mois`} ·{" "}
+          {euros(devis.totalCents)} ·{" "}
+          {devis.microbiote ? "bilan microbiote" : devis.investigationSeule ? "investigation seule" : `${devis.dureeMois} mois`} ·{" "}
           {devis.paiement === "une_fois" ? "en 1 fois" : "en plusieurs fois"}
         </span>
       </div>
@@ -150,12 +151,18 @@ function Formulaire({
   }, [bookingId, duree, paiement, prenom, nom, email, telephone, objet]);
 
   const t = donnees.tarifs;
-  // Durée 0 : l'investigation seule, en 1 fois (Louis, 07/10/2026).
+  // Durée 0 : l'investigation seule, en 1 fois ; -1 : le bilan microbiote seul,
+  // en 1 ou 2 fois (Louis, 07/10/2026).
   const seule = duree === 0;
+  const micro = duree === -1 && t?.microbiote ? t.microbiote : null;
   const total = t
-    ? seule
-      ? t.investigationCents
-      : t.investigationCents + t.mensualiteCents * duree - (paiement === "une_fois" ? t.remiseUneFoisCents : 0)
+    ? micro
+      ? paiement === "une_fois"
+        ? micro.prixCents
+        : micro.paiementCents * 2
+      : seule
+        ? t.investigationCents
+        : t.investigationCents + t.mensualiteCents * duree - (paiement === "une_fois" ? t.remiseUneFoisCents : 0)
     : 0;
 
   return (
@@ -213,6 +220,7 @@ function Formulaire({
             onChange={(e) => setDuree(Number(e.target.value))}
           >
             {t ? <option value={0}>Investigation seule ({euros(t.investigationCents)})</option> : null}
+            {t?.microbiote ? <option value={-1}>Bilan microbiote seul ({euros(t.microbiote.prixCents)})</option> : null}
             {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 Accompagnement {n} mois
@@ -226,7 +234,7 @@ function Formulaire({
             <div className="flex gap-2">
               {(
                 [
-                  ["plusieurs", "En plusieurs fois"],
+                  ["plusieurs", micro ? "En 2 fois" : "En plusieurs fois"],
                   ["une_fois", "En 1 fois"],
                 ] as const
               ).map(([valeur, texte]) => (
@@ -252,7 +260,11 @@ function Formulaire({
         <p className="text-sm">
           <span className="font-medium">{euros(total)}</span>{" "}
           <span className="text-muted-foreground">
-            {seule
+            {micro
+              ? paiement === "une_fois"
+                ? "en 1 fois, bilan microbiote sans suivi mensuel"
+                : `: 2 × ${euros(micro.paiementCents)} (${euros(micro.fraisCents)} de frais d'échelonnement)`
+              : seule
               ? "en 1 fois, sans accompagnement mensuel"
               : paiement === "une_fois"
               ? `en 1 fois (${euros(t.remiseUneFoisCents)} de moins)`
