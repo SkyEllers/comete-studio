@@ -6,6 +6,7 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import { jetonAgent, lireEvenement, lireInvitation } from "@/tools/agent/calendly";
 import { lienMonRdv, lireLienPersonnel } from "@/tools/agent/outil-regles";
 import { profil as profilAgent } from "@/tools/agent/profils";
+import { reponsesGardees } from "@/tools/resultats/calendly";
 
 import { ecrireRendezVous, effacerRendezVous, lireJeton } from "./agenda.ts";
 import { deteindreConfie, jetonAcces, teinterConfie, type Identifiants, type Teinte } from "./google.ts";
@@ -230,6 +231,12 @@ export async function confierRendezVous(
     .update({ closeuse_id: closeuse.user_id, updated_at: new Date().toISOString() })
     .eq("id", bookingId);
 
+  try {
+    await copierReponses(admin, org, bookingId, rdvId);
+  } catch (erreur) {
+    console.error("Confier, réponses :", erreur instanceof Error ? erreur.message : "erreur");
+  }
+
   // L'assistante envoie ses rappels avec ce lien : il doit être le nouveau.
   await admin
     .from("agent_conversations")
@@ -381,4 +388,28 @@ export async function rendreATitulaire(admin: Admin, org: string, bookingId: str
   if (!calendly) await prevenirPersonne(admin, ligne.id, "nouveau", espace);
 
   return { ok: true, mailCliente, calendly, agendaTitulaire };
+}
+
+/**
+ * Les réponses au formulaire, pour la closeuse (Louis, 07/10/2026). Elles ne
+ * s'écrivaient dans `radar_booking_answers` qu'à la réservation, quand le
+ * créneau était déjà celui d'une closeuse : un rendez-vous confié ensuite
+ * s'affichait « Pas de réponses au formulaire ». La ligne de l'outil les a
+ * toutes (page de l'outil, ou copiées de Calendly au « Confier »). Une ligne
+ * déjà là n'est pas remplacée.
+ */
+export async function copierReponses(admin: Admin, org: string, bookingId: string, rdvId: string): Promise<number> {
+  const { data } = await admin.from("reservation_rendez_vous").select("reponses").eq("id", rdvId).maybeSingle();
+  const reponses = reponsesGardees(
+    ((data?.reponses ?? []) as { question?: string; reponse?: string }[]).map((r) => ({
+      question: String(r.question ?? ""),
+      answer: String(r.reponse ?? ""),
+    })),
+  );
+  if (!reponses.length) return 0;
+  const { error } = await admin
+    .from("radar_booking_answers")
+    .upsert({ booking_id: bookingId, organization_id: org, answers: reponses }, { onConflict: "booking_id", ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+  return reponses.length;
 }
