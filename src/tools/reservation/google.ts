@@ -33,6 +33,19 @@ export const DROITS = [
 /** Les deux sans lesquels l'outil ne marche pas : la personne peut les décocher. */
 export const DROITS_AGENDA = DROITS.slice(2);
 
+/**
+ * Pour la titulaire seulement (Louis, 07/10/2026) : modifier les événements de
+ * son agenda, pour qu'un rendez-vous Calendly confié à une closeuse y passe en
+ * Tomate et en « Disponible » (supprimer l'événement envoie « Événement
+ * annulé » à la cliente, vu au test du 07/10). Droit « sensible » : Google
+ * affiche à sa connexion « Google n'a pas validé cette application ». Facultatif :
+ * sans lui, l'outil marche comme avant.
+ */
+export const DROIT_MODIFIER = "https://www.googleapis.com/auth/calendar.events";
+
+/** La couleur « Tomate » des événements Google Agenda. */
+export const COULEUR_TOMATE = "11";
+
 export const CHEMIN_RETOUR = "/api/reservation/google/retour";
 
 /** Son agenda à elle, celui dont on lit l'occupé. */
@@ -94,12 +107,14 @@ export function adresseConsentement(p: {
   retour: string;
   etat: string;
   email?: string | null;
+  /** La titulaire : demander aussi `DROIT_MODIFIER`. */
+  modifier?: boolean;
 }): string {
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", p.clientId);
   url.searchParams.set("redirect_uri", p.retour);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", DROITS.join(" "));
+  url.searchParams.set("scope", [...DROITS, ...(p.modifier ? [DROIT_MODIFIER] : [])].join(" "));
   // Hors ligne : un jeton de rafraîchissement, pour lire son agenda quand
   // elle n'est pas là. `consent` : Google le redonne à chaque connexion.
   url.searchParams.set("access_type", "offline");
@@ -165,6 +180,51 @@ export async function echangerCode(
     email: emailDuJeton(corps.id_token),
     droitsManquants: DROITS_AGENDA.filter((d) => !accordes.has(d)),
   };
+}
+
+export type Teinte = "teinte" | "introuvable" | "sans_droit";
+
+/**
+ * Un rendez-vous Calendly confié : retrouver son événement dans l'agenda
+ * principal de la titulaire (même début, la cliente parmi les invités) et le
+ * passer en Tomate et « Disponible », sans prévenir personne
+ * (`sendUpdates=none`). Le créneau se libère ; l'événement reste visible.
+ */
+export async function teinterConfie(
+  acces: string,
+  r: { debut: string; fin: string; email: string },
+  f: Fetch = fetch,
+): Promise<Teinte> {
+  const debut = Date.parse(r.debut);
+  const params = new URLSearchParams({
+    timeMin: new Date(debut - 60_000).toISOString(),
+    timeMax: new Date(Date.parse(r.fin) + 60_000).toISOString(),
+    singleEvents: "true",
+    maxResults: "50",
+  });
+  const liste = await f(`${API}/calendars/${AGENDA_PRINCIPAL}/events?${params}`, {
+    headers: { authorization: `Bearer ${acces}` },
+  });
+  if (liste.status === 403) return "sans_droit";
+  const corps = await lire(liste, "recherche de l'événement Calendly");
+  const email = r.email.trim().toLowerCase();
+  const evenement = ((corps.items as Record<string, unknown>[] | undefined) ?? []).find((e) => {
+    const depart = (e.start as { dateTime?: string } | undefined)?.dateTime;
+    const invites = (e.attendees as { email?: string }[] | undefined) ?? [];
+    return depart !== undefined && Date.parse(depart) === debut && invites.some((i) => i.email?.trim().toLowerCase() === email);
+  });
+  if (!evenement || typeof evenement.id !== "string") return "introuvable";
+  const maj = await f(
+    `${API}/calendars/${AGENDA_PRINCIPAL}/events/${encodeURIComponent(evenement.id)}?sendUpdates=none`,
+    {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${acces}`, "content-type": "application/json" },
+      body: JSON.stringify({ colorId: COULEUR_TOMATE, transparency: "transparent" }),
+    },
+  );
+  if (maj.status === 403) return "sans_droit";
+  await lire(maj, "mise en Tomate de l'événement Calendly");
+  return "teinte";
 }
 
 /** Rendre l'accès à Google : le jeton ne sert plus à rien, nulle part. */

@@ -15,6 +15,7 @@ import {
   idEvenement,
   jetonAcces,
   occupe,
+  teinterConfie,
 } from "./google.ts";
 
 type Appel = { url: string; init?: RequestInit };
@@ -48,6 +49,11 @@ describe("Google : connecter", () => {
       "https://www.googleapis.com/auth/calendar.freebusy",
       "https://www.googleapis.com/auth/calendar.app.created",
     ]);
+  });
+
+  it("la titulaire : le droit de modifier ses événements en plus (07/10/2026)", () => {
+    const u = new URL(adresseConsentement({ clientId: "c", retour: "https://app.cometestudio.fr/r", etat: "e", modifier: true }));
+    assert.deepEqual(u.searchParams.get("scope")?.split(" ").slice(-1), ["https://www.googleapis.com/auth/calendar.events"]);
   });
 
   it("échange le code, lit l'adresse et les droits accordés", async () => {
@@ -234,5 +240,38 @@ describe("le témoin de connexion", () => {
     assert.equal(memeEtat(e.etat, e.etat), true);
     assert.equal(memeEtat(nouvelEtat(RDV, "peggy").etat, e.etat), false);
     assert.equal(memeEtat(null, e.etat), false);
+  });
+});
+
+describe("Google : un rendez-vous Calendly confié, en Tomate et Disponible (07/10/2026)", () => {
+  const r = { debut: "2026-10-08T16:30:00Z", fin: "2026-10-08T17:15:00Z", email: "Sandrine@Exemple.fr" };
+
+  it("retrouve l'événement (même début, la cliente invitée) et le passe en Tomate, sans prévenir personne", async () => {
+    const { f, appels } = faux([
+      {
+        corps: {
+          items: [
+            { id: "autre", start: { dateTime: "2026-10-08T18:30:00+02:00" }, attendees: [{ email: "x@y.fr" }] },
+            { id: "calendly1", start: { dateTime: "2026-10-08T18:30:00+02:00" }, attendees: [{ email: "girault.peggy@gmail.com" }, { email: "sandrine@exemple.fr" }] },
+          ],
+        },
+      },
+      { corps: { id: "calendly1" } },
+    ]);
+    assert.equal(await teinterConfie("ya29", r, f), "teinte");
+    assert.match(appels[1].url, /\/calendars\/primary\/events\/calendly1\?sendUpdates=none$/);
+    assert.equal(appels[1].init?.method, "PATCH");
+    assert.deepEqual(JSON.parse(String(appels[1].init?.body)), { colorId: "11", transparency: "transparent" });
+  });
+
+  it("ne touche à rien si l'événement n'est pas trouvé", async () => {
+    const { f, appels } = faux([{ corps: { items: [{ id: "a", start: { dateTime: "2026-10-08T18:30:00+02:00" }, attendees: [] }] } }]);
+    assert.equal(await teinterConfie("ya29", r, f), "introuvable");
+    assert.equal(appels.length, 1);
+  });
+
+  it("sans le droit de modifier : le dit, sans erreur", async () => {
+    const { f } = faux([{ status: 403, corps: { error: { message: "insufficient" } } }]);
+    assert.equal(await teinterConfie("ya29", r, f), "sans_droit");
   });
 });

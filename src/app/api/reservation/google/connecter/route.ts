@@ -30,6 +30,9 @@ export async function GET(request: Request) {
       retour: `${url.origin}${CHEMIN_RETOUR}`,
       etat: etat.etat,
       email: lue.fiche.google_email ?? lue.session.email,
+      // La titulaire seule : le droit de passer en Tomate un rendez-vous
+      // Calendly confié (07/10/2026). Les closeuses gardent les deux droits.
+      modifier: lue.fiche.role === "titulaire",
     }),
   );
   reponse.cookies.set(COOKIE, emballer(etat), {

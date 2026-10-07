@@ -257,10 +257,9 @@ export default async function ReservationAdminPage({ params }: PageProps<"/admin
               de ses absences, sous son maximum du jour, sans chevaucher ses rendez-vous, et libre dans son agenda Google
               (un événement « Disponible » ne bloque pas). Un clic : l&apos;événement passe de l&apos;agenda de la
               titulaire au sien, avec sa visio ; la cliente reçoit le nouveau lien ; Radar et l&apos;assistante suivent.
-              Pris sur Calendly : l&apos;événement reste dans l&apos;agenda de la titulaire. Elle peut le supprimer de
-              son agenda Google : la synchronisation des annulations est coupée dans Calendly depuis le 07/10/2026
-              (Paramètres du calendrier), le rendez-vous reste actif. Toujours répondre « Ne pas envoyer » quand
-              Google propose de prévenir les invités : sinon la cliente reçoit « Événement annulé ».
+              Pris sur Calendly : l&apos;événement reste dans l&apos;agenda de la titulaire et passe en Tomate et en
+              « Disponible » (si elle a reconnecté son agenda avec le droit de le modifier). Ne jamais le supprimer :
+              Google enverrait « Événement annulé » à la cliente (vu le 07/10/2026).
             </p>
             {confiables.length ? (
               <ul className="space-y-2">

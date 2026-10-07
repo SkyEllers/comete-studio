@@ -29,7 +29,11 @@ export function ConfierBouton(props: { organizationId: string; bookingId: string
             description: [
               r.data.mailCliente ? "La cliente a reçu le nouveau lien." : "Le mail à la cliente n'est pas parti : à lui envoyer à la main.",
               r.data.calendly
-                ? "Pris sur Calendly : l'événement reste dans l'agenda de Peggy. Elle peut le supprimer (la synchronisation des annulations est coupée dans Calendly depuis le 07/10), en répondant « Ne pas envoyer » quand Google propose de prévenir les invités."
+                ? r.data.agendaTitulaire === "teinte"
+                  ? "Pris sur Calendly : chez Peggy, l'événement passe en Tomate et en « Disponible ». Il ne se supprime pas."
+                  : r.data.agendaTitulaire === "sans_droit"
+                    ? "Pris sur Calendly : l'événement reste tel quel chez Peggy (son agenda n'a pas encore le droit de le modifier). Ne pas le supprimer."
+                    : "Pris sur Calendly : l'événement n'a pas pu passer en Tomate chez Peggy. Le faire à la main, sans le supprimer."
                 : null,
             ]
               .filter(Boolean)

@@ -228,7 +228,7 @@ const confierSchema = z.object({
  */
 export async function confierUnRendezVous(
   input: unknown,
-): Promise<ActionResult<{ mailCliente: boolean; calendly: boolean }>> {
+): Promise<ActionResult<{ mailCliente: boolean; calendly: boolean; agendaTitulaire: string | null }>> {
   await requireAdmin();
   const parsed = confierSchema.safeParse(input);
   if (!parsed.success) return failFromZod(parsed.error);
@@ -239,5 +239,5 @@ export async function confierUnRendezVous(
   const r = await confierRendezVous(admin, parsed.data.organizationId, parsed.data.bookingId, parsed.data.personneId, ids);
   if (!r.ok) return fail(r.erreur);
   revalidatePath(`/admin/clients/${parsed.data.organizationId}/reservation`);
-  return ok({ mailCliente: r.mailCliente, calendly: r.calendly });
+  return ok({ mailCliente: r.mailCliente, calendly: r.calendly, agendaTitulaire: r.agendaTitulaire });
 }

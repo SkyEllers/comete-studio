@@ -7,8 +7,8 @@ import { jetonAgent, lireInvitation } from "@/tools/agent/calendly";
 import { lienMonRdv, lireLienPersonnel } from "@/tools/agent/outil-regles";
 import { profil as profilAgent } from "@/tools/agent/profils";
 
-import { ecrireRendezVous, effacerRendezVous } from "./agenda.ts";
-import type { Identifiants } from "./google.ts";
+import { ecrireRendezVous, effacerRendezVous, lireJeton } from "./agenda.ts";
+import { jetonAcces, teinterConfie, type Identifiants, type Teinte } from "./google.ts";
 import { prevenirPersonne } from "./prevenir.ts";
 import { baseEspace } from "./suites.ts";
 
@@ -27,18 +27,24 @@ import { baseEspace } from "./suites.ts";
  * Un rendez-vous pris sur Calendly n'a pas de ligne dans l'outil : on la crée
  * (origine `admin`), avec l'adresse et les réponses lues chez Calendly.
  * L'événement Calendly reste dans l'agenda de la titulaire (`calendly: true`
- * dans la réponse). Elle peut le retirer de son agenda Google : la
- * synchronisation des annulations est coupée dans le Calendly de Peggy depuis
- * le 07/10/2026 (testé : le rendez-vous reste actif). Avant, le retirer
- * l'annulait (06/10, cinq clientes). Toujours « Ne pas envoyer » quand Google
- * propose de prévenir les invités : la cliente recevrait « Événement annulé »
- * (vu au test du 07/10).
+ * dans la réponse) : on le passe en Tomate et « Disponible » (`teinterConfie`)
+ * si la titulaire a donné le droit de modifier ses événements. Il ne se
+ * supprime jamais : le 06/10, le supprimer annulait le rendez-vous Calendly ;
+ * le 07/10, synchronisation des annulations coupée dans Calendly, Google a
+ * quand même envoyé « Événement annulé » à l'invitée.
  */
 
 type Admin = ReturnType<typeof createAdminClient>;
 
 export type Confie =
-  | { ok: true; mailCliente: boolean; calendly: boolean; lienVisio: string | null }
+  | {
+      ok: true;
+      mailCliente: boolean;
+      calendly: boolean;
+      lienVisio: string | null;
+      /** Calendly : son événement chez la titulaire, passé en Tomate et Disponible, ou pourquoi pas. */
+      agendaTitulaire: Teinte | "erreur" | null;
+    }
   | { ok: false; erreur: string };
 
 const empreinte = (jeton: string) => createHash("sha256").update(jeton).digest("hex");
@@ -128,6 +134,7 @@ export async function confierRendezVous(
 
   let rdvId: string;
   let lienPersonnel: string | null = null;
+  let emailCalendly: string | null = null;
   const calendly = !ligne;
 
   if (ligne) {
@@ -176,6 +183,7 @@ export async function confierRendezVous(
     const jeton = await jetonAgent(admin, org);
     const invite = jeton ? await lireInvitation(jeton, rdv.invitee_uri) : null;
     if (!invite?.email) return { ok: false, erreur: "Calendly ne rend pas l'adresse de la cliente : rien n'a changé." };
+    emailCalendly = invite.email;
 
     const telephone =
       invite.text_reminder_number ??
@@ -228,8 +236,29 @@ export async function confierRendezVous(
     .update({ lien_visio: lienVisio, ...(lienPersonnel && !calendly ? { lien_report: lienPersonnel } : {}) })
     .eq("booking_id", bookingId);
 
+  // Calendly : l'événement reste chez la titulaire ; on le passe en Tomate et
+  // « Disponible » plutôt que le supprimer (Louis, 07/10/2026).
+  let agendaTitulaire: Teinte | "erreur" | null = null;
+  if (calendly && emailCalendly) {
+    try {
+      const { data: titulaire } = await admin
+        .from("reservation_personnes")
+        .select("id")
+        .eq("organization_id", org)
+        .eq("role", "titulaire")
+        .maybeSingle();
+      const jeton = titulaire ? await lireJeton(admin, titulaire.id) : null;
+      agendaTitulaire = jeton
+        ? await teinterConfie(await jetonAcces(jeton, ids), { debut: rdv.scheduled_start, fin: rdv.scheduled_end, email: emailCalendly })
+        : "sans_droit";
+    } catch (erreur) {
+      console.error("Confier, Tomate chez la titulaire :", erreur instanceof Error ? erreur.message : "erreur");
+      agendaTitulaire = "erreur";
+    }
+  }
+
   const mailCliente = await prevenirCliente(lienPersonnel);
   await prevenirPersonne(admin, rdvId, "nouveau", espace);
 
-  return { ok: true, mailCliente, calendly, lienVisio };
+  return { ok: true, mailCliente, calendly, lienVisio, agendaTitulaire };
 }
