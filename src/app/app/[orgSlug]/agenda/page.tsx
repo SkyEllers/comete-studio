@@ -74,6 +74,12 @@ export default async function AgendaPage({
                     {jourEnMots(r.debut, fiche.fuseau)} à {heureEnMots(r.debut, fiche.fuseau)}
                   </span>
                   <span className="font-medium">{r.prenom ?? ""}</span>
+                  {/* Le premier rendez-vous après un devis payé (0055), pas un diagnostic. */}
+                  {r.genre === "premier" ? (
+                    <span className="text-muted-foreground border-line rounded border px-1.5 py-0.5 text-xs">
+                      Premier rendez-vous
+                    </span>
+                  ) : null}
                   {r.lien_visio ? (
                     <a
                       href={r.lien_visio}

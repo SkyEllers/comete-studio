@@ -17,6 +17,8 @@ import {
   type Connexion,
   type Identifiants,
 } from "./google.ts";
+import { evenementPremier, type DevisPaye } from "../devis/premier-regles.ts";
+
 import type { Agendas, PersonneLue } from "./moteur.ts";
 import { descriptionEvenement, lienFiche } from "./reponses.ts";
 
@@ -142,6 +144,8 @@ type RdvPourAgenda = {
   reponses: unknown;
   google_event_id: string | null;
   organization_id: string;
+  genre: "diagnostic" | "premier";
+  devis_id: string | null;
   personne: { id: string; role: string; google_agenda: string; visio: string; lien_visio: string | null };
 };
 
@@ -149,7 +153,7 @@ async function lireRdv(db: Admin, rdvId: string): Promise<RdvPourAgenda> {
   const { data, error } = await db
     .from("reservation_rendez_vous")
     .select(
-      "id, debut, fin, prenom, nom, telephone, reponses, google_event_id, organization_id, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(id, role, google_agenda, visio, lien_visio)",
+      "id, debut, fin, prenom, nom, telephone, reponses, google_event_id, organization_id, genre, devis_id, personne:reservation_personnes!reservation_rendez_vous_personne_id_organization_id_fkey(id, role, google_agenda, visio, lien_visio)",
     )
     .eq("id", rdvId)
     .single();
@@ -176,14 +180,18 @@ export async function ecrireRendezVous(
 
   const acces = await porteJetons(db, ids)(rdv.personne.id);
   const prenom = rdv.prenom?.trim() || "une cliente";
+  const premier = rdv.genre === "premier" && rdv.devis_id ? await evenementDuDevis(db, rdv.devis_id) : null;
   const ecrit = await creerEvenement(acces, rdv.personne.google_agenda, {
     id: idEvenement(rdv.id),
     debut: rdv.debut,
     fin: rdv.fin,
     // Le titre porte le rappel : c'est lui que la notification affiche (Louis, 28/09/2026).
-    titre: `Diagnostic · ${prenom} · lance l'enregistrement`,
+    titre: premier?.titre ?? `Diagnostic · ${prenom} · lance l'enregistrement`,
     // Son numéro et ses réponses au formulaire, sous les yeux (Louis, 30/09/2026).
-    description: descriptionEvenement({ ...rdv, email: null }, lienFiche(baseEspace, rdv.personne.role, rdv.id)),
+    // Un premier rendez-vous (0055) : sa formule, ce qu'elle veut, l'adresse du kit.
+    description:
+      premier?.description ??
+      descriptionEvenement({ ...rdv, email: null }, lienFiche(baseEspace, rdv.personne.role, rdv.id)),
     visio:
       rdv.personne.visio === "lien" && rdv.personne.lien_visio
         ? { type: "lien", lien: rdv.personne.lien_visio }
@@ -196,6 +204,23 @@ export async function ecrireRendezVous(
     .eq("id", rdv.id);
   if (error) throw new Error(`rendez-vous ${rdv.id} : ${error.message}`);
   return ecrit;
+}
+
+/** Le titre et la description d'un premier rendez-vous, depuis son devis (0055). */
+async function evenementDuDevis(db: Admin, devisId: string): Promise<{ titre: string; description: string } | null> {
+  // Les tables du devis (0050) ne sont pas dans les types générés : client non typé, comme `devis/moteur.ts`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (db as any)
+    .from("devis")
+    .select("prenom, nom, email, telephone, adresse, objet, duree_mois, paiement, investigation_cents, mensualite_cents, total_cents, paye_le, closeuse_id")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (!data) return null;
+  const d = data as DevisPaye & { closeuse_id: string | null };
+  const { data: profil } = d.closeuse_id
+    ? await db.from("profiles").select("full_name").eq("id", d.closeuse_id).maybeSingle()
+    : { data: null };
+  return evenementPremier(d, profil?.full_name ?? null);
 }
 
 /** Retirer un rendez-vous annulé ou reporté de l'agenda de sa personne. */
@@ -218,7 +243,8 @@ export async function reecrireDescription(
   baseEspace: string,
 ): Promise<boolean> {
   const rdv = await lireRdv(db, rdvId);
-  if (!rdv.google_event_id || rdv.personne.google_agenda === AGENDA_PRINCIPAL) return false;
+  // Un premier rendez-vous (0055) garde la description tirée de son devis.
+  if (!rdv.google_event_id || rdv.personne.google_agenda === AGENDA_PRINCIPAL || rdv.genre === "premier") return false;
   const acces = await porteJetons(db, ids)(rdv.personne.id);
   const texte = descriptionEvenement({ ...rdv, email: null }, lienFiche(baseEspace, rdv.personne.role, rdv.id));
   const lien = rdv.personne.visio === "lien" ? rdv.personne.lien_visio : null;

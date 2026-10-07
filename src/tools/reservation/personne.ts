@@ -47,7 +47,7 @@ export async function monAgenda(personneId: string, fuseau: string) {
       .order("du"),
     supabase
       .from("reservation_rendez_vous")
-      .select("id, debut, prenom, nom, email, telephone, reponses, lien_visio")
+      .select("id, debut, prenom, nom, email, telephone, reponses, lien_visio, genre")
       .eq("personne_id", personneId)
       .eq("statut", "confirme")
       .gte("fin", new Date().toISOString())

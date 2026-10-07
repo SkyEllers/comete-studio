@@ -340,7 +340,9 @@ export async function pdfSigne(admin: Admin, p: ProfilDevis, d: LigneDevis): Pro
  * Demander au site le mail de la cliente : « envoi » (le devis), « rappel »,
  * « signe » (le PDF et le lien de paiement). Ne lève jamais.
  */
-export async function notifierSite(site: string, lien: string, geste: "envoi" | "rappel" | "signe"): Promise<boolean> {
+export type GesteSite = "envoi" | "rappel" | "signe" | "paye" | "rdv_rappel" | "rdv_veille";
+
+export async function notifierSite(site: string, lien: string, geste: GesteSite): Promise<boolean> {
   try {
     const r = await fetch(`${site.replace(/\/+$/, "")}/api/devis/notifier`, {
       method: "POST",
@@ -422,17 +424,26 @@ export async function relancerDevis(admin: Admin, maintenant = Date.now()): Prom
  * premier « payé », la vente s'inscrit dans Radar et chez la closeuse, datée
  * du jour du paiement : une cliente qui signe sans payer n'est pas une vente
  * (Louis, 06/10/2026 ; avant, la vente s'inscrivait à la signature).
+ * Rend vrai au premier « payé » seulement : la route envoie alors les mails
+ * du premier rendez-vous (`premier.ts`, 07/10/2026). Le webhook Stripe et la
+ * page merci du site le notent tous deux ; le premier arrivé gagne.
  */
 export async function noterPaiement(
   admin: Admin,
   d: LigneDevis,
   genre: "paiement_lien" | "paye",
   session: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const maintenant = new Date().toISOString();
   if (genre === "paye") {
-    if (d.paye_le) return;
-    await brut(admin).from("devis").update({ paye_le: maintenant, stripe_session: session }).eq("id", d.id);
+    if (d.paye_le) return false;
+    const { data: gagne } = await brut(admin)
+      .from("devis")
+      .update({ paye_le: maintenant, stripe_session: session })
+      .eq("id", d.id)
+      .is("paye_le", null)
+      .select("id");
+    if (!gagne?.length) return false;
     const { data: radar, error: erreurRadar } = await admin.rpc("devis_vers_radar", { devis_cible: d.id });
     if (erreurRadar || radar === false) {
       console.error("Devis : la vente n'a pas pu s'inscrire dans Radar", erreurRadar?.message ?? "refusée");
@@ -444,4 +455,5 @@ export async function noterPaiement(
       .eq("id", d.id);
   }
   await noter(admin, d.id, genre, { details: session ? { session } : {} });
+  return genre === "paye";
 }

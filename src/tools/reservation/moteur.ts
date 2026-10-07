@@ -52,7 +52,13 @@ export type DonneesReservation = {
   fuseauCliente: string;
   reponses: { question: string; reponse: string }[];
   utm: Record<string, string>;
-  jetonHash: string;
+  /** Le premier rendez-vous d'un devis n'a pas de lien personnel : il se gère par le lien du devis. */
+  jetonHash: string | null;
+  /** « premier » : le premier rendez-vous avec la titulaire, après un devis payé (0055). Diagnostic sinon. */
+  genre?: "diagnostic" | "premier";
+  devisId?: string;
+  /** Sa durée à lui ; sans elle, celle des réglages du client. */
+  dureeMinutes?: number;
 };
 
 export type Echec = "deja_pris" | "maximum" | "indisponible" | "passe" | "introuvable" | "erreur";
@@ -89,6 +95,17 @@ export type Disponibilites =
 
 const JOUR = 86_400_000;
 
+/**
+ * Pour qui on cherche (0055). Par défaut, un diagnostic : toutes les
+ * personnes, la durée du client. Le premier rendez-vous après un devis :
+ * la titulaire seule, sa durée à lui (30 min, 15 pour un bilan microbiote).
+ */
+export type Options = {
+  ignorerActif?: boolean;
+  titulaireSeule?: boolean;
+  dureeMinutes?: number;
+};
+
 type Etat = {
   regles: ReglagesLus;
   personnes: PersonneLue[];
@@ -103,13 +120,14 @@ async function lire(
   maintenant: number,
   depot: Depot,
   agendas: Agendas,
-  options: { ignorerActif?: boolean; sauf?: string } = {},
+  options: Options & { sauf?: string } = {},
 ): Promise<Etat | null> {
-  const regles = await depot.reglages(org);
-  if (!regles || (!regles.actif && !options.ignorerActif)) return null;
+  const lus = await depot.reglages(org);
+  if (!lus || (!lus.actif && !options.ignorerActif)) return null;
+  const regles = options.dureeMinutes ? { ...lus, dureeMinutes: options.dureeMinutes } : lus;
 
   const ecartees: Ecartee[] = [];
-  const toutes = await depot.personnes(org);
+  const toutes = (await depot.personnes(org)).filter((p) => !options.titulaireSeule || p.role === "titulaire");
   const personnes = toutes.filter((p) => {
     if (!p.agendaConnecte) ecartees.push({ personneId: p.id, raison: "sans_agenda" });
     return p.agendaConnecte;
@@ -161,7 +179,7 @@ export async function creneauxLibres(
   maintenant: number,
   depot: Depot,
   agendas: Agendas,
-  options: { ignorerActif?: boolean } = {},
+  options: Options = {},
 ): Promise<Disponibilites> {
   const etat = await lire(org, maintenant, depot, agendas, options);
   if (!etat) return { etat: "ferme" };
@@ -218,7 +236,7 @@ export async function reserver(
   maintenant: number,
   depot: Depot,
   agendas: Agendas,
-  options: { ignorerActif?: boolean } = {},
+  options: Options = {},
 ): Promise<Reservation> {
   const etat = await lire(org, maintenant, depot, agendas, options);
   if (!etat) return { ok: false, raison: "ferme" };
@@ -256,7 +274,7 @@ export async function reporter(
   maintenant: number,
   depot: Depot,
   agendas: Agendas,
-  options: { ignorerActif?: boolean } = {},
+  options: Options = {},
 ): Promise<Reservation> {
   const ancien = await depot.rendezVous(org, ancienId);
   if (!ancien) return { ok: false, raison: "erreur", message: "rendez_vous_introuvable" };

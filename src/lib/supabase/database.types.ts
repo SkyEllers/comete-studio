@@ -1204,6 +1204,7 @@ export type Database = {
           paiement: string
           paiement_lien_le: string | null
           paye_le: string | null
+          premier_rappel_le: string | null
           pdf_chemin: string | null
           prenom: string
           relance_le: string | null
@@ -1245,6 +1246,7 @@ export type Database = {
           paiement: string
           paiement_lien_le?: string | null
           paye_le?: string | null
+          premier_rappel_le?: string | null
           pdf_chemin?: string | null
           prenom: string
           relance_le?: string | null
@@ -1286,6 +1288,7 @@ export type Database = {
           paiement?: string
           paiement_lien_le?: string | null
           paye_le?: string | null
+          premier_rappel_le?: string | null
           pdf_chemin?: string | null
           prenom?: string
           relance_le?: string | null
@@ -3245,10 +3248,12 @@ export type Database = {
           bloque_jusqu_a: string
           created_at: string
           debut: string
+          devis_id: string | null
           efface_le: string | null
           email: string | null
           fin: string
           fuseau_cliente: string
+          genre: string
           google_event_id: string | null
           id: string
           jeton_hash: string | null
@@ -3259,6 +3264,7 @@ export type Database = {
           personne_id: string
           prenom: string | null
           radar_booking_id: string | null
+          rappel_le: string | null
           reponses: Json
           reporte_de: string | null
           statut: string
@@ -3272,10 +3278,12 @@ export type Database = {
           bloque_jusqu_a: string
           created_at?: string
           debut: string
+          devis_id?: string | null
           efface_le?: string | null
           email?: string | null
           fin: string
           fuseau_cliente?: string
+          genre?: string
           google_event_id?: string | null
           id?: string
           jeton_hash?: string | null
@@ -3286,6 +3294,7 @@ export type Database = {
           personne_id: string
           prenom?: string | null
           radar_booking_id?: string | null
+          rappel_le?: string | null
           reponses?: Json
           reporte_de?: string | null
           statut?: string
@@ -3299,10 +3308,12 @@ export type Database = {
           bloque_jusqu_a?: string
           created_at?: string
           debut?: string
+          devis_id?: string | null
           efface_le?: string | null
           email?: string | null
           fin?: string
           fuseau_cliente?: string
+          genre?: string
           google_event_id?: string | null
           id?: string
           jeton_hash?: string | null
@@ -3313,6 +3324,7 @@ export type Database = {
           personne_id?: string
           prenom?: string | null
           radar_booking_id?: string | null
+          rappel_le?: string | null
           reponses?: Json
           reporte_de?: string | null
           statut?: string
@@ -3321,6 +3333,13 @@ export type Database = {
           utm?: Json
         }
         Relationships: [
+          {
+            foreignKeyName: "reservation_rendez_vous_devis_id_fkey"
+            columns: ["devis_id"]
+            isOneToOne: false
+            referencedRelation: "devis"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reservation_rendez_vous_organization_id_fkey"
             columns: ["organization_id"]

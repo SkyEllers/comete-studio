@@ -190,6 +190,10 @@ export function depotSupabase(db: Admin): Depot {
           reponses: d.reponses,
           utm: d.utm,
           jeton_hash: d.jetonHash,
+          // Le premier rendez-vous après un devis (0055) : son genre, son devis, sa durée.
+          ...(d.genre ? { genre: d.genre } : {}),
+          ...(d.devisId ? { devis_id: d.devisId } : {}),
+          ...(d.dureeMinutes ? { duree_minutes: d.dureeMinutes } : {}),
         },
       });
       return prise(data, error);

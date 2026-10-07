@@ -7,6 +7,7 @@ import { mailsVeilleStop } from "@/tools/agent/outil";
 import { envoyerResumes } from "@/tools/agent/resume";
 import { creerFacturesDuMois, relancerFactures } from "@/tools/closeuse/factures";
 import { relancerDevis } from "@/tools/devis/moteur";
+import { horlogePremier } from "@/tools/devis/premier";
 import { entretienReservation } from "@/tools/reservation/entretien";
 import { entretenirEnregistrements } from "@/tools/resultats/enregistrement-assemblyai";
 
@@ -29,7 +30,9 @@ import { entretenirEnregistrements } from "@/tools/resultats/enregistrement-asse
  * le mail de la veille pour celles qui ont dit STOP (`outil.ts`, 0048). Et
  * l'entretien de l'outil de réservation : écritures Google ratées, « complet »
  * (`reservation/entretien.ts`). Et le rappel quotidien des devis pas encore
- * signés, à 10h (`devis/moteur.ts`, P16). Et les factures des closeuses :
+ * signés, à 10h (`devis/moteur.ts`, P16), et ceux du premier rendez-vous
+ * après un devis payé : 24 h sans réservation, la veille (`devis/premier.ts`,
+ * 0055). Et les factures des closeuses :
  * créées le 1er du mois, relancées tous les deux jours tant qu'elles ne
  * sont pas acceptées (`closeuse/factures.ts`, 0051).
  *
@@ -80,6 +83,10 @@ export async function POST(request: Request) {
       console.error(`[devis] rappels ratés : ${e.message}`);
       return null;
     });
+    const premier = await horlogePremier(admin).catch((e: Error) => {
+      console.error(`[devis] premier rendez-vous, rappels ratés : ${e.message}`);
+      return null;
+    });
     const factures = await Promise.all([creerFacturesDuMois(admin), relancerFactures(admin)])
       .then(([creees, rappels]) => ({ creees, rappels }))
       .catch((e: Error) => {
@@ -87,7 +94,7 @@ export async function POST(request: Request) {
         return null;
       });
     return Response.json(
-      { faits, resumes, veilles, reservation, enregistrements, devis, factures, duree_ms: Date.now() - debut },
+      { faits, resumes, veilles, reservation, enregistrements, devis, premier, factures, duree_ms: Date.now() - debut },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (erreur) {

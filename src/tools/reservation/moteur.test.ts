@@ -253,3 +253,47 @@ describe("le moteur : reporter", () => {
     assert.deepEqual(r, { ok: false, raison: "erreur", message: "rendez_vous_introuvable" });
   });
 });
+
+describe("le moteur : le premier rendez-vous après un devis (0055)", () => {
+  const premier = { titulaireSeule: true, dureeMinutes: 30 };
+
+  it("chez la titulaire seule, même quand une closeuse est libre", async () => {
+    const { depot, prises } = faux({ personnes: [personne("peggy", "titulaire"), personne("c", "closeuse")] });
+    const r = await creneauxLibres("org", maintenant, depot, libres, premier);
+    if (r.etat !== "ouvert") return assert.fail(r.etat);
+    assert.ok(r.creneaux.every((x) => x.personnes.join() === "peggy"));
+    const prise = await reserver("org", iso(heure(LUNDI, 9)), donnees, maintenant, depot, libres, premier);
+    assert.deepEqual(prise, { ok: true, id: "rdv-1", personneId: "peggy" });
+    assert.equal(prises[0].personneId, "peggy");
+  });
+
+  it("dure 30 minutes : le dernier créneau d'une plage 9h-12h commence à 11h30", async () => {
+    const { depot } = faux({ personnes: [personne("peggy", "titulaire")] });
+    const r = await creneauxLibres("org", maintenant, depot, libres, premier);
+    if (r.etat !== "ouvert") return assert.fail(r.etat);
+    const lundi = r.creneaux.filter((x) => x.debut.startsWith("2026-10-05"));
+    assert.equal(lundi.at(-1)?.debut, iso(heure(LUNDI, 11, 30)));
+    assert.equal(Date.parse(lundi[0].fin) - Date.parse(lundi[0].debut), 30 * 60_000);
+  });
+
+  it("sans titulaire disponible, rien, même si une closeuse l'est", async () => {
+    const { depot } = faux({
+      personnes: [personne("peggy", "titulaire", { agendaConnecte: false }), personne("c", "closeuse")],
+    });
+    const r = await creneauxLibres("org", maintenant, depot, libres, premier);
+    assert.equal(r.etat, "complet");
+    const prise = await reserver("org", iso(heure(LUNDI, 9)), donnees, maintenant, depot, libres, premier);
+    assert.deepEqual(prise, { ok: false, raison: "plus_libre" });
+  });
+
+  it("ses diagnostics déjà pris lui bloquent le créneau, pause comprise", async () => {
+    const { depot } = faux({
+      personnes: [personne("peggy", "titulaire")],
+      diagnostics: [{ id: "x", personneId: "peggy", debut: heure(LUNDI, 9), fin: heure(LUNDI, 9, 45) }],
+    });
+    const r = await creneauxLibres("org", maintenant, depot, libres, premier);
+    if (r.etat !== "ouvert") return assert.fail(r.etat);
+    const lundi = r.creneaux.filter((x) => x.debut.startsWith("2026-10-05")).map((x) => x.debut);
+    assert.equal(lundi[0], iso(heure(LUNDI, 10)));
+  });
+});
