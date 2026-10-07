@@ -1,167 +1,99 @@
-import { Check, X } from "lucide-react";
+import { ChevronRight, UsersRound } from "lucide-react";
 import Link from "next/link";
 
+import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
 import { requireAdmin } from "@/lib/auth";
-import { cn } from "@/lib/utils";
-import { devisDuProfilTest, EMAIL_TEST, ESPACE_TEST, etatProfilTest } from "@/tools/closeuse/profil-test";
-import { euros } from "@/tools/devis/regles";
-
-import { BoutonCliente, BoutonDemos, BoutonPreparer } from "./boutons";
+import { createClient } from "@/lib/supabase/server";
 
 /**
- * Closeuse — le profil de test de Louis (06/10/2026).
- *
- * Un vrai compte closeuse dans l'espace d'essai, pour voir et cliquer tout ce
- * que voient les closeuses, sans toucher aux rendez-vous de Peggy. La page
- * prépare le compte, remet les rendez-vous démo à neuf, et dit comment y
- * entrer (une fenêtre privée : le compte admin ne peut pas être closeuse).
+ * Closeuses — une carte par closeuse, tous clients confondus (Louis,
+ * 07/10/2026). Un clic ouvre son espace tel qu'elle le voit
+ * (`/app/<client>/closeuse?c=<id>`, `requireCloseuse` laisse entrer l'admin).
+ * Remplace le profil de test du 06/10.
  */
 
-export const metadata = { title: "Closeuse — Comète Studio" };
+export const metadata = { title: "Closeuses — Comète Studio" };
 
-const DEMOS = [
-  ["Céline", "À venir, demain : ses réponses, « Assistante : confirmé »"],
-  ["Nadia", "À venir, dans trois jours : « Assistante : pas encore confirmé »"],
-  ["Sophie", "À noter (l'appel vient de finir) : l'enregistrement, puis le résultat"],
-  ["Martine", "À recontacter aujourd'hui : « Pas de vente · le conjoint », son téléphone, « C'est fait »"],
-  ["Sandrine", "Déjà faits : vendu, 1 520 € en 6 fois, et dans « Mes ventes » ta commission"],
-  ["Claire", "Déjà faits : pas venue"],
-  ["Julie", "Déjà faits : annulé"],
-] as const;
+const depuis = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" });
 
-function Ligne({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-2 text-sm">
-      {ok ? (
-        <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-label="fait" />
-      ) : (
-        <X className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-label="pas encore" />
-      )}
-      <span className={cn(!ok && "text-muted-foreground")}>{children}</span>
-    </li>
-  );
-}
-
-function Bloc({ titre, children }: { titre: string; children: React.ReactNode }) {
-  return (
-    <section className="border-line bg-card mb-6 rounded-lg border p-5">
-      <h2 className="mb-3 text-lg">{titre}</h2>
-      {children}
-    </section>
-  );
-}
-
-export default async function CloseusePage() {
+export default async function CloseusesPage() {
   await requireAdmin();
-  const [etat, devis] = await Promise.all([etatProfilTest(), devisDuProfilTest()]);
-  const pret = Boolean(etat.compte && etat.closeuse && etat.reservation);
+  const supabase = await createClient();
+
+  const { data: lignes } = await supabase
+    .from("radar_closeuses")
+    .select("organization_id, user_id, created_at")
+    .order("created_at");
+  const closeuses = lignes ?? [];
+  const ids = closeuses.map((c) => c.user_id);
+
+  const [{ data: profils }, { data: orgs }, { data: aVenir }] = await Promise.all([
+    supabase.from("profiles").select("id, full_name, email").in("id", ids),
+    supabase
+      .from("organizations")
+      .select("id, name, slug")
+      .in(
+        "id",
+        closeuses.map((c) => c.organization_id),
+      ),
+    supabase
+      .from("radar_bookings")
+      .select("organization_id, closeuse_id")
+      .in("closeuse_id", ids)
+      .eq("status", "confirme")
+      .gte("scheduled_start", new Date().toISOString()),
+  ]);
+
+  const cartes = closeuses.flatMap((c) => {
+    const org = orgs?.find((o) => o.id === c.organization_id);
+    if (!org) return [];
+    const profil = profils?.find((p) => p.id === c.user_id);
+    const nb = (aVenir ?? []).filter((r) => r.organization_id === c.organization_id && r.closeuse_id === c.user_id).length;
+    return [
+      {
+        cle: `${c.organization_id}:${c.user_id}`,
+        href: `/app/${org.slug}/closeuse?c=${c.user_id}`,
+        nom: profil?.full_name || profil?.email || "Closeuse",
+        email: profil?.email ?? "",
+        client: org.name,
+        depuis: c.created_at,
+        nb,
+      },
+    ];
+  });
 
   return (
     <>
-      <PageHeader
-        title="Closeuse"
-        description="Ton profil de closeuse de test : tu vois et tu cliques exactement ce que voient les closeuses, sans toucher aux rendez-vous de Peggy."
-      />
-
-      <Bloc titre="Ton profil">
-        <ul className="mb-4 space-y-1.5">
-          <Ligne ok={Boolean(etat.compte)}>
-            Le compte <span className="font-mono text-xs">{EMAIL_TEST}</span>
-            {etat.compte?.nom ? ` (${etat.compte.nom})` : ""}
-          </Ligne>
-          <Ligne ok={etat.closeuse}>
-            Closeuse dans l&apos;espace d&apos;essai « {etat.organisation?.nom ?? ESPACE_TEST} »
-          </Ligne>
-          <Ligne ok={Boolean(etat.reservation)}>
-            Sa fiche de réservation, hors roulement (aucune réservation d&apos;essai ne tombe chez toi)
-          </Ligne>
-          <Ligne ok={Boolean(etat.reservation?.agenda)}>
-            Son agenda Google relié (à faire toi-même, dans « Mon agenda »)
-          </Ligne>
-          <Ligne ok={etat.demos > 0}>{etat.demos} rendez-vous démo</Ligne>
-        </ul>
-        <BoutonPreparer libelle={pret ? "Revérifier le profil" : "Préparer mon profil closeuse"} />
-      </Bloc>
-
-      <Bloc titre="Les rendez-vous démo">
-        <p className="text-muted-foreground mb-3 text-sm">
-          Un dans chaque état de l&apos;espace. Note, dépose, change ce que tu veux : le bouton remet tout à neuf.
-          Seuls les rendez-vous démo de ce profil sont effacés, jamais ceux de Peggy.
-        </p>
-        <ul className="mb-4 space-y-1 text-sm">
-          {DEMOS.map(([prenom, quoi]) => (
-            <li key={prenom}>
-              <span className="font-medium">{prenom}</span> — {quoi}
+      <PageHeader title="Closeuses" description="Clique sur une closeuse : tu vois son espace exactement comme elle le voit." />
+      {cartes.length ? (
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {cartes.map((c) => (
+            <li key={c.cle}>
+              <Link
+                href={c.href}
+                prefetch={false}
+                className="border-line bg-card hover:border-ember group flex h-full flex-col gap-1 rounded-lg border p-5 transition-colors"
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-lg">{c.nom}</span>
+                  <ChevronRight aria-hidden="true" className="text-muted-foreground group-hover:text-ember size-4 shrink-0" />
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  Chez {c.client}, depuis le {depuis.format(new Date(c.depuis))}
+                </span>
+                {c.email ? <span className="text-muted-foreground truncate text-xs">{c.email}</span> : null}
+                <span className="mt-2 text-sm">{c.nb === 0 ? "Aucun rendez-vous à venir" : `${c.nb} rendez-vous à venir`}</span>
+              </Link>
             </li>
           ))}
         </ul>
-        {pret ? (
-          <BoutonDemos libelle={etat.demos ? "Remettre les rendez-vous démo à neuf" : "Créer les rendez-vous démo"} />
-        ) : (
-          <p className="text-muted-foreground text-sm">Prépare d&apos;abord le profil.</p>
-        )}
-      </Bloc>
-
-      <Bloc titre="Entrer dans ton profil">
-        <ol className="mb-4 list-decimal space-y-1.5 pl-5 text-sm">
-          <li>
-            Ouvre une <span className="font-medium">fenêtre de navigation privée</span> (Ctrl + Maj + N) : ton compte
-            admin reste ouvert dans l&apos;autre.
-          </li>
-          <li>
-            Va sur <span className="font-mono text-xs">app.cometestudio.fr</span> et connecte-toi avec{" "}
-            <span className="font-mono text-xs">{EMAIL_TEST}</span>.
-          </li>
-          <li>
-            {etat.jamaisConnecte ? "Première fois" : "Mot de passe oublié"} : « Mot de passe oublié ? », le lien arrive
-            dans ta boîte Gmail (l&apos;adresse en « +closeuse » y arrive aussi).
-          </li>
-          <li>Tu arrives directement dans l&apos;espace closeuse, comme elles. « Mon agenda » est en haut à droite.</li>
-        </ol>
-        {etat.compte && etat.closeuse ? (
-          <p className="text-sm">
-            Ou, sans quitter ton compte :{" "}
-            <Link
-              href={`/app/${ESPACE_TEST}/closeuse?c=${etat.compte.id}`}
-              className="text-primary underline underline-offset-4"
-            >
-              voir son espace comme elle
-            </Link>{" "}
-            <span className="text-muted-foreground">(lecture ; « Mon agenda » t&apos;y ouvre le tien).</span>
-          </p>
-        ) : null}
-      </Bloc>
-
-      <Bloc titre="Le devis, côté cliente (simulation)">
-        <p className="text-muted-foreground mb-3 text-sm">
-          Dans ton profil, « Envoyer le devis » marche comme chez Peggy, mais rien ne part : pas de mail, pas de
-          Stripe. Ici, tu joues la cliente, et tu regardes ce que la closeuse voit changer dans le bloc « Le devis ». La vente n&apos;apparaît chez elle qu&apos;au paiement.
-          Les devis s&apos;effacent avec les rendez-vous démo.
-        </p>
-        {devis.length ? (
-          <ul className="space-y-2">
-            {devis.map((d) => (
-              <li key={d.id} className="border-line flex flex-wrap items-center gap-2 border-t pt-2 text-sm">
-                <span className="font-medium">{d.prenom}</span>
-                <span className="text-muted-foreground">
-                  {euros(d.totalCents)}, {d.investigationSeule ? "investigation seule" : `${d.dureeMois} mois`} ·{" "}
-                  {d.statut === "signe" ? (d.paye ? "signé et payé" : "signé, paiement en attente") : d.statut === "envoye" ? (d.ouvert ? "ouvert" : "envoyé") : d.statut}
-                </span>
-                <span className="ml-auto flex gap-2">
-                  {d.statut === "envoye" && !d.ouvert ? <BoutonCliente devisId={d.id} geste="ouvrir" libelle="Elle l'ouvre" /> : null}
-                  {d.statut === "envoye" ? <BoutonCliente devisId={d.id} geste="signer" libelle="Elle signe" /> : null}
-                  {d.statut === "signe" && !d.paye ? <BoutonCliente devisId={d.id} geste="payer" libelle="Elle paie" /> : null}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            Aucun devis pour l&apos;instant : envoie-en un depuis ton profil (Sophie, « Noter le résultat »).
-          </p>
-        )}
-      </Bloc>
+      ) : (
+        <EmptyState icon={UsersRound} title="Aucune closeuse pour l'instant." description="Elles apparaissent ici dès qu'un client en a une." />
+      )}
+      <p className="text-muted-foreground mt-6 text-xs">
+        Dans son espace, tes clics comptent pour de vrai : un résultat noté, un dépôt ou un devis envoyé partent comme si elle l&apos;avait fait.
+      </p>
     </>
   );
 }

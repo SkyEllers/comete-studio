@@ -213,13 +213,4 @@ export const devisPeggy: ProfilDevis = {
 };
 
 /** Les profils de devis, par slug d'organisation. */
-/**
- * L'espace d'essai (`comete-studio`) : le devis de Peggy en simulation, pour le
- * profil closeuse de test de Louis (06/10/2026). En simulation : aucun mail ne
- * part (`prevenirCliente`), et le site de Peggy ne lit pas les devis de cet
- * espace ; l'ouverture, la signature et le paiement se simulent depuis
- * `/admin/closeuse`.
- */
-export const devisEssai: ProfilDevis = { ...devisPeggy, slug: "comete-studio", titre: "Devis personnalisé (essai)", simulation: true };
-
-export const PROFILS_DEVIS: Record<string, ProfilDevis> = { peggy: devisPeggy, "comete-studio": devisEssai };
+export const PROFILS_DEVIS: Record<string, ProfilDevis> = { peggy: devisPeggy };

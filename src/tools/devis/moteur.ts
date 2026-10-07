@@ -350,12 +350,9 @@ export async function notifierSite(site: string, lien: string, geste: "envoi" | 
   }
 }
 
-/**
- * Écrire à la cliente par le site, sauf pour un profil de simulation (l'espace
- * d'essai) : rien ne part, et le devis suit son cours comme si le mail était parti.
- */
+/** Écrire à la cliente par le site du client. */
 export async function prevenirCliente(p: ProfilDevis, lien: string, geste: "envoi" | "rappel" | "signe"): Promise<boolean> {
-  return p.simulation ? true : notifierSite(p.site, lien, geste);
+  return notifierSite(p.site, lien, geste);
 }
 
 async function lienDe(admin: Admin, devisId: string): Promise<string | null> {
