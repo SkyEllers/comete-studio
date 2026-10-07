@@ -138,7 +138,11 @@ function Formulaire({
   // Le devis préparé avant l'appel (Louis, 06/10/2026) : ce qui a été rempli
   // se garde dans ce navigateur jusqu'à l'envoi, par rendez-vous.
   const brouillon = useMemo(() => lireBrouillon(bookingId), [bookingId]);
-  const [duree, setDuree] = useState(brouillon?.duree ?? donnees.dureeParDefaut);
+  // Un brouillon d'avant le 07/10/2026 peut porter une durée qui n'est plus proposée.
+  const dureeDeDepart = brouillon?.duree ?? donnees.dureeParDefaut;
+  const [duree, setDuree] = useState(
+    donnees.durees && dureeDeDepart > 0 && !donnees.durees.includes(dureeDeDepart) ? donnees.dureeParDefaut : dureeDeDepart,
+  );
   const [paiement, setPaiement] = useState<"une_fois" | "plusieurs">(brouillon?.paiement ?? "plusieurs");
   const [prenom, setPrenom] = useState(brouillon?.prenom ?? donnees.preRempli.prenom);
   const [nom, setNom] = useState(brouillon?.nom ?? donnees.preRempli.nom);
@@ -221,7 +225,7 @@ function Formulaire({
           >
             {t ? <option value={0}>Investigation seule ({euros(t.investigationCents)})</option> : null}
             {t?.microbiote ? <option value={-1}>Bilan microbiote seul ({euros(t.microbiote.prixCents)})</option> : null}
-            {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
+            {(donnees.durees ?? Array.from({ length: 24 }, (_, i) => i + 1)).map((n) => (
               <option key={n} value={n}>
                 Accompagnement {n} mois
               </option>

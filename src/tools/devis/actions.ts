@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { rendezVousAccessible } from "@/tools/fiche/acces";
 
 import { creerDevis, envoyerDevis, noter, prevenirCliente, profilDe } from "./moteur";
-import { montants, type Paiement } from "./regles";
+import { DUREES_CLOSEUSE, dureeCloseuse, montants, type Paiement } from "./regles";
 
 /**
  * Le bloc « Le devis » de la fiche d'un rendez-vous (P16) : lire où en est le
@@ -49,6 +49,8 @@ export type BlocDevisDonnees = {
   devis: EtatDevis | null;
   preRempli: { prenom: string; nom: string; email: string; telephone: string };
   dureeParDefaut: number;
+  /** Les durées d'accompagnement proposées : 6, 9, 12 sur le rendez-vous d'une closeuse, toutes sinon (null). */
+  durees: number[] | null;
   tarifs: {
     investigationCents: number;
     mensualiteCents: number;
@@ -124,6 +126,7 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
       telephone: resa?.telephone ?? "",
     },
     dureeParDefaut: profil?.dureeParDefaut ?? 6,
+    durees: lu.rdv.closeuse_id ? [...DUREES_CLOSEUSE] : null,
     tarifs: profil
       ? {
           investigationCents: profil.investigationCents,
@@ -170,6 +173,9 @@ export async function envoyerLeDevis(
   if (!lu) return fail("Ce rendez-vous ne t'est pas accessible.");
   if (lu.rdv.status === "annule" || lu.rdv.status === "no_show") {
     return fail("Cette séance est annulée ou n'a pas eu lieu : pas de devis.");
+  }
+  if (lu.rdv.closeuse_id && !dureeCloseuse(q.dureeMois)) {
+    return fail("L'accompagnement se propose sur 6, 9 ou 12 mois.");
   }
 
   const admin = createAdminClient();

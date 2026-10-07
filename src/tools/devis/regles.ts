@@ -110,6 +110,18 @@ export const INVESTIGATION_SEULE = 0;
  */
 export const MICROBIOTE_SEUL = -1;
 
+/**
+ * Les durées d'accompagnement qu'une closeuse propose (Louis, 07/10/2026 :
+ * « tu mets juste 6, 9 ou 12 mois »). Les rendez-vous de Peggy gardent toutes
+ * les durées.
+ */
+export const DUREES_CLOSEUSE = [6, 9, 12] as const;
+
+/** Une durée qu'une closeuse peut mettre : 6, 9, 12, l'investigation ou le bilan microbiote seuls. */
+export function dureeCloseuse(dureeMois: number): boolean {
+  return dureeMois === INVESTIGATION_SEULE || dureeMois === MICROBIOTE_SEUL || (DUREES_CLOSEUSE as readonly number[]).includes(dureeMois);
+}
+
 export function montants(
   p: Pick<ProfilDevis, "investigationCents" | "mensualiteCents" | "remiseUneFoisCents" | "microbiote">,
   dureeMois: number,

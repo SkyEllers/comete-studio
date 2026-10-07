@@ -14,6 +14,7 @@ import {
   investigationSeule,
   MICROBIOTE_SEUL,
   microbioteSeul,
+  dureeCloseuse,
   lienValide,
   montants,
   rappelDu,
@@ -58,6 +59,11 @@ describe("les montants", () => {
     assert.equal(deux.investigationCents, 0);
     assert.equal(microbioteSeul(montants(devisPeggy, 6, "plusieurs")), false);
     assert.throws(() => montants({ ...devisPeggy, microbiote: undefined }, MICROBIOTE_SEUL, "une_fois"));
+  });
+  it("une closeuse propose 6, 9 ou 12 mois, l'investigation ou le bilan microbiote (07/10/2026)", () => {
+    for (const d of [6, 9, 12, INVESTIGATION_SEULE, MICROBIOTE_SEUL]) assert.equal(dureeCloseuse(d), true, String(d));
+    for (const d of [1, 3, 8, 10, 24]) assert.equal(dureeCloseuse(d), false, String(d));
+    assert.equal(montants(devisPeggy, 9, "plusieurs").totalCents, 185_000);
   });
   it("relu depuis la base (1 mois à 0 €), le devis reste une investigation seule", () => {
     const m = montants({ investigationCents: 50_000, mensualiteCents: 0, remiseUneFoisCents: 0 }, 1, "une_fois");
