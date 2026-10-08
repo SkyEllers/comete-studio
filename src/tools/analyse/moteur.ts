@@ -135,13 +135,14 @@ export async function candidats(admin: Admin, maintenant = Date.now()): Promise<
 
   const { data: enreg } = await admin
     .from("radar_diagnostic_enregistrements")
-    .select("booking_id")
+    .select("booking_id, transcription_le")
     .in(
       "organization_id",
       orgs.map((o) => o.id),
     )
     .eq("transcription_etat", "faite");
   const ids = (enreg ?? []).map((e) => e.booking_id);
+  const transcriteLe = new Map((enreg ?? []).map((e) => [e.booking_id, e.transcription_le]));
   if (ids.length === 0) return [];
 
   const [faits, { data: analyses }] = await Promise.all([
@@ -168,6 +169,7 @@ export async function candidats(admin: Admin, maintenant = Date.now()): Promise<
     .filter((f) =>
       aAnalyser({
         transcriptionFaite: true,
+        transcriptionLe: transcriteLe.get(f.bookingId) ?? null,
         statut: f.statut,
         issue: f.issue,
         finRdv: f.fin,

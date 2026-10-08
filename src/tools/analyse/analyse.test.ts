@@ -86,6 +86,15 @@ describe("aAnalyser", () => {
     assert.equal(aAnalyser({ ...base, maintenant: Date.parse(fin) + ENTRE_ESSAIS_MS, issue, analyse: echec(1, fin) }), true);
     assert.equal(aAnalyser({ ...base, maintenant: Date.parse(fin) + 10 * ENTRE_ESSAIS_MS, issue, analyse: echec(3, fin) }), false);
   });
+  it("refait l'analyse quand l'enregistrement a été remplacé", () => {
+    const issue = lireIssue(faits({ motif: "argent" }));
+    const faite = { etat: "faite" as const, issueCle: issue.cle, tentatives: 1, commenceeLe: "2026-10-08T16:50:00Z", majLe: "2026-10-08T16:51:00Z" };
+    assert.equal(aAnalyser({ ...base, issue, analyse: faite, transcriptionLe: "2026-10-08T17:00:00Z" }), true);
+    assert.equal(aAnalyser({ ...base, issue, analyse: faite, transcriptionLe: "2026-10-08T16:40:00Z" }), false);
+    const echec = { ...faite, etat: "echec" as const, tentatives: 3 };
+    assert.equal(aAnalyser({ ...base, issue, analyse: echec, transcriptionLe: "2026-10-08T17:00:00Z" }), true);
+  });
+
   it("reprend une analyse coupée en cours de route", () => {
     const issue = lireIssue(faits({ motif: "argent" }));
     const enCours = (commenceeLe: string) => ({ etat: "en_cours" as const, issueCle: null, tentatives: 1, commenceeLe, majLe: commenceeLe });

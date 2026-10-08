@@ -63,15 +63,26 @@ export const ENTRE_ESSAIS_MS = 3_600_000;
  */
 export function aAnalyser(args: {
   transcriptionFaite: boolean;
+  /**
+   * Quand la transcription a été rangée. Un enregistrement remplacé (le bon
+   * fichier, l'appel complet) donne une transcription plus récente que
+   * l'analyse : on la refait (Louis, 08/10/2026).
+   */
+  transcriptionLe?: string | null;
   statut: string;
   issue: IssueLue;
   finRdv: string;
   analyse: EtatAnalyse | null;
   maintenant: number;
 }): boolean {
-  const { transcriptionFaite, statut, issue, finRdv, analyse, maintenant } = args;
+  const { transcriptionFaite, transcriptionLe, statut, issue, finRdv, analyse, maintenant } = args;
   if (!transcriptionFaite) return false;
   if (statut === "annule" || statut === "no_show") return false;
+
+  if (analyse && (analyse.etat === "faite" || analyse.etat === "echec") && transcriptionLe) {
+    const lue = Date.parse(analyse.commenceeLe ?? analyse.majLe);
+    if (Number.isFinite(lue) && Date.parse(transcriptionLe) > lue) return true;
+  }
 
   const fin = Date.parse(finRdv);
   const assezAttendu = Number.isFinite(fin) && maintenant - fin >= ATTENTE_SANS_ISSUE_MS;
