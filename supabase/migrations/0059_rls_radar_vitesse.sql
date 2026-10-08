@@ -1,4 +1,4 @@
--- 0057 — Les règles d'accès de Radar ne se recalculent plus ligne par ligne.
+-- 0059 — Les règles d'accès de Radar ne se recalculent plus ligne par ligne.
 --
 -- Le 08/10/2026, la lecture de `radar_bookings_effective` prenait 370 ms en
 -- moyenne pour 374 lignes (pointes à 2,7 s), et le hub semblait lent. Cause :
