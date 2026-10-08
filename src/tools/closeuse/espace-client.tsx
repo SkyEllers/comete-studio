@@ -1510,7 +1510,9 @@ function LigneRelances({ orgSlug, bookingId, depart }: { orgSlug: string; bookin
                 actif
                   ? e.cle === "confirme"
                     ? "border-success bg-success/15 text-success"
-                    : "border-ember bg-ember/10"
+                    : e.cle === "sans_tel"
+                      ? "border-warning bg-warning/10 text-warning"
+                      : "border-ember bg-ember/10"
                   : "border-line hover:bg-muted",
               )}
             >

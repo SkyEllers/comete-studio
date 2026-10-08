@@ -12,13 +12,18 @@ describe("Relances des closeuses", () => {
       "Relances : la veille, 30 min avant",
     );
     assert.equal(resumeRelances({ confirme: "2026-10-07T18:00:00Z" }), "Elle a confirmé");
+    assert.equal(resumeRelances({ sans_tel: "2026-10-08T09:00:00Z" }), "Pas de téléphone");
+    assert.equal(
+      resumeRelances({ sans_tel: "2026-10-08T09:00:00Z", pendant: "2026-10-08T10:00:00Z" }),
+      "Pas de téléphone · relances : pendant le RDV",
+    );
     assert.equal(
       resumeRelances({ jour: "2026-10-08T07:00:00Z", confirme: "2026-10-08T07:05:00Z" }),
       "Relances : le jour même · elle a confirmé",
     );
   });
 
-  it("ne connaît que les cinq étapes", () => {
+  it("ne connaît que ses étapes", () => {
     assert.ok(estEtape("veille"));
     assert.ok(!estEtape("demain"));
   });
