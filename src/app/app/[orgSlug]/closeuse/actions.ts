@@ -149,7 +149,12 @@ export async function noterNonVente(orgSlug: string, input: unknown): Promise<Ac
 export async function noterAbsente(orgSlug: string, input: unknown): Promise<ActionResult> {
   if (!(await acces(orgSlug))) return fail("Cet espace n'est plus accessible.");
 
-  const parsed = z.object({ bookingId: idSchema }).safeParse(input);
+  // Une note facultative (Peggy Auger, 08/10/2026 : « pas de réponse aux
+  // SMS », « prévenue au moment du call »), gardée dans `status_note` et lue
+  // par la titulaire dans Radar.
+  const parsed = z
+    .object({ bookingId: idSchema, note: z.string().trim().max(500, { error: "500 caractères au plus." }).optional() })
+    .safeParse(input);
   if (!parsed.success) return failFromZod(parsed.error);
 
   const supabase = await createClient();
@@ -157,6 +162,7 @@ export async function noterAbsente(orgSlug: string, input: unknown): Promise<Act
   const { error } = await supabase.rpc("radar_client_set_status", {
     booking_id: parsed.data.bookingId,
     new_status: "no_show",
+    note: parsed.data.note || undefined,
   });
   if (error) return fail(lisible(error.message, "Ça n'a pas pu être noté."));
 

@@ -30,6 +30,8 @@ export type RdvCloseuse = {
   agentSuivi: string | null;
   /** Le R2 avec la titulaire, s'il est demandé (0054). */
   r2: R2Vu | null;
+  /** La note qu'elle a écrite en notant « pas venue » (08/10/2026), ou null. */
+  noteAbsence: string | null;
 };
 
 export type EspaceCloseuse = {
@@ -75,7 +77,7 @@ export async function getEspaceCloseuse(
     ids.length === 0
       ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, {}]
       : await Promise.all([
-          supabase.from("radar_bookings").select("id, sale_premier_cents, agent_suivi").in("id", ids),
+          supabase.from("radar_bookings").select("id, sale_premier_cents, agent_suivi, status_note, status_origin").in("id", ids),
           supabase
             .from("radar_booking_activities")
             .select("booking_id, type, payload, created_at")
@@ -104,6 +106,11 @@ export async function getEspaceCloseuse(
   );
 
   const premierPar = new Map((premiers ?? []).map((p) => [p.id, p.sale_premier_cents]));
+  // Seulement une note écrite par la closeuse (origine « client ») : les notes
+  // posées par Calendly ou l'outil (« Annulée par la personne ») n'en sont pas.
+  const noteAbsencePar = new Map(
+    (premiers ?? []).map((p) => [p.id, p.status_origin === "client" ? (p.status_note ?? null) : null]),
+  );
   const suiviPar = new Map((premiers ?? []).map((p) => [p.id, p.agent_suivi]));
   const reponsesPar = new Map(
     (reponses ?? []).map((r) => [r.booking_id, r.answers as { q: string; r: string }[]]),
@@ -140,6 +147,7 @@ export async function getEspaceCloseuse(
         recontactFait: etats[id]?.fait ?? false,
         reponses: reponsesPar.get(id) ?? null,
         agentSuivi: suiviPar.get(id) ?? null,
+        noteAbsence: l.effective_status === "no_show" ? (noteAbsencePar.get(id) ?? null) : null,
         r2: r2Par.get(id) ?? null,
       };
     });

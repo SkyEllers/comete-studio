@@ -454,6 +454,9 @@ function OngletRdv({
                     Modifier
                   </button>
                 ) : null}
+                {r.noteAbsence ? (
+                  <span className="text-muted-foreground basis-full text-xs whitespace-pre-line">{r.noteAbsence}</span>
+                ) : null}
               </div>
             ))}
           </div>
@@ -513,15 +516,17 @@ function CarteRdv({
     return () => clearTimeout(minuterie);
   }, [absentePossible, absenteDes, maintenant, orgSlug]);
 
+  const [fenetreAbsente, setFenetreAbsente] = useState(false);
+  const [noteAbsente, setNoteAbsente] = useState("");
   const noterPasVenue = () => {
     if (!orgSlug) return;
-    if (!window.confirm(`${rdv.prenom} n'est pas venue ? Le rendez-vous passe en « Pas venue ».`)) return;
     startTransition(async () => {
-      const r = await noterAbsente(orgSlug, { bookingId: rdv.id });
+      const r = await noterAbsente(orgSlug, { bookingId: rdv.id, note: noteAbsente });
       if (!r.ok) {
         toast.error(r.error);
         return;
       }
+      setFenetreAbsente(false);
       toast.success("C'est noté : pas venue", {
         duration: 10_000,
         action: {
@@ -566,9 +571,9 @@ function CarteRdv({
         ) : onDevis || absentePossible ? (
           <div className="flex flex-wrap gap-2">
             {absentePossible && orgSlug ? (
-              <Button size="sm" variant="outline" disabled={enCours} onClick={noterPasVenue}>
+              <Button size="sm" variant="outline" disabled={enCours} onClick={() => setFenetreAbsente(true)}>
                 <UserX aria-hidden="true" />
-                {enCours ? "En cours…" : "Elle n'est pas venue"}
+                Elle n&apos;est pas venue
               </Button>
             ) : null}
             {onDevis ? (
@@ -580,6 +585,35 @@ function CarteRdv({
           </div>
         ) : null}
       </div>
+      {fenetreAbsente ? (
+        <Dialog open onOpenChange={(o) => (o ? null : setFenetreAbsente(false))}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{rdv.prenom} n&apos;est pas venue ?</DialogTitle>
+              <DialogDescription>Le rendez-vous passe en « Pas venue ».</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <Label htmlFor={`note-absente-${rdv.id}`}>Une note (facultatif)</Label>
+              <Textarea
+                id={`note-absente-${rdv.id}`}
+                rows={3}
+                maxLength={500}
+                value={noteAbsente}
+                onChange={(e) => setNoteAbsente(e.target.value)}
+                placeholder="Pas de réponse aux SMS, prévenue au moment du rendez-vous…"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFenetreAbsente(false)} disabled={enCours}>
+                Annuler
+              </Button>
+              <Button onClick={noterPasVenue} disabled={enCours}>
+                {enCours ? "En cours…" : "Elle n'est pas venue"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
       {motif ? <p className="mt-3 text-sm">{motif.r}</p> : null}
       {reponses.length ? (
         <>
@@ -988,6 +1022,7 @@ function FormResultat({
   );
   const [motif, setMotif] = useState<Motif>(rdv.raison?.motif ?? "argent");
   const [recontacterLe, setRecontacterLe] = useState<string>(rdv.raison?.recontacterLe ?? "");
+  const [noteAbsence, setNoteAbsence] = useState(rdv.noteAbsence ?? "");
   const [calendrier, setCalendrier] = useState(false);
   const [sansVideo, setSansVideo] = useState(false);
   const [resume, setResume] = useState<ResumeDiagnostic>(enregistrement?.resume ?? RESUME_VIDE);
@@ -1050,7 +1085,7 @@ function FormResultat({
           ? await noterVente(orgSlug, { bookingId: rdv.id, montant: montantSaisi, date, fois, premier })
           : type === "non"
             ? await noterNonVente(orgSlug, { bookingId: rdv.id, motif, recontacterLe: recontacterLe || null })
-            : await noterAbsente(orgSlug, { bookingId: rdv.id });
+            : await noterAbsente(orgSlug, { bookingId: rdv.id, note: noteAbsence });
       if (!resultat.ok) {
         toast.error(resultat.error);
         return;
@@ -1159,6 +1194,20 @@ function FormResultat({
               ? "Le reste se répartit à parts égales, un paiement par mois. Laisse le premier paiement vide si tout est égal."
               : "Payé en une seule fois."}
           </p>
+        </div>
+      ) : null}
+
+      {type === "absente" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="note-absence">Une note (facultatif)</Label>
+          <Textarea
+            id="note-absence"
+            rows={3}
+            maxLength={500}
+            value={noteAbsence}
+            onChange={(e) => setNoteAbsence(e.target.value)}
+            placeholder="Pas de réponse aux SMS, prévenue au moment du rendez-vous…"
+          />
         </div>
       ) : null}
 
