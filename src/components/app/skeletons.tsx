@@ -3,10 +3,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 /**
  * Squelettes des écrans connectés.
  *
- * Ils vivent toujours **sous** les gardes, dans un `<Suspense>` posé à
- * l'intérieur d'une page — jamais dans un `loading.tsx` au-dessus d'un layout
- * qui appelle `notFound()` ou `redirect()`. Sinon la réponse part en flux avec
- * un 200 avant que la garde ne se prononce, et le statut ne peut plus changer.
+ * Ils vivent toujours **sous** les gardes : dans un `<Suspense>` posé à
+ * l'intérieur d'une page, ou dans un `loading.tsx` rangé **dans le dossier du
+ * layout qui garde** (son écran s'affiche sous ce layout, donc après la
+ * garde) — jamais dans un `loading.tsx` au-dessus d'un layout qui appelle
+ * `notFound()` ou `redirect()`. Sinon la réponse part en flux avec un 200
+ * avant que la garde ne se prononce, et le statut ne peut plus changer.
+ *
+ * Le `loading.tsx` est ce qui rend un clic immédiat : sans lui, le navigateur
+ * attend la page entière avant de bouger (08/10/2026). Contrepartie admise :
+ * un `notFound()` lancé par une page sous l'écran (un identifiant inconnu)
+ * montre bien la page 404, mais avec un statut 200. Le hub n'est pas indexé.
  */
 
 /** Titre de page et sa phrase d'explication. */
@@ -97,6 +104,16 @@ export function ToolListSkeleton({ rows = 2 }: { rows?: number }) {
           <Skeleton className="h-5 w-9 rounded-full" />
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Une page en cours de chargement : ce que montrent les `loading.tsx`. */
+export function PageSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Chargement">
+      <PageHeaderSkeleton />
+      <TableSkeleton rows={4} />
     </div>
   );
 }

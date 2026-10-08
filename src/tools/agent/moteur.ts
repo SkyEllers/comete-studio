@@ -84,6 +84,19 @@ async function derniereSortie(admin: Admin, id: string): Promise<string | null> 
   return data?.created_at ?? null;
 }
 
+type LigneEnvoi = { modele: string | null; cle_envoi: string | null; created_at: string };
+
+function versEnvois(lignes: LigneEnvoi[]): EnvoiPasse[] {
+  return lignes
+    .map((m) => ({
+      // Un contenu n'a pas de `modele` en base (0032) : sa clé le dit.
+      modele: (m.modele ?? (m.cle_envoi?.startsWith("contenu:") ? "contenu" : null)) as CleModele | null,
+      cle_envoi: m.cle_envoi as string,
+      le: m.created_at,
+    }))
+    .filter((m): m is EnvoiPasse => m.modele !== null && MODELES.includes(m.modele));
+}
+
 async function envoisDe(admin: Admin, id: string): Promise<EnvoiPasse[]> {
   const { data } = await admin
     .from("agent_messages")
@@ -92,14 +105,7 @@ async function envoisDe(admin: Admin, id: string): Promise<EnvoiPasse[]> {
     .eq("sens", "sortant")
     .eq("genre", "modele")
     .not("cle_envoi", "is", null);
-  return (data ?? [])
-    .map((m) => ({
-      // Un contenu n'a pas de `modele` en base (0032) : sa clé le dit.
-      modele: (m.modele ?? (m.cle_envoi?.startsWith("contenu:") ? "contenu" : null)) as CleModele | null,
-      cle_envoi: m.cle_envoi as string,
-      le: m.created_at,
-    }))
-    .filter((m): m is EnvoiPasse => m.modele !== null && MODELES.includes(m.modele));
+  return versEnvois(data ?? []);
 }
 
 async function appliquer(
@@ -301,14 +307,77 @@ export async function tournerConversation(
   return faits;
 }
 
-/** Toutes les conversations en cours : c'est ce que l'horloge appelle. */
+/** Les messages partis vers ces conversations, par paquets : la base en rend 1 000 au plus. */
+async function sortiesDe(
+  admin: Admin,
+  ids: string[],
+): Promise<Map<string, (LigneEnvoi & { genre: string })[]>> {
+  const parConversation = new Map<string, (LigneEnvoi & { genre: string })[]>();
+  const PAQUET = 1000;
+  for (let debut = 0; ; debut += PAQUET) {
+    const { data, error } = await admin
+      .from("agent_messages")
+      .select("id, conversation_id, genre, modele, cle_envoi, created_at")
+      .in("conversation_id", ids)
+      .eq("sens", "sortant")
+      .order("id")
+      .range(debut, debut + PAQUET - 1);
+    if (error) throw new Error(`agent_messages : ${error.message}`);
+    for (const m of data ?? []) {
+      const liste = parConversation.get(m.conversation_id) ?? [];
+      liste.push(m);
+      parConversation.set(m.conversation_id, liste);
+    }
+    if (!data || data.length < PAQUET) return parConversation;
+  }
+}
+
+/**
+ * Toutes les conversations en cours : c'est ce que l'horloge appelle, toutes
+ * les 5 minutes.
+ *
+ * Le planning se pose d'abord pour toutes à la fois, sur trois lectures
+ * (conversations, réglages, messages partis). Seules celles qui ont quelque
+ * chose à faire passent ensuite par `tournerConversation`, qui relit tout
+ * avant d'agir. Avant le 08/10/2026, chaque conversation coûtait quatre
+ * lectures à chaque passage, qu'elle ait à faire ou non : 35 conversations,
+ * ~35 000 appels par jour, et un hub ralenti pour tout le monde.
+ */
 export async function tournerTout(admin: Admin, reel = Date.now()): Promise<number> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("agent_conversations")
-    .select("id")
+    .select(COLONNES)
     .eq("etat", "active");
+  if (error) throw new Error(`agent_conversations : ${error.message}`);
+  const conversations = (data ?? []) as Conversation[];
+  if (conversations.length === 0) return 0;
+
+  const orgs = [...new Set(conversations.map((c) => c.organization_id))];
+  const [{ data: reglages, error: erreurReglages }, sorties] = await Promise.all([
+    admin.from("agent_reglages").select("organization_id, profil").in("organization_id", orgs),
+    sortiesDe(
+      admin,
+      conversations.map((c) => c.id),
+    ),
+  ]);
+  if (erreurReglages) throw new Error(`agent_reglages : ${erreurReglages.message}`);
+  const profilParOrg = new Map((reglages ?? []).map((r) => [r.organization_id, profilDe(r.profil)]));
 
   let faits = 0;
-  for (const { id } of data ?? []) faits += await tournerConversation(admin, id, reel);
+  for (const c of conversations) {
+    // Pas de réglages ou de profil : `tournerConversation` ne ferait rien non plus.
+    if (!profilParOrg.get(c.organization_id)) continue;
+
+    const lignes = sorties.get(c.id) ?? [];
+    const envois = versEnvois(lignes.filter((m) => m.genre === "modele" && m.cle_envoi !== null));
+    const derniere_sortie_le = lignes.reduce<string | null>(
+      (max, m) => (max === null || Date.parse(m.created_at) > Date.parse(max) ? m.created_at : max),
+      null,
+    );
+    const actions = planifier({ ...c, envois, derniere_sortie_le }, maintenantDe(c, reel));
+    if (actions.length === 0) continue;
+
+    faits += await tournerConversation(admin, c.id, reel);
+  }
   return faits;
 }
