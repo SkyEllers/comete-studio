@@ -241,15 +241,29 @@ const ficheVide: Fiche = {
   decide: "seule",
   source: "pub",
   phrases: [],
+  profil_disc: "C",
+  profil_indices: "",
 };
 
 const analyse = {
   voix_closeuse: "A",
   resume: "",
   points: [{ cle: "reformulation", repere: "acquis", constat: "", moments: [] }],
+  moments_cles: [],
   alertes: [],
   pas_su: [],
-  pourquoi: { bascule: "", minute_bascule: "", raison_donnee: "", vraie_raison: "", aurait_pu_changer: "" },
+  pourquoi: {
+    bascule: "",
+    minute_bascule: "",
+    raison_donnee: "",
+    vraie_raison: "",
+    freins_exprimes: [],
+    freins_supposes: [],
+    signaux_encourageants: [],
+    aurait_pu_changer: "",
+    verdict: "contrainte_reelle",
+    verdict_explication: "",
+  },
   a_retenir: [],
   passages: [],
   fiche: ficheVide,
@@ -260,7 +274,21 @@ describe("le schéma", () => {
     assert.deepEqual([...SCHEMA_ANALYSE.required].sort(), Object.keys(analyse).sort());
   });
 
-  it("complète les douze repères dans l'ordre, sans doublon", () => {
+  it("une analyse d'avant le 08/10 se relit, sans moments clés ni verdict", () => {
+    const vieille = {
+      ...analyse,
+      moments_cles: undefined,
+      pourquoi: { bascule: "b", minute_bascule: "", raison_donnee: "", vraie_raison: "", aurait_pu_changer: "" },
+    };
+    const lue = lireRangee(vieille);
+    assert.ok(lue);
+    assert.deepEqual(lue.moments_cles, []);
+    assert.deepEqual(lue.pourquoi.freins_supposes, []);
+    assert.equal(lue.pourquoi.verdict, undefined);
+    assert.equal(lue.points.length, CLES_POINTS.length);
+  });
+
+  it("complète les repères dans l'ordre, sans doublon", () => {
     const lue = analyseLue.parse(analyse);
     const points = pointsComplets([...lue.points, { cle: "reformulation", repere: "a_travailler", constat: "", moments: [] }]);
     assert.deepEqual(
@@ -275,7 +303,7 @@ describe("le schéma", () => {
     const rangee = versRangee(analyseLue.parse(analyse));
     assert.equal("fiche" in rangee, false);
     assert.equal("passages" in rangee, false);
-    assert.equal(lireRangee(rangee)?.points.length, 12);
+    assert.equal(lireRangee(rangee)?.points.length, 13);
     assert.equal(lireRangee({ n_importe: true }), null);
   });
 });

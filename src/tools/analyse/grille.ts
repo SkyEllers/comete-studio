@@ -1,7 +1,7 @@
 /**
  * La grille de l'analyse des diagnostics (0056, Louis, 07/10/2026).
  *
- * Douze repères, dans l'ordre du script de Peggy, chacun lu « acquis »,
+ * Treize repères, dans l'ordre du script de Peggy, chacun lu « acquis »,
  * « en progrès » ou « à travailler » : pas de note chiffrée (Louis : A). Les
  * règles qu'on ne discute pas sont des alertes à part. Module pur : il est
  * lu par le prompt, par l'écran et par les tests.
@@ -27,6 +27,11 @@ export const POINTS = [
     cle: "ecoute",
     libelle: "Écoute",
     aide: "80 % d'écoute : des questions ouvertes, des relances, sans cours ni jugement.",
+  },
+  {
+    cle: "adaptation_profil",
+    libelle: "Adaptation au profil",
+    aide: "Elle repère comment la cliente fonctionne (profil DISC, sa façon de changer au questionnaire) et adapte son discours : de la précision pour une analytique, du concret et du rythme pour une directe, de la chaleur pour une expressive, de la sécurité pour une prudente.",
   },
   {
     cle: "vraie_demande",

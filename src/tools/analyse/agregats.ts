@@ -62,6 +62,7 @@ export type DimensionPortrait = { cle: string; libelle: string; lignes: LignePor
 const DIMENSIONS: { cle: string; libelle: string; lire: (e: EntreePortrait) => string[] }[] = [
   { cle: "tranche_age", libelle: "Âge", lire: (e) => (e.fiche ? [e.fiche.tranche_age] : []) },
   { cle: "menopause", libelle: "Ménopause", lire: (e) => (e.fiche ? [e.fiche.menopause] : []) },
+  { cle: "profil_disc", libelle: "Profil DISC supposé", lire: (e) => (e.fiche ? [e.fiche.profil_disc] : []) },
   { cle: "couple", libelle: "En couple", lire: (e) => (e.fiche ? [e.fiche.couple] : []) },
   { cle: "declencheur", libelle: "Ce qui l'a fait réserver", lire: (e) => (e.fiche ? [e.fiche.declencheur] : []) },
   { cle: "nb_essais", libelle: "Régimes et programmes déjà essayés", lire: (e) => (e.fiche ? [trancheEssais(e.fiche.essais.length)] : []) },

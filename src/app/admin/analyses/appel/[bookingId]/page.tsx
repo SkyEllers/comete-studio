@@ -32,6 +32,7 @@ const lib = (v: string) => LIBELLES_FICHE[v] ?? v;
 function LignesFiche({ fiche, titulaire }: { fiche: Fiche; titulaire: string }) {
   const lignes: [string, string][] = [
     ["Âge", fiche.age ? `${fiche.age} ans` : lib(fiche.tranche_age)],
+    ["Profil DISC supposé", `${lib(fiche.profil_disc)}${fiche.profil_indices ? ` : ${fiche.profil_indices}` : ""}`],
     ["Ménopause", lib(fiche.menopause)],
     ["En couple", lib(fiche.couple)],
     ["Enfants", lib(fiche.enfants)],

@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleHelp, Lightbulb, SearchCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, CircleHelp, Lightbulb, Radio, SearchCheck, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ function Minute({ minute }: { minute: string }) {
 }
 
 /**
- * Une analyse complète : pourquoi, à retenir, les douze repères, les alertes,
+ * Une analyse complète : pourquoi, à retenir, les moments clés, les repères, les alertes,
  * ce qu'elle ne savait pas. La closeuse ne voit que les alertes sûres ; Louis
  * voit aussi celles à vérifier, avec de quoi les trancher (`trancher`).
  */
@@ -109,13 +109,62 @@ export function DetailAnalyse({
             ) : null}
           </dl>
         ) : null}
+        {p.freins_exprimes.length || p.freins_supposes.length ? (
+          <div className="mt-3 text-sm">
+            <p className="text-muted-foreground text-xs">Les autres freins</p>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {p.freins_exprimes.map((f, i) => (
+                <li key={`e${i}`}>{f}</li>
+              ))}
+              {p.freins_supposes.map((f, i) => (
+                <li key={`s${i}`}>
+                  {f} <span className="text-muted-foreground">(hypothèse, elle ne l&apos;a pas dit)</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {p.signaux_encourageants.length ? (
+          <div className="mt-3 text-sm">
+            <p className="text-muted-foreground text-xs">Les signaux encourageants</p>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {p.signaux_encourageants.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {p.aurait_pu_changer ? (
           <div className="mt-3 text-sm">
             <p className="text-muted-foreground text-xs">{issue === "vente" ? "Ce qui a fait la vente" : "Ce qui aurait pu changer"}</p>
             <p>{p.aurait_pu_changer}</p>
           </div>
         ) : null}
+        {p.verdict && p.verdict !== "vente" && p.verdict_explication ? (
+          <p className={cn("mt-3 text-sm font-medium", p.verdict === "contrainte_reelle" ? "text-success" : "")}>
+            {p.verdict_explication}
+          </p>
+        ) : null}
       </section>
+
+      {analyse.moments_cles.length ? (
+        <section>
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <Radio aria-hidden="true" className="size-4" />
+            Les moments qui comptaient
+          </h3>
+          <ol className="divide-trait border-trait divide-y rounded-lg border">
+            {analyse.moments_cles.map((m, i) => (
+              <li key={i} className="space-y-1 p-3 text-sm">
+                <p>
+                  <Minute minute={m.minute} /> <span className="italic">« {m.signal} »</span>
+                </p>
+                <p>{m.lecture}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {analyse.a_retenir.length ? (
         <section>
@@ -176,7 +225,7 @@ export function DetailAnalyse({
       ) : null}
 
       <section>
-        <h3 className="mb-2 text-sm font-medium">Les douze repères</h3>
+        <h3 className="mb-2 text-sm font-medium">Les repères</h3>
         <ol className="divide-trait border-trait divide-y rounded-lg border">
           {analyse.points.map((pt) => (
             <li key={pt.cle} className="space-y-1.5 p-3">

@@ -54,6 +54,8 @@ export const FREINS = ["argent", "conjoint", "confiance", "temps", "peur_echec",
 export const DECIDE = ["seule", "avec_conjoint", "inconnu"] as const;
 export const SOURCES = ["pub", "instagram", "youtube", "bouche_a_oreille", "autre", "inconnu"] as const;
 export const CERTITUDES = ["sure", "a_verifier"] as const;
+export const PROFILS_DISC = ["D", "I", "S", "C", "inconnu"] as const;
+export const VERDICTS = ["vente", "part_closeuse", "contrainte_reelle", "mixte"] as const;
 
 export const LIBELLES_FICHE: Record<string, string> = {
   moins_35: "moins de 35 ans",
@@ -102,6 +104,10 @@ export const LIBELLES_FICHE: Record<string, string> = {
   instagram: "Instagram",
   youtube: "YouTube",
   bouche_a_oreille: "le bouche-à-oreille",
+  D: "D (directe, résultats)",
+  I: "I (expressive, relation)",
+  S: "S (prudente, sécurité)",
+  C: "C (analytique, précision)",
 };
 
 const chaine = (description: string) => ({ type: "string", description });
@@ -128,47 +134,77 @@ const SCHEMA_FICHE = {
     "decide",
     "source",
     "phrases",
+    "profil_disc",
+    "profil_indices",
   ],
   properties: {
-    tranche_age: choix(TRANCHES_AGE, "Sa tranche d'âge, si elle est dite ou dans le questionnaire."),
+    tranche_age: chaine(`Sa tranche d'âge, si elle est dite ou dans le questionnaire. Parmi : ${TRANCHES_AGE.join(", ")}.`),
     age: chaine("Son âge en chiffres (« 52 »), ou vide."),
-    menopause: choix(MENOPAUSE, "Ménopausée, en périménopause, non, ou pas dit."),
-    couple: choix(COUPLE, "En couple ou seule, si c'est dit."),
-    enfants: choix(ENFANTS, "A-t-elle des enfants, si c'est dit."),
+    menopause: chaine(`Ménopausée, en périménopause, non, ou pas dit. Parmi : ${MENOPAUSE.join(", ")}.`),
+    couple: chaine(`En couple ou seule, si c'est dit. Parmi : ${COUPLE.join(", ")}.`),
+    enfants: chaine(`A-t-elle des enfants, si c'est dit. Parmi : ${ENFANTS.join(", ")}.`),
     metier: chaine("Son métier ou sa situation (retraitée, infirmière…), ou vide."),
-    declencheur: choix(DECLENCHEURS, "Ce qui l'a fait réserver maintenant."),
+    declencheur: chaine(`Ce qui l'a fait réserver maintenant. Parmi : ${DECLENCHEURS.join(", ")}.`),
     declencheur_mots: chaine("Le déclencheur avec ses mots, en une phrase, sans nom propre."),
-    essais: liste({ type: "string", enum: [...ESSAIS] }, "Ce qu'elle a déjà essayé."),
+    essais: liste({ type: "string" }, `Ce qu'elle a déjà essayé, parmi : ${ESSAIS.join(", ")}.`),
     depense: chaine("Ce qu'elle dit avoir dépensé en régimes ou programmes (« 600 € »), ou vide."),
-    souffrances: liste({ type: "string", enum: [...SOUFFRANCES] }, "Ce qui la fait le plus souffrir, du plus fort au moins fort."),
+    souffrances: liste(
+      { type: "string" },
+      `Ce qui la fait le plus souffrir, du plus fort au moins fort, parmi : ${SOUFFRANCES.join(", ")}.`,
+    ),
     veut_retrouver: chaine("Ce qu'elle veut retrouver, avec ses mots, en une phrase."),
-    freins: liste({ type: "string", enum: [...FREINS] }, "Ses freins exprimés ou visibles."),
-    decide: choix(DECIDE, "Qui décide : elle seule, avec son conjoint, ou pas dit."),
-    source: choix(SOURCES, "Comment elle a connu Peggy."),
+    freins: liste({ type: "string" }, `Ses freins exprimés ou visibles, parmi : ${FREINS.join(", ")}.`),
+    decide: chaine(`Qui décide : elle seule, avec son conjoint, ou pas dit. Parmi : ${DECIDE.join(", ")}.`),
+    source: chaine(`Comment elle a connu Peggy. Parmi : ${SOURCES.join(", ")}.`),
     phrases: liste(
       { type: "string" },
       "De 2 à 5 phrases de la cliente, mot pour mot, qui disent ce qu'elle vit ou veut. Sans nom ni prénom.",
     ),
+    profil_disc: chaine(`Son profil DISC dominant, en hypothèse prudente (D directe, I expressive, S prudente, C analytique), ou « inconnu » si l'appel ne donne pas assez d'indices. Parmi : ${PROFILS_DISC.join(", ")}.`),
+    profil_indices: chaine("Les indices de ce profil (métier, façon de parler, ce qu'elle demande), en une phrase, ou vide."),
   },
 } as const;
 
+/**
+ * Une liste à choix fermés, demandée à l'IA comme du texte (un schéma plein
+ * d'énumérations dépasse la taille que l'API accepte, 08/10/2026) : ce qui
+ * n'est pas dans la liste est écarté ici.
+ */
+function parmi<T extends string>(valeurs: readonly T[], max: number) {
+  return z
+    .array(z.string().max(60))
+    .max(max * 2)
+    .transform((xs) => [...new Set(xs.filter((x): x is T => (valeurs as readonly string[]).includes(x)))].slice(0, max));
+}
+
+/** Un choix fermé demandé comme du texte : une valeur hors liste devient « inconnu ». */
+function un<T extends string>(valeurs: readonly T[]) {
+  return z
+    .string()
+    .max(60)
+    .transform((x) => ((valeurs as readonly string[]).includes(x) ? (x as T) : ("inconnu" as T)));
+}
+
 const fiche = z.object({
-  tranche_age: z.enum(TRANCHES_AGE),
+  tranche_age: un(TRANCHES_AGE),
   age: z.string().max(10),
-  menopause: z.enum(MENOPAUSE),
-  couple: z.enum(COUPLE),
-  enfants: z.enum(ENFANTS),
+  menopause: un(MENOPAUSE),
+  couple: un(COUPLE),
+  enfants: un(ENFANTS),
   metier: z.string().max(200),
-  declencheur: z.enum(DECLENCHEURS),
+  declencheur: un(DECLENCHEURS),
   declencheur_mots: z.string().max(600),
-  essais: z.array(z.enum(ESSAIS)).max(12),
+  essais: parmi(ESSAIS, 12),
   depense: z.string().max(100),
-  souffrances: z.array(z.enum(SOUFFRANCES)).max(12),
+  souffrances: parmi(SOUFFRANCES, 12),
   veut_retrouver: z.string().max(600),
-  freins: z.array(z.enum(FREINS)).max(8),
-  decide: z.enum(DECIDE),
-  source: z.enum(SOURCES),
+  freins: parmi(FREINS, 8),
+  decide: un(DECIDE),
+  source: un(SOURCES),
   phrases: z.array(z.string().max(400)).max(8),
+  // Ajoutés le 08/10/2026 (l'analyse de Peggy) : absents des fiches d'avant.
+  profil_disc: un(PROFILS_DISC).default("inconnu"),
+  profil_indices: z.string().max(400).default(""),
 });
 
 export type Fiche = z.infer<typeof fiche>;
@@ -180,7 +216,18 @@ const MINUTE = chaine("L'horodatage de la transcription (« 12:05 »), ou vide."
 export const SCHEMA_ANALYSE = {
   type: "object",
   additionalProperties: false,
-  required: ["voix_closeuse", "resume", "points", "alertes", "pas_su", "pourquoi", "a_retenir", "passages", "fiche"],
+  required: [
+    "voix_closeuse",
+    "resume",
+    "points",
+    "moments_cles",
+    "alertes",
+    "pas_su",
+    "pourquoi",
+    "a_retenir",
+    "passages",
+    "fiche",
+  ],
   properties: {
     voix_closeuse: chaine("La voix (A, B…) de celle qui mène le rendez-vous."),
     resume: chaine("Le rendez-vous en deux ou trois phrases, sans nom de famille."),
@@ -206,7 +253,22 @@ export const SCHEMA_ANALYSE = {
           ),
         },
       },
-      "Les douze repères, chacun une fois, dans l'ordre de la grille.",
+      "Les treize repères, chacun une fois, dans l'ordre de la grille.",
+    ),
+    moments_cles: liste(
+      {
+        type: "object",
+        additionalProperties: false,
+        required: ["minute", "signal", "lecture"],
+        properties: {
+          minute: MINUTE,
+          signal: chaine("Ce que la cliente a dit ou montré à ce moment, avec ses mots (« ce n'est pas très concret pour moi »)."),
+          lecture: chaine(
+            "Ce que la vendeuse en a fait, puis ce qu'il aurait fallu faire, concrètement, avec une phrase à dire si elle aide. Ou pourquoi c'était bien joué.",
+          ),
+        },
+      },
+      "De 2 à 5 moments où la cliente a donné un signal qui pouvait changer la suite (une demande, un doute, une contrainte), dans l'ordre de l'appel.",
     ),
     alertes: liste(
       {
@@ -245,7 +307,18 @@ export const SCHEMA_ANALYSE = {
     pourquoi: {
       type: "object",
       additionalProperties: false,
-      required: ["bascule", "minute_bascule", "raison_donnee", "vraie_raison", "aurait_pu_changer"],
+      required: [
+        "bascule",
+        "minute_bascule",
+        "raison_donnee",
+        "vraie_raison",
+        "freins_exprimes",
+        "freins_supposes",
+        "signaux_encourageants",
+        "aurait_pu_changer",
+        "verdict",
+        "verdict_explication",
+      ],
       properties: {
         bascule: chaine(
           "Pour une vente : ce qui a fait dire oui. Sinon : ce qui a fait que ce n'était pas oui. Avec le moment de l'appel, deux ou trois phrases.",
@@ -253,7 +326,24 @@ export const SCHEMA_ANALYSE = {
         minute_bascule: MINUTE,
         raison_donnee: chaine("La raison que la cliente donne elle-même (« je dois réfléchir »), ou vide."),
         vraie_raison: chaine("La raison qui se lit dans l'appel, si elle diffère de celle donnée, ou vide."),
+        freins_exprimes: liste(
+          { type: "string" },
+          "Les autres freins que la cliente a dits elle-même, en plus de la raison donnée (une comparaison de prix…), une phrase chacun. Liste vide sinon.",
+        ),
+        freins_supposes: liste(
+          { type: "string" },
+          "Tes hypothèses de freins qu'elle n'a pas formulés (une offre trop large pour son besoin…), une phrase chacune. Liste vide sinon.",
+        ),
+        signaux_encourageants: liste(
+          { type: "string" },
+          "Les signaux d'intérêt, même après un non (elle continue à poser des questions précises…). Liste vide sinon.",
+        ),
         aurait_pu_changer: chaine("Ce qui aurait pu changer l'issue, ou ce qui a fait la vente et qu'il faut refaire."),
+        verdict: choix(
+          VERDICTS,
+          "« vente » ; « contrainte_reelle » quand le non tient surtout à une contrainte réelle de la cliente (ce n'est pas un échec de la vendeuse) ; « part_closeuse » quand il tient surtout à la façon de mener l'appel ; « mixte » sinon.",
+        ),
+        verdict_explication: chaine("Le verdict en une phrase, juste pour la vendeuse."),
       },
     },
     a_retenir: liste(
@@ -266,7 +356,7 @@ export const SCHEMA_ANALYSE = {
         additionalProperties: false,
         required: ["moment", "texte", "pourquoi"],
         properties: {
-          moment: choix(CLES_MOMENTS, "Le moment de l'appel."),
+          moment: chaine(`Le moment de l'appel, parmi : ${CLES_MOMENTS.join(", ")}.`),
           texte: chaine(
             "Ce qu'elle a dit, réécrit pour servir d'exemple à une autre closeuse : sans prénom, sans nom, sans âge ni détail de santé de la cliente. Au besoin, « la cliente ».",
           ),
@@ -292,6 +382,16 @@ export const analyseLue = z.object({
   voix_closeuse: z.string().max(10),
   resume: z.string().max(1200),
   points: z.array(point).max(20),
+  moments_cles: z
+    .array(
+      z.object({
+        minute,
+        signal: z.string().max(600),
+        lecture: z.string().max(1200),
+      }),
+    )
+    .max(8)
+    .default([]),
   alertes: z
     .array(
       z.object({
@@ -320,18 +420,25 @@ export const analyseLue = z.object({
     minute_bascule: minute,
     raison_donnee: z.string().max(600),
     vraie_raison: z.string().max(600),
+    // Ajoutés le 08/10/2026 (l'analyse de Peggy) : absents des analyses d'avant.
+    freins_exprimes: z.array(z.string().max(600)).max(8).default([]),
+    freins_supposes: z.array(z.string().max(600)).max(8).default([]),
+    signaux_encourageants: z.array(z.string().max(400)).max(8).default([]),
     aurait_pu_changer: z.string().max(1000),
+    verdict: z.enum(VERDICTS).optional(),
+    verdict_explication: z.string().max(600).default(""),
   }),
   a_retenir: z.array(z.string().max(500)).max(6),
   passages: z
     .array(
       z.object({
-        moment: z.enum(CLES_MOMENTS as [string, ...string[]]),
+        moment: z.string().max(40),
         texte: z.string().min(1).max(1500),
         pourquoi: z.string().max(600),
       }),
     )
-    .max(5),
+    .max(5)
+    .transform((ps) => ps.filter((p) => (CLES_MOMENTS as string[]).includes(p.moment))),
   fiche,
 });
 
@@ -341,7 +448,7 @@ export type AnalyseLue = z.infer<typeof analyseLue>;
 export type AnalyseRangee = Omit<AnalyseLue, "fiche" | "passages">;
 
 /**
- * Les douze repères, chacun une fois et dans l'ordre de la grille : un repère
+ * Les repères, chacun une fois et dans l'ordre de la grille : un repère
  * oublié par l'IA devient « sans objet », un doublon est écarté.
  */
 export function pointsComplets(points: AnalyseLue["points"]): AnalyseLue["points"] {
@@ -355,6 +462,7 @@ export function versRangee(a: AnalyseLue): AnalyseRangee {
     voix_closeuse: a.voix_closeuse,
     resume: a.resume,
     points: pointsComplets(a.points),
+    moments_cles: a.moments_cles,
     alertes: a.alertes,
     pas_su: a.pas_su,
     pourquoi: a.pourquoi,

@@ -66,6 +66,20 @@ Si oui : signature et paiement pendant l'appel. Si elle hésite : comprendre ce 
 
 Le R2 avec Peggy : quand la cliente a besoin de réponses techniques précises (microbiote, analyses, parcours et formations de Peggy, laboratoires, limites avec le médecin) que la closeuse ne peut pas donner, et que la compétence de Peggy est le dernier élément qui manque. Une personne sceptique ou qui pose beaucoup de questions n'appelle pas automatiquement un R2. Avant de le proposer : « Si Peggy répond à toutes vos questions, existe-t-il réellement une possibilité d'avancer ensuite ? ». La closeuse transmet ses notes, dit que Peggy va rappeler ; la vente reste la sienne.
 
+Le profil DISC (script V4 de Peggy) : adapter le style au profil de la cliente. D : questions courtes, rythme direct, peu d'explications, objectif et résultat. I : ton chaleureux, la laisser raconter, émotions et projection. S : sécurité, pas à pas, rassurer sur l'accompagnement. C : précision, méthode, ce qu'on mesure et ses limites, pas de discours émotionnel. Le script dit de ne jamais affirmer un profil avec certitude.
+
+La question de clôture de Peggy, dans son script : « J'ai le sentiment que cette démarche correspond vraiment à ce que vous recherchiez. Est-ce aussi votre ressenti ? » Elle distingue l'intérêt pour l'investigation de l'intérêt pour le programme complet.
+
+Ce que Peggy a relevé en analysant elle-même un appel (08/10/2026), à appliquer :
+- Une cliente qui dit « ce n'est pas très concret » donne le signal d'arrêter le script et de montrer, dans l'ordre, ce qu'elle recevra, quand, et ce que Peggy en fera.
+- Quand l'argent est le vrai frein, il faut proposer le bilan microbiote seul (365 €, ou deux fois 190 €) ou l'investigation seule (500 €), au lieu de s'arrêter sur le non. Le proposer, ce n'est pas pousser.
+- La vendeuse clarifie son rôle sans se dévaloriser : pas de « je suis juste là, la professionnelle c'est Peggy ».
+- Ne pas relier une douleur ou un symptôme au poids sans avis médical ; demander plutôt s'il a été exploré avec son médecin.
+- Ne pas forcer la souffrance émotionnelle chez une cliente qui cherche de la précision : ça produit l'effet inverse.
+- Un exemple de bilan montré pendant l'appel doit être anonymisé et autorisé.
+- Les analyses (GniomCheck, OligoCheck) ne sont pas des dosages hormonaux et ne disent pas, à elles seules, la cause d'une prise de poids.
+- Le script V4 est une trame, pas un texte à réciter : de longs passages appris font décrocher la cliente.
+
 Les closeuses peuvent mener le rendez-vous à leur manière : seules les règles qu'on ne discute pas sont les mêmes pour tout le monde. Juge le résultat (la cliente s'est-elle sentie comprise, a-t-elle pu décider), pas la récitation du script.`,
 };
 

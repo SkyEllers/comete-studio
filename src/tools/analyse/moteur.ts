@@ -303,6 +303,7 @@ export async function analyserUn(admin: Admin, bookingId: string): Promise<Resul
         transcription: texteACopier(repliques),
       }),
       schema: SCHEMA_ANALYSE,
+      contrainte: "consigne",
       maxTokens: 32_000,
       delaiMs: DELAI_ANALYSE_MS,
     },
@@ -407,6 +408,7 @@ export async function synthetiser(admin: Admin, organizationId: string): Promise
             constats: Object.fromEntries(analyse.points.filter((p) => p.constat).map((p) => [p.cle, p.constat])),
             alertes: analyse.alertes.map((x) => `${x.cle}${x.certitude === "a_verifier" ? " (à vérifier)" : ""}`),
             pas_su: analyse.pas_su.map((x) => x.question),
+            moments_cles: analyse.moments_cles.map((m) => `${m.signal} → ${m.lecture}`),
             pourquoi: analyse.pourquoi,
           }
         : null,

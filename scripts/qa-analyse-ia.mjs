@@ -14,6 +14,7 @@
  * Environ 0,35 $ par appel analysé (mesuré le 07/10/2026).
  *
  *   --seul <n>   n'analyse que le n-ième appel
+ *   --rdv <id>   n'analyse que ce rendez-vous
  *   --montrer    affiche l'analyse entière (sans la fiche de la cliente), pour
  *                juger le fond. À lire à l'écran, jamais à ranger dans un fichier.
  */
@@ -52,11 +53,13 @@ const cout = (u) =>
 
 const args = process.argv.slice(2);
 const seul = args.includes("--seul") ? Number(args[args.indexOf("--seul") + 1]) : null;
+const rdvSeul = args.includes("--rdv") ? args[args.indexOf("--rdv") + 1] : null;
 const montrer = args.includes("--montrer");
 
 let echecs = 0;
 for (const [i, l] of lignes.entries()) {
   if (seul !== null && i + 1 !== seul) continue;
+  if (rdvSeul && l.booking_id !== rdvSeul) continue;
   const { data: rdv } = await admin
     .from("radar_bookings_effective")
     .select("closeuse_id, scheduled_start, sale_amount_cents")
@@ -79,6 +82,7 @@ for (const [i, l] of lignes.entries()) {
         transcription: texteACopier(l.transcription),
       }),
       schema: SCHEMA_ANALYSE,
+      contrainte: "consigne",
       maxTokens: 32000,
       delaiMs: 240000,
     },
@@ -94,6 +98,7 @@ for (const [i, l] of lignes.entries()) {
   console.log(`Appel ${i + 1} : ${a.points.length} repères, ${a.alertes.length} alertes, ${a.pas_su.length} questions sans réponse, ${r.valeur.passages.length} passages, ${r.valeur.fiche.phrases.length} phrases de la cliente`);
   console.log(`  repères : ${a.points.map((p) => `${p.cle}=${p.repere}`).join(", ")}`);
   console.log(`  alertes : ${a.alertes.map((x) => `${x.cle}${x.certitude === "sure" ? "" : " (à vérifier)"}`).join(", ") || "aucune"}`);
+  console.log(`  profil : ${r.valeur.fiche.profil_disc} · verdict : ${a.pourquoi.verdict ?? "?"} · ${a.moments_cles.length} moments clés · ${a.pourquoi.freins_exprimes.length + a.pourquoi.freins_supposes.length} autres freins · ${a.pourquoi.signaux_encourageants.length} signaux`);
   if (montrer) console.log(JSON.stringify({ ...a, passages: r.valeur.passages }, null, 2));
   console.log(`  ${duree} s, ${r.usage.input_tokens ?? 0} jetons lus, ${r.usage.output_tokens ?? 0} écrits, ${cout(r.usage).toFixed(3)} $\n`);
 }

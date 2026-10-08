@@ -27,7 +27,7 @@ export function consignesAnalyse(profil: ProfilAnalyse): string {
 
 ${profil.contexte}
 
-## La grille : douze repères, dans cet ordre
+## La grille : treize repères, dans cet ordre
 
 ${points}
 
@@ -43,9 +43,12 @@ Les corrections de Louis du carnet (« Vérifié par Louis : … ») tranchent c
 ## Ce que tu rends
 
 - voix_closeuse : la transcription nomme les voix A, B… ; repère celle qui mène le rendez-vous.
-- points : les douze repères, chacun une fois.
+- points : les treize repères, chacun une fois.
+- Le profil de la cliente : fais une hypothèse prudente de son profil DISC (D directe, I expressive, S prudente, C analytique) à partir de son métier, de sa façon de parler, de ce qu'elle demande et de sa réponse « comment vous vous y prenez » au questionnaire. Ne l'affirme jamais avec certitude ; « inconnu » si les indices manquent. Le repère « adaptation au profil » juge si la vendeuse a adapté son discours à ce profil : une analytique veut de la précision, pas de l'émotion.
+- moments_cles : les moments où la cliente a donné un signal qui pouvait changer la suite (une demande précise, « ce n'est pas concret », une contrainte, une question technique), ce que la vendeuse en a fait, et ce qu'il aurait fallu faire. C'est ce qui aide le plus une vendeuse : sois concret, donne la phrase à dire.
 - pas_su : les questions de la cliente restées sans bonne réponse. Ce sont elles qui servent à compléter le kit des vendeuses : sois exhaustif.
-- pourquoi : le plus important. Pour une vente, ce qui l'a faite (le moment précis où la cliente a basculé, et ce qui l'a permis). Sinon, ce qui a manqué. Sépare la raison donnée par la cliente de la vraie raison quand elles diffèrent (« je dois réfléchir » qui cache le prix ou la confiance). L'issue réelle t'est donnée : pars d'elle.
+- pourquoi : le plus important. Pour une vente, ce qui l'a faite (le moment précis où la cliente a basculé, et ce qui l'a permis). Sinon, ce qui a manqué. Sépare la raison donnée par la cliente de la vraie raison quand elles diffèrent (« je dois réfléchir » qui cache le prix ou la confiance), puis les autres freins : ceux qu'elle a exprimés, et tes hypothèses, en disant que ce sont des hypothèses. Note les signaux encourageants. L'issue réelle t'est donnée : pars d'elle.
+- verdict : sois juste avec la vendeuse. Une contrainte réelle de la cliente (l'argent réservé à un enfant, un moment de vie) n'est pas un échec de la vendeuse, même si elle aurait pu mieux faire ailleurs.
 - passages : seulement des passages vraiment réussis, réécrits pour être montrés à d'autres vendeuses sans rien qui identifie la cliente. Moments possibles : ${moments}.
 - fiche : la cliente, en cases à compter, d'après l'appel et le questionnaire. « inconnu » ou vide quand ce n'est pas dit : jamais de déduction hasardeuse.
 
@@ -122,7 +125,7 @@ ${profil.contexte}
 
 ## Ton travail
 
-Tu reçois chaque rendez-vous analysé sous un code (« R12 ») : qui l'a mené, l'issue réelle, les douze repères, pourquoi la cliente a dit oui ou non, la fiche de la cliente. Et le carnet actuel.
+Tu reçois chaque rendez-vous analysé sous un code (« R12 ») : qui l'a mené, l'issue réelle, les repères, les moments clés, pourquoi la cliente a dit oui ou non avec le verdict (un non dû à une contrainte réelle n'est pas un échec de la vendeuse : n'en tire pas de leçon contre elle), la fiche de la cliente avec son profil DISC supposé. Et le carnet actuel.
 
 1. Compare les ventes et les non-ventes. Cherche ce qui les distingue vraiment, dans la façon de mener l'appel comme chez les clientes. Une leçon dit quelque chose de concret qu'une vendeuse peut refaire ou éviter dans son prochain appel (« dans les ventes, la reformulation reprenait l'événement qui a déclenché la prise de rendez-vous »), pas une généralité.
 2. Pour chaque leçon, donne tous les codes des appels qui la montrent, et seulement ceux-là. Le hub compte les appuis lui-même : une leçon sur trois appels est permise, elle attendra simplement l'accord de Louis. Ne gonfle pas les appuis.
