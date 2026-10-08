@@ -57,6 +57,7 @@ import { OngletAnalyses } from "@/tools/analyse/onglet-client";
 import type { VueCloseuse } from "@/tools/analyse/queries";
 import { BlocDevis } from "@/tools/devis/bloc-client";
 import { BlocAPrendre } from "./a-prendre-client";
+import { BoutonDeplacer } from "./deplacer-client";
 import { ETAPES_RELANCE, resumeRelances, type EtapeRelance, type Relances } from "./relances";
 import { cocherRelance } from "./relances-actions";
 import { BlocMesFactures } from "./factures-client";
@@ -414,7 +415,14 @@ function OngletRdv({
       {aFaire.length ? (
         <Section titre="À noter" sousTitre="L'appel est passé : dis ce qui s'est passé.">
           {aFaire.map((r) => (
-            <CarteRdv key={r.id} rdv={r} urgent onNoter={onNoter} />
+            <CarteRdv
+              key={r.id}
+              rdv={r}
+              urgent
+              onNoter={onNoter}
+              orgSlug={orgSlug}
+              deplacable={!vueDeLouis}
+            />
           ))}
         </Section>
       ) : null}
@@ -430,6 +438,7 @@ function OngletRdv({
               onNoter={onNoter}
               onDevis={onDevis}
               relancesModifiables={!vueDeLouis}
+              deplacable={!vueDeLouis}
             />
           ))
         ) : (
@@ -517,11 +526,14 @@ function CarteRdv({
   onNoter,
   onDevis,
   relancesModifiables = false,
+  deplacable = false,
 }: {
   rdv: RdvCloseuse;
   urgent?: boolean;
   /** Les rendez-vous à venir, vus par la closeuse elle-même : elle coche ses relances (0058). */
   relancesModifiables?: boolean;
+  /** Vu par la closeuse elle-même : « Déplacer » (08/10/2026). */
+  deplacable?: boolean;
   /** Les rendez-vous à venir : pour « Elle n'est pas venue » pendant le créneau. */
   orgSlug?: string;
   maintenant?: number;
@@ -600,12 +612,20 @@ function CarteRdv({
           ) : null}
         </div>
         {urgent ? (
-          <Button size="sm" onClick={() => onNoter(rdv)}>
-            <PenLine aria-hidden="true" />
-            Noter le résultat
-          </Button>
-        ) : onDevis || absentePossible ? (
           <div className="flex flex-wrap gap-2">
+            {deplacable && orgSlug && rdv.statut !== "no_show" ? (
+              <BoutonDeplacer orgSlug={orgSlug} bookingId={rdv.id} prenom={rdv.prenom} debut={rdv.debut} />
+            ) : null}
+            <Button size="sm" onClick={() => onNoter(rdv)}>
+              <PenLine aria-hidden="true" />
+              Noter le résultat
+            </Button>
+          </div>
+        ) : onDevis || absentePossible || deplacable ? (
+          <div className="flex flex-wrap gap-2">
+            {deplacable && orgSlug ? (
+              <BoutonDeplacer orgSlug={orgSlug} bookingId={rdv.id} prenom={rdv.prenom} debut={rdv.debut} />
+            ) : null}
             {absentePossible && orgSlug ? (
               <Button size="sm" variant="outline" disabled={enCours} onClick={() => setFenetreAbsente(true)}>
                 <UserX aria-hidden="true" />
