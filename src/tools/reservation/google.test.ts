@@ -10,6 +10,8 @@ import {
   creerEvenement,
   echangerCode,
   effacerEvenement,
+  idRappel,
+  poserRappelJournee,
   emailDuJeton,
   ErreurGoogle,
   idEvenement,
@@ -293,5 +295,34 @@ describe("Google : un rendez-vous Calendly confié, en Tomate et Disponible (07/
   it("sans le droit de modifier : le dit, sans erreur", async () => {
     const { f } = faux([{ status: 403, corps: { error: { message: "insufficient" } } }]);
     assert.equal(await teinterConfie("ya29", r, f), "sans_droit");
+  });
+});
+
+describe("le rappel « recontacter » (08/10/2026)", () => {
+  it("crée un rappel sur la journée, en disponible, quand il n'existe pas encore", async () => {
+    const appels: { url: string; methode: string; corps: Record<string, unknown> | null }[] = [];
+    const f = (async (url: string, init?: RequestInit) => {
+      appels.push({ url, methode: init?.method ?? "GET", corps: init?.body ? JSON.parse(String(init.body)) : null });
+      if (init?.method === "PATCH") return new Response("{}", { status: 404 });
+      return new Response(JSON.stringify({ id: "x" }), { status: 200 });
+    }) as typeof fetch;
+    const id = idRappel("7cf726f5-1f23-4849-b2f3-a5fdf8e07638");
+    await poserRappelJournee("ya29", "agenda-diagnostics", { id, date: "2026-10-11", titre: "Rappeler Muriel", description: "x" }, f);
+    assert.equal(appels.length, 2);
+    assert.equal(appels[1].methode, "POST");
+    assert.equal(appels[1].corps?.id, id);
+    assert.deepEqual(appels[1].corps?.start, { date: "2026-10-11" });
+    assert.deepEqual(appels[1].corps?.end, { date: "2026-10-12" });
+    assert.equal(appels[1].corps?.transparency, "transparent");
+  });
+
+  it("déplace le rappel existant sans en créer un second", async () => {
+    const methodes: string[] = [];
+    const f = (async (_url: string, init?: RequestInit) => {
+      methodes.push(init?.method ?? "GET");
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    await poserRappelJournee("ya29", "a", { id: idRappel("7cf726f5-1f23-4849-b2f3-a5fdf8e07638"), date: "2026-12-31", titre: "t", description: "d" }, f);
+    assert.deepEqual(methodes, ["PATCH"]);
   });
 });

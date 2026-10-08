@@ -11,8 +11,10 @@ import {
   effacerEvenement,
   ErreurGoogle,
   idEvenement,
+  idRappel,
   jetonAcces,
   occupe,
+  poserRappelJournee,
   revoquer,
   type Connexion,
   type Identifiants,
@@ -259,4 +261,37 @@ export async function reecrireDescription(
     lien ? `${texte}\n\nVisio : ${lien}` : texte,
   );
   return true;
+}
+
+/**
+ * Le rappel « recontacter » d'une closeuse dans son agenda « Diagnostics »
+ * (Louis, 08/10/2026 : Peggy Auger devait le noter elle-même). Posé quand
+ * elle choisit « La rappeler le », déplacé si la date change, retiré quand
+ * c'est fait, vendu ou sans date. Ne lève jamais : un agenda illisible ne doit
+ * pas faire échouer ce qu'elle vient de noter.
+ */
+export async function rappelRecontact(
+  db: Admin,
+  ids: Identifiants,
+  userId: string,
+  organizationId: string,
+  bookingId: string,
+  rappel: { date: string; titre: string; description: string } | null,
+): Promise<boolean> {
+  try {
+    const { data: p } = await db
+      .from("reservation_personnes")
+      .select("id, google_agenda, google_connecte_le")
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!p?.google_connecte_le || !p.google_agenda || p.google_agenda === AGENDA_PRINCIPAL) return false;
+    const acces = await porteJetons(db, ids)(p.id);
+    if (rappel) await poserRappelJournee(acces, p.google_agenda, { id: idRappel(bookingId), ...rappel });
+    else await effacerEvenement(acces, p.google_agenda, idRappel(bookingId));
+    return true;
+  } catch (erreur) {
+    console.error("Rappel à recontacter :", erreur instanceof Error ? erreur.message : "erreur");
+    return false;
+  }
 }

@@ -5,9 +5,12 @@ import { z } from "zod";
 
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { getMembership } from "@/lib/access";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { rappelRecontact } from "@/tools/reservation/agenda";
+import { identifiants } from "@/tools/reservation/google";
 import { centimesSaisis } from "@/tools/resultats/format";
-import { MOTIFS } from "@/tools/resultats/non-vente";
+import { LIBELLES_MOTIF, MOTIFS, type Motif } from "@/tools/resultats/non-vente";
 
 /**
  * Ce que la closeuse note après un rendez-vous. Chaque geste passe par une
@@ -38,6 +41,51 @@ async function sortirDAbsente(supabase: Awaited<ReturnType<typeof createClient>>
 }
 
 const idSchema = z.uuid({ error: "Rendez-vous introuvable." });
+
+/**
+ * Le rappel « La rappeler le » dans l'agenda Google de la closeuse du
+ * rendez-vous (Louis, 08/10/2026) : posé ou déplacé avec une date, retiré
+ * sans. Ne fait jamais échouer ce qu'elle vient de noter.
+ */
+async function majRappel(orgSlug: string, bookingId: string, rappel: { date: string; motif: Motif } | null) {
+  const ids = identifiants();
+  if (!ids) return;
+  const admin = createAdminClient();
+  const [{ data: rdv }, { data: reponses }, { data: ligne }] = await Promise.all([
+    admin
+      .from("radar_bookings")
+      .select("organization_id, closeuse_id, invitee_first_name, invitee_last_name")
+      .eq("id", bookingId)
+      .maybeSingle(),
+    admin.from("radar_booking_answers").select("answers").eq("booking_id", bookingId).maybeSingle(),
+    admin.from("reservation_rendez_vous").select("telephone").eq("radar_booking_id", bookingId).limit(1).maybeSingle(),
+  ]);
+  if (!rdv?.closeuse_id) return;
+  const qui = [rdv.invitee_first_name, rdv.invitee_last_name].filter(Boolean).join(" ") || "ta cliente";
+  const tel =
+    ligne?.telephone ||
+    ((reponses?.answers ?? []) as { q: string; r: string }[]).find((x) => /t[ée]l[ée]phone/i.test(x.q))?.r ||
+    null;
+  const racine = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.cometestudio.fr").replace(/\/+$/, "");
+  await rappelRecontact(
+    admin,
+    ids,
+    rdv.closeuse_id,
+    rdv.organization_id,
+    bookingId,
+    rappel
+      ? {
+          date: rappel.date,
+          titre: `Rappeler ${qui}${tel ? ` · ${tel}` : ""}`,
+          description: [
+            `Elle n'a pas acheté : ${LIBELLES_MOTIF[rappel.motif].toLowerCase()}.`,
+            "Elle est aussi dans ton espace, dans « À recontacter ». Après l'appel : « C'est fait ».",
+            `${racine}/app/${orgSlug}/closeuse`,
+          ].join("\n"),
+        }
+      : null,
+  );
+}
 
 /**
  * L'enregistrement du diagnostic est réglé (0049, Louis, 28/09/2026) : une
@@ -104,6 +152,7 @@ export async function noterVente(orgSlug: string, input: unknown): Promise<Actio
   if (etalement.error) {
     return fail(lisible(etalement.error.message, "La vente est notée, mais pas le nombre de paiements."));
   }
+  await majRappel(orgSlug, bookingId, null);
 
   revalidatePath(`/app/${orgSlug}/closeuse`);
   return ok();
@@ -142,6 +191,11 @@ export async function noterNonVente(orgSlug: string, input: unknown): Promise<Ac
   });
   if (error) return fail(lisible(error.message, "Ça n'a pas pu être noté."));
 
+  await majRappel(
+    orgSlug,
+    parsed.data.bookingId,
+    parsed.data.recontacterLe ? { date: parsed.data.recontacterLe, motif: parsed.data.motif as Motif } : null,
+  );
   revalidatePath(`/app/${orgSlug}/closeuse`);
   return ok();
 }
@@ -197,6 +251,7 @@ export async function noterRecontactee(orgSlug: string, input: unknown): Promise
   const supabase = await createClient();
   const { error } = await supabase.rpc("radar_recontact_fait", { booking_id: parsed.data.bookingId });
   if (error) return fail(lisible(error.message, "Ça n'a pas pu être noté."));
+  await majRappel(orgSlug, parsed.data.bookingId, null);
 
   revalidatePath(`/app/${orgSlug}/closeuse`);
   return ok();

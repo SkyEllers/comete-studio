@@ -476,3 +476,48 @@ export async function changerDescription(
   );
   await lire(reponse, "description du rendez-vous");
 }
+
+/** L'identifiant du rappel « recontacter » d'un rendez-vous : à part de celui du rendez-vous. */
+export const idRappel = (bookingId: string) => `rappel${idEvenement(bookingId)}`;
+
+/**
+ * Poser (ou déplacer) un rappel sur toute une journée : « Rappeler Prénom »
+ * le jour choisi (Louis, 08/10/2026). En « disponible » : il ne bloque aucun
+ * créneau. Le même identifiant sert toujours : changer la date le déplace, et
+ * un rappel effacé puis reposé se rouvre.
+ */
+export async function poserRappelJournee(
+  acces: string,
+  agenda: string,
+  r: { id: string; date: string; titre: string; description: string },
+  f: Fetch = fetch,
+): Promise<void> {
+  if (!/^[0-9a-v]{5,1024}$/.test(r.id)) throw new ErreurGoogle(`identifiant d'événement refusé : ${r.id}`, 400);
+  const lendemain = new Date(`${r.date}T00:00:00Z`);
+  lendemain.setUTCDate(lendemain.getUTCDate() + 1);
+  const corps = {
+    summary: r.titre,
+    description: r.description,
+    start: { date: r.date },
+    end: { date: lendemain.toISOString().slice(0, 10) },
+    transparency: "transparent",
+    status: "confirmed",
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 0 }] },
+  };
+  const base = `${API}/calendars/${encodeURIComponent(agenda)}/events`;
+  const maj = await f(`${base}/${encodeURIComponent(r.id)}?sendUpdates=none`, {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${acces}`, "content-type": "application/json" },
+    body: JSON.stringify(corps),
+  });
+  if (maj.status !== 404) {
+    await lire(maj, "rappel à recontacter");
+    return;
+  }
+  const cree = await f(`${base}?sendUpdates=none`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${acces}`, "content-type": "application/json" },
+    body: JSON.stringify({ id: r.id, ...corps }),
+  });
+  await lire(cree, "rappel à recontacter");
+}
