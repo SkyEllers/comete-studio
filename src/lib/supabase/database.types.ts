@@ -3161,6 +3161,59 @@ export type Database = {
           },
         ]
       }
+      radar_relances: {
+        Row: {
+          booking_id: string
+          coche_le: string
+          etape: string
+          organization_id: string
+          user_id: string | null
+        }
+        Insert: {
+          booking_id: string
+          coche_le?: string
+          etape: string
+          organization_id: string
+          user_id?: string | null
+        }
+        Update: {
+          booking_id?: string
+          coche_le?: string
+          etape?: string
+          organization_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "radar_relances_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_relances_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "radar_bookings_effective"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_relances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "radar_relances_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       radar_settings: {
         Row: {
           calendly_org_uri: string | null
