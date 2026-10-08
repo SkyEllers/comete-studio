@@ -49,6 +49,7 @@ import {
 } from "./format";
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
 import { BlocDevis } from "@/tools/devis/bloc-client";
+import { BlocRelances } from "@/tools/closeuse/relances-client";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
 
 import { BlocEnregistrement, useSuiviTranscriptions } from "./enregistrement-client";
@@ -744,6 +745,7 @@ function FicheRendezVous({
             valeur={rdv.counts_for_commission ? "Oui" : "Non"}
           />
           {rdv.status_note ? <Ligne label="Note" valeur={rdv.status_note} /> : null}
+          <BlocRelances orgSlug={orgSlug} bookingId={rdv.id} />
         </dl>
 
         {moisCloture ? (

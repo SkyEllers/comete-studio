@@ -57,6 +57,8 @@ import { OngletAnalyses } from "@/tools/analyse/onglet-client";
 import type { VueCloseuse } from "@/tools/analyse/queries";
 import { BlocDevis } from "@/tools/devis/bloc-client";
 import { BlocAPrendre } from "./a-prendre-client";
+import { ETAPES_RELANCE, resumeRelances, type EtapeRelance, type Relances } from "./relances";
+import { cocherRelance } from "./relances-actions";
 import { BlocMesFactures } from "./factures-client";
 import type { APrendre } from "@/tools/reservation/a-prendre";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
@@ -297,6 +299,7 @@ export function EspaceCloseuseClient({
           aujourdhui={aujourdhui}
           onNoter={setANoterRdv}
           onDevis={setDevisRdv}
+          vueDeLouis={vueDeLouis}
         />
       ) : null}
       {onglet === "ventes" ? <OngletVentes espace={espace} m7={m7} mois={mois} aujourdhui={aujourdhui} /> : null}
@@ -379,8 +382,10 @@ function OngletRdv({
   aujourdhui,
   onNoter,
   onDevis,
+  vueDeLouis = false,
 }: {
   orgSlug: string;
+  vueDeLouis?: boolean;
   rdvs: RdvCloseuse[];
   enregistrements: Record<string, Enregistrement>;
   maintenant: number;
@@ -417,7 +422,15 @@ function OngletRdv({
       <Section titre="À venir" sousTitre="Réservés dans tes créneaux.">
         {aVenir.length ? (
           aVenir.map((r) => (
-            <CarteRdv key={r.id} rdv={r} orgSlug={orgSlug} maintenant={maintenant} onNoter={onNoter} onDevis={onDevis} />
+            <CarteRdv
+              key={r.id}
+              rdv={r}
+              orgSlug={orgSlug}
+              maintenant={maintenant}
+              onNoter={onNoter}
+              onDevis={onDevis}
+              relancesModifiables={!vueDeLouis}
+            />
           ))
         ) : (
           <p className="text-muted-foreground text-sm">Aucun rendez-vous à venir pour l&apos;instant.</p>
@@ -469,6 +482,9 @@ function OngletRdv({
                 {r.noteAbsence ? (
                   <span className="text-muted-foreground basis-full text-xs whitespace-pre-line">{r.noteAbsence}</span>
                 ) : null}
+                {resumeRelances(r.relances) ? (
+                  <span className="text-muted-foreground basis-full text-xs">{resumeRelances(r.relances)}</span>
+                ) : null}
               </div>
             ))}
           </div>
@@ -500,9 +516,12 @@ function CarteRdv({
   maintenant,
   onNoter,
   onDevis,
+  relancesModifiables = false,
 }: {
   rdv: RdvCloseuse;
   urgent?: boolean;
+  /** Les rendez-vous à venir, vus par la closeuse elle-même : elle coche ses relances (0058). */
+  relancesModifiables?: boolean;
   /** Les rendez-vous à venir : pour « Elle n'est pas venue » pendant le créneau. */
   orgSlug?: string;
   maintenant?: number;
@@ -566,6 +585,11 @@ function CarteRdv({
             {rdv.typeNom ? ` · ${rdv.typeNom}` : ""}
           </p>
           <p className="mt-1 text-base font-medium">{rdv.prenom}</p>
+          {rdv.relances.confirme ? (
+            <Badge variant="secondary" className="bg-success/15 text-success mt-2 mr-2">
+              Elle a confirmé
+            </Badge>
+          ) : null}
           {libelleSuivi(rdv.agentSuivi) ? (
             <Badge
               variant={rdv.agentSuivi === "confirme" ? "secondary" : "outline"}
@@ -625,6 +649,11 @@ function CarteRdv({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      ) : null}
+      {relancesModifiables && orgSlug ? (
+        <LigneRelances orgSlug={orgSlug} bookingId={rdv.id} depart={rdv.relances} />
+      ) : resumeRelances(rdv.relances) ? (
+        <p className="text-muted-foreground mt-3 text-xs">{resumeRelances(rdv.relances)}</p>
       ) : null}
       {motif ? <p className="mt-3 text-sm">{motif.r}</p> : null}
       {reponses.length ? (
@@ -1434,5 +1463,63 @@ function FormulaireR2(p: {
         </div>
       ))}
     </section>
+  );
+}
+
+/**
+ * « Mes relances » : ce qu'elle a envoyé elle-même avant le rendez-vous, et
+ * si la cliente a confirmé (0058, demandé par les closeuses le 08/10/2026).
+ * Chaque clic s'enregistre tout de suite.
+ */
+function LigneRelances({ orgSlug, bookingId, depart }: { orgSlug: string; bookingId: string; depart: Relances }) {
+  const [relances, setRelances] = useState<Relances>(depart);
+  const [enCours, startTransition] = useTransition();
+  const router = useRouter();
+
+  const basculer = (etape: EtapeRelance) => {
+    const coche = !relances[etape];
+    const avant = relances;
+    setRelances({ ...relances, [etape]: coche ? new Date().toISOString() : undefined });
+    startTransition(async () => {
+      const r = await cocherRelance(orgSlug, { bookingId, etape, coche });
+      if (!r.ok) {
+        setRelances(avant);
+        toast.error(r.error);
+        return;
+      }
+      if (etape === "confirme") router.refresh();
+    });
+  };
+
+  return (
+    <div className="mt-3 space-y-1.5">
+      <p className="text-muted-foreground text-xs">Mes relances</p>
+      <div className="flex flex-wrap gap-1.5">
+        {ETAPES_RELANCE.map((e) => {
+          const actif = Boolean(relances[e.cle]);
+          return (
+            <button
+              key={e.cle}
+              type="button"
+              aria-pressed={actif}
+              disabled={enCours}
+              onClick={() => basculer(e.cle)}
+              title={actif ? `Coché ${heure(relances[e.cle]!)} le ${jour(relances[e.cle]!)}` : undefined}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors",
+                actif
+                  ? e.cle === "confirme"
+                    ? "border-success bg-success/15 text-success"
+                    : "border-ember bg-ember/10"
+                  : "border-line hover:bg-muted",
+              )}
+            >
+              {actif ? <Check aria-hidden="true" className="size-3" /> : null}
+              {e.libelle}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

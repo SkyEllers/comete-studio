@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getEnregistrements } from "@/tools/resultats/enregistrement";
 import type { Enregistrement } from "@/tools/resultats/enregistrement-format";
 import type { R2Vu } from "@/tools/r2/regles";
+
+import type { EtapeRelance, Relances } from "./relances";
 import { etatsParRendezVous, TYPES_NON_VENTE, type Raison } from "@/tools/resultats/non-vente";
 
 import { calculer, type Grille, type Incident, type Vente } from "./commission";
@@ -32,6 +34,8 @@ export type RdvCloseuse = {
   r2: R2Vu | null;
   /** La note qu'elle a écrite en notant « pas venue » (08/10/2026), ou null. */
   noteAbsence: string | null;
+  /** Les relances qu'elle a cochées, et sa confirmation (0058). */
+  relances: Relances;
 };
 
 export type EspaceCloseuse = {
@@ -105,6 +109,16 @@ export async function getEspaceCloseuse(
     ),
   );
 
+  // 0058 : pas encore dans les types générés. Lu avec la session (RLS).
+  const { data: relancesLues } = ids.length
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("radar_relances").select("booking_id, etape, coche_le").in("booking_id", ids)
+    : { data: [] };
+  const relancesPar = new Map<string, Relances>();
+  for (const l of (relancesLues ?? []) as { booking_id: string; etape: EtapeRelance; coche_le: string }[]) {
+    relancesPar.set(l.booking_id, { ...(relancesPar.get(l.booking_id) ?? {}), [l.etape]: l.coche_le });
+  }
+
   const premierPar = new Map((premiers ?? []).map((p) => [p.id, p.sale_premier_cents]));
   // Seulement une note écrite par la closeuse (origine « client ») : les notes
   // posées par Calendly ou l'outil (« Annulée par la personne ») n'en sont pas.
@@ -148,6 +162,7 @@ export async function getEspaceCloseuse(
         reponses: reponsesPar.get(id) ?? null,
         agentSuivi: suiviPar.get(id) ?? null,
         noteAbsence: l.effective_status === "no_show" ? (noteAbsencePar.get(id) ?? null) : null,
+        relances: relancesPar.get(id) ?? {},
         r2: r2Par.get(id) ?? null,
       };
     });
