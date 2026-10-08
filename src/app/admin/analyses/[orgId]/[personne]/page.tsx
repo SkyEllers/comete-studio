@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { getVuePersonne } from "@/tools/analyse/queries";
+import { alertesSures } from "@/tools/analyse/schema";
 import { BadgeIssue, TableComparaison } from "@/tools/analyse/vue-analyse";
 
 /** Une closeuse, ou la titulaire, vue par Louis : son ensemble face à l'équipe, et chacun de ses appels. */
@@ -21,7 +22,7 @@ export default async function PersonnePage({ params }: PageProps<"/admin/analyse
 
   const faites = vue.appels.filter((a) => a.analyse);
   const ventes = faites.filter((a) => a.issue === "vente").length;
-  const alertes = faites.reduce((s, a) => s + (a.analyse?.alertes.length ?? 0), 0);
+  const alertes = faites.reduce((s, a) => s + alertesSures(a.analyse?.alertes ?? []).length, 0);
 
   return (
     <>
@@ -64,11 +65,16 @@ export default async function PersonnePage({ params }: PageProps<"/admin/analyse
               >
                 <span className="min-w-0 truncate text-sm">
                   {a.debut ? date.format(new Date(a.debut)) : ""} · {a.prenom}
-                  {a.analyse?.alertes.length ? (
-                    <span className="text-danger ml-2 text-xs">
-                      {a.analyse.alertes.length} alerte{a.analyse.alertes.length > 1 ? "s" : ""}
-                    </span>
-                  ) : null}
+                  {(() => {
+                    const n = alertesSures(a.analyse?.alertes ?? []).length;
+                    const v = (a.analyse?.alertes.length ?? 0) - n;
+                    return n || v ? (
+                      <span className="ml-2 text-xs">
+                        {n ? <span className="text-danger">{n} alerte{n > 1 ? "s" : ""}</span> : null}
+                        {v ? <span className="text-warning ml-2">{v} à vérifier</span> : null}
+                      </span>
+                    ) : null;
+                  })()}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {a.analyse ? null : (

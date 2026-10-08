@@ -93,7 +93,7 @@ for (const [i, l] of lignes.entries()) {
   const a = versRangee(r.valeur);
   console.log(`Appel ${i + 1} : ${a.points.length} repères, ${a.alertes.length} alertes, ${a.pas_su.length} questions sans réponse, ${r.valeur.passages.length} passages, ${r.valeur.fiche.phrases.length} phrases de la cliente`);
   console.log(`  repères : ${a.points.map((p) => `${p.cle}=${p.repere}`).join(", ")}`);
-  console.log(`  alertes : ${a.alertes.map((x) => x.cle).join(", ") || "aucune"}`);
+  console.log(`  alertes : ${a.alertes.map((x) => `${x.cle}${x.certitude === "sure" ? "" : " (à vérifier)"}`).join(", ") || "aucune"}`);
   if (montrer) console.log(JSON.stringify({ ...a, passages: r.valeur.passages }, null, 2));
   console.log(`  ${duree} s, ${r.usage.input_tokens ?? 0} jetons lus, ${r.usage.output_tokens ?? 0} écrits, ${cout(r.usage).toFixed(3)} $\n`);
 }

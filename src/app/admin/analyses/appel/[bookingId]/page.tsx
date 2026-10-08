@@ -8,7 +8,7 @@ import { getVueAppel } from "@/tools/analyse/queries";
 import { LIBELLES_FICHE, type Fiche } from "@/tools/analyse/schema";
 import { BadgeIssue, DetailAnalyse, ListePassages } from "@/tools/analyse/vue-analyse";
 
-import { BoutonRelancer, FormCorrection } from "../../boutons";
+import { BoutonRelancer, FormCorrection, TrancherAlerte } from "../../boutons";
 
 /**
  * Un appel analysé, vu par Louis : l'analyse entière, la fiche de la cliente
@@ -81,7 +81,15 @@ export default async function AppelPage({ params }: PageProps<"/admin/analyses/a
       <div className="grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div>
           {appel.analyse ? (
-            <DetailAnalyse analyse={appel.analyse} issue={appel.issue} pourLouis />
+            <DetailAnalyse
+              analyse={appel.analyse}
+              issue={appel.issue}
+              pourLouis
+              tranchees={vue.tranchees}
+              trancher={(a) => (
+                <TrancherAlerte bookingId={bookingId} alerte={{ cle: a.cle, minute: a.minute, extrait: a.extrait }} />
+              )}
+            />
           ) : (
             <p className="text-muted-foreground text-sm">
               {appel.etat === "echec" ? `L'analyse a échoué : ${appel.erreur ?? "raison inconnue"}.` : "L'analyse n'est pas encore faite."}

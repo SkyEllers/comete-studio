@@ -403,7 +403,7 @@ export async function synthetiser(admin: Admin, organizationId: string): Promise
         ? {
             reperes: Object.fromEntries(analyse.points.map((p) => [p.cle, p.repere])),
             constats: Object.fromEntries(analyse.points.filter((p) => p.constat).map((p) => [p.cle, p.constat])),
-            alertes: analyse.alertes.map((x) => x.cle),
+            alertes: analyse.alertes.map((x) => `${x.cle}${x.certitude === "a_verifier" ? " (à vérifier)" : ""}`),
             pas_su: analyse.pas_su.map((x) => x.question),
             pourquoi: analyse.pourquoi,
           }

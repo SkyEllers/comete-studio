@@ -1,4 +1,5 @@
-import { AlertTriangle, CircleHelp, Lightbulb, Sparkles } from "lucide-react";
+import { AlertTriangle, CircleHelp, Lightbulb, SearchCheck, Sparkles } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,7 @@ import {
   type Issue,
   type Repere,
 } from "./grille";
-import type { AnalyseRangee } from "./schema";
+import { alertesSures, etiquetteAlerte, type Alerte, type AnalyseRangee } from "./schema";
 
 /**
  * L'affichage d'une analyse, des chiffres d'équipe et des passages : les
@@ -59,9 +60,28 @@ function Minute({ minute }: { minute: string }) {
   return minute ? <span className="text-muted-foreground font-mono text-xs tabular-nums">{minute}</span> : null;
 }
 
-/** Une analyse complète : pourquoi, à retenir, les douze repères, les alertes, ce qu'elle ne savait pas. */
-export function DetailAnalyse({ analyse, issue, pourLouis = false }: { analyse: AnalyseRangee; issue: Issue; pourLouis?: boolean }) {
+/**
+ * Une analyse complète : pourquoi, à retenir, les douze repères, les alertes,
+ * ce qu'elle ne savait pas. La closeuse ne voit que les alertes sûres ; Louis
+ * voit aussi celles à vérifier, avec de quoi les trancher (`trancher`).
+ */
+export function DetailAnalyse({
+  analyse,
+  issue,
+  pourLouis = false,
+  tranchees = [],
+  trancher,
+}: {
+  analyse: AnalyseRangee;
+  issue: Issue;
+  pourLouis?: boolean;
+  /** Les étiquettes des alertes déjà tranchées par Louis. */
+  tranchees?: string[];
+  trancher?: (alerte: Alerte) => ReactNode;
+}) {
   const p = analyse.pourquoi;
+  const sures = alertesSures(analyse.alertes);
+  const aVerifier = pourLouis ? analyse.alertes.filter((a) => a.certitude === "a_verifier") : [];
   return (
     <div className="space-y-6">
       {analyse.resume ? <p className="text-sm">{analyse.resume}</p> : null}
@@ -110,14 +130,14 @@ export function DetailAnalyse({ analyse, issue, pourLouis = false }: { analyse: 
         </section>
       ) : null}
 
-      {analyse.alertes.length ? (
+      {sures.length ? (
         <section className="border-danger/30 bg-danger/5 rounded-lg border p-4">
           <h3 className="text-danger mb-2 flex items-center gap-2 text-sm font-medium">
             <AlertTriangle aria-hidden="true" className="size-4" />
-            {analyse.alertes.length === 1 ? "Une règle à revoir" : `${analyse.alertes.length} règles à revoir`}
+            {sures.length === 1 ? "Une règle à revoir" : `${sures.length} règles à revoir`}
           </h3>
           <ul className="space-y-3 text-sm">
-            {analyse.alertes.map((a, i) => (
+            {sures.map((a, i) => (
               <li key={i}>
                 <p className="font-medium">
                   {libelleAlerte(a.cle)} <Minute minute={a.minute} />
@@ -126,6 +146,31 @@ export function DetailAnalyse({ analyse, issue, pourLouis = false }: { analyse: 
                 <p className="text-muted-foreground">{a.explication}</p>
               </li>
             ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {aVerifier.length ? (
+        <section className="border-warning/30 bg-warning/5 rounded-lg border p-4">
+          <h3 className="text-warning mb-1 flex items-center gap-2 text-sm font-medium">
+            <SearchCheck aria-hidden="true" className="size-4" />À vérifier par toi ({aVerifier.length})
+          </h3>
+          <p className="text-muted-foreground mb-3 text-xs">La closeuse ne les voit pas. Ce que tu tranches entre dans le carnet.</p>
+          <ul className="space-y-4 text-sm">
+            {aVerifier.map((a, i) => {
+              const fait = tranchees.includes(etiquetteAlerte(a));
+              return (
+                <li key={i} className="space-y-1">
+                  <p className="font-medium">
+                    {libelleAlerte(a.cle)} <Minute minute={a.minute} />
+                    {fait ? <span className="text-success ml-2 text-xs font-normal">tranchée</span> : null}
+                  </p>
+                  {a.extrait ? <p className="italic">« {a.extrait} »</p> : null}
+                  <p className="text-muted-foreground">{a.explication}</p>
+                  {!fait && trancher ? trancher(a) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
 import { requireAdmin } from "@/lib/auth";
-import { libellePoint, SEUIL_LECON, SEUIL_OUVERTURE } from "@/tools/analyse/grille";
+import { libelleAlerte, libellePoint, SEUIL_LECON, SEUIL_OUVERTURE } from "@/tools/analyse/grille";
 import { getTableauAdmin, type LeconVue, type TableauClient } from "@/tools/analyse/queries";
 
 import { BoutonSynthese, BoutonsLecon } from "./boutons";
@@ -90,6 +90,40 @@ function Client({ client: c }: { client: TableauClient }) {
           ))}
         </ul>
       </div>
+
+      {c.aVerifier.length ? (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium">
+            À vérifier par toi ({c.aVerifier.reduce((s, x) => s + x.alertes.length, 0)})
+          </h3>
+          <p className="text-muted-foreground text-sm">
+            Des alertes qui dépendent d&apos;un fait que l&apos;outil ne connaît pas. Les closeuses ne les voient pas : tranche-les
+            dans l&apos;appel, ta réponse entre dans le carnet.
+          </p>
+          <ul className="border-trait divide-trait divide-y rounded-lg border">
+            {c.aVerifier.flatMap((x) =>
+              x.alertes.map((a, i) => (
+                <li key={`${x.bookingId}-${i}`}>
+                  <Link
+                    href={`/admin/analyses/appel/${x.bookingId}`}
+                    prefetch={false}
+                    className="hover:bg-papier-fonce flex items-start justify-between gap-3 px-3 py-2.5 text-sm"
+                  >
+                    <span className="min-w-0">
+                      <span className="block">{a.extrait ? `« ${a.extrait} »` : libelleAlerte(a.cle)}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {libelleAlerte(a.cle)} · {x.menePar}
+                        {a.minute ? ` · ${a.minute}` : ""}
+                      </span>
+                    </span>
+                    <ChevronRight aria-hidden="true" className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                  </Link>
+                </li>
+              )),
+            )}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="space-y-4">
         <h3 className="text-sm font-medium">Le carnet de leçons</h3>

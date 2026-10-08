@@ -5,7 +5,17 @@ import { budgetDuQuestionnaire, chiffresPortrait, comparaison, dominant, reponse
 import { CLES_POINTS, resteAvantOuverture, SEUIL_LECON, SEUIL_OUVERTURE } from "./grille.ts";
 import { aAnalyser, ATTENTE_SANS_ISSUE_MS, ENTRE_ESSAIS_MS, lireIssue, syntheseDue, type FaitsIssue } from "./issue.ts";
 import { leconsPourAnalyse, mouvementsDuCarnet, resoudreAppuis, type Lecon } from "./lecons.ts";
-import { analyseLue, lireRangee, pointsComplets, SCHEMA_ANALYSE, versRangee, type Fiche } from "./schema.ts";
+import {
+  alertesATrancher,
+  alertesSures,
+  analyseLue,
+  etiquetteAlerte,
+  lireRangee,
+  pointsComplets,
+  SCHEMA_ANALYSE,
+  versRangee,
+  type Fiche,
+} from "./schema.ts";
 
 const faits = (f: Partial<FaitsIssue> = {}): FaitsIssue => ({
   statut: "honore",
@@ -307,5 +317,39 @@ describe("les chiffres d'ensemble", () => {
       reponsesPourAnalyse(reponses).map((r) => r.q),
       ["Le budget mensuel que vous pourriez consacrer à votre santé"],
     );
+  });
+});
+
+describe("les alertes à vérifier", () => {
+  const alerte = (certitude: "sure" | "a_verifier", minute: string) => ({
+    cle: "info_inventee",
+    certitude,
+    minute,
+    extrait: "",
+    explication: "",
+  });
+
+  it("une alerte rangée sans certitude reste chez Louis", () => {
+    const vieille = { ...analyse, alertes: [{ cle: "promesse", minute: "26:36", extrait: "", explication: "" }] };
+    const lue = lireRangee(versRangee(analyseLue.parse(vieille)));
+    assert.equal(lue?.alertes[0].certitude, "a_verifier");
+    assert.equal(alertesSures(lue?.alertes ?? []).length, 0);
+  });
+
+  it("la closeuse ne voit que les sûres ; Louis, celles à vérifier qu'il n'a pas tranchées", () => {
+    const alertes = analyseLue.parse({
+      ...analyse,
+      alertes: [alerte("sure", "1:00"), alerte("a_verifier", "2:00"), alerte("a_verifier", "3:00")],
+    }).alertes;
+    assert.deepEqual(
+      alertesSures(alertes).map((a) => a.minute),
+      ["1:00"],
+    );
+    const tranchees = new Set([etiquetteAlerte({ minute: "2:00", cle: "info_inventee" })]);
+    assert.deepEqual(
+      alertesATrancher(alertes, tranchees).map((a) => a.minute),
+      ["3:00"],
+    );
+    assert.equal(etiquetteAlerte({ minute: "", cle: "peur" }), "alerte ? peur");
   });
 });

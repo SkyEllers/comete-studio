@@ -6,7 +6,17 @@ import { budgetDuQuestionnaire, chiffresPortrait, comparaison, type EntreePortra
 import { resteAvantOuverture, SEUIL_OUVERTURE, type Issue } from "./grille";
 import { lireCarnet } from "./moteur";
 import { profilDuClient, CLIENTS_ANALYSES } from "./profils";
-import { lireFiche, lireRangee, lireSynthese, type AnalyseRangee, type Fiche, type SyntheseRangee } from "./schema";
+import {
+  alertesATrancher,
+  alertesSures,
+  lireFiche,
+  lireRangee,
+  lireSynthese,
+  type Alerte,
+  type AnalyseRangee,
+  type Fiche,
+  type SyntheseRangee,
+} from "./schema";
 
 /**
  * Ce que lisent les écrans de l'analyse. Service role, toujours après la
@@ -176,6 +186,8 @@ export type TableauClient = {
   synthese: (SyntheseRangee & { faiteLe: string; nbAppels: number }) | null;
   portrait: ReturnType<typeof chiffresPortrait>;
   coutDuMoisDollars: number;
+  /** Les alertes « à vérifier » que Louis n'a pas encore tranchées, appel par appel. */
+  aVerifier: { bookingId: string; menePar: string; alertes: Alerte[] }[];
 };
 
 /** Le prix d'un appel à Claude Opus 5.5, en dollars : 4 $ et 20 $ le million de jetons, 0,20 $ en lecture de cache. */
@@ -206,7 +218,7 @@ export async function getTableauAdmin(): Promise<TableauClient[]> {
         admin.from("radar_analyses").select("booking_id, closeuse_id, etat, issue, lecture, faite_le, usage").eq("organization_id", org.id),
         admin.from("radar_analyse_fiches").select("booking_id, fiche").eq("organization_id", org.id),
         lireCarnet(admin, org.id),
-        admin.from("radar_analyse_lecons").select("id, note, creee_le, nb_appuis").eq("organization_id", org.id),
+        admin.from("radar_analyse_lecons").select("id, note, creee_le, nb_appuis, booking_id").eq("organization_id", org.id),
         admin
           .from("radar_analyse_syntheses")
           .select("contenu, faite_le, nb_appels")
@@ -235,7 +247,7 @@ export async function getTableauAdmin(): Promise<TableauClient[]> {
       return {
         analyses: siennes.length,
         ventes: siennes.filter((l) => l.issue === "vente").length,
-        alertes: siennes.reduce((s, l) => s + (lireRangee(l.lecture)?.alertes.length ?? 0), 0),
+        alertes: siennes.reduce((s, l) => s + alertesSures(lireRangee(l.lecture)?.alertes ?? []).length, 0),
       };
     };
 
@@ -277,6 +289,20 @@ export async function getTableauAdmin(): Promise<TableauClient[]> {
       lignes.filter((l) => l.faite_le && l.faite_le >= mois).reduce((s, l) => s + coutDollars(l.usage), 0) +
       (syntheses ?? []).reduce((s, l) => s + coutDollars(l.usage), 0);
 
+    const trancheesPar = new Map<string, Set<string>>();
+    for (const l of lecons ?? []) {
+      if (!l.booking_id || !l.note?.startsWith("alerte ")) continue;
+      trancheesPar.set(l.booking_id, (trancheesPar.get(l.booking_id) ?? new Set()).add(l.note));
+    }
+    const nomDe = (cle: string | null) => personnes.find((p) => p.cle === (cle ?? "titulaire"))?.nom ?? "Closeuse";
+    const aVerifier = faites
+      .map((l) => ({
+        bookingId: l.booking_id,
+        menePar: nomDe(l.closeuse_id),
+        alertes: alertesATrancher(lireRangee(l.lecture)?.alertes ?? [], trancheesPar.get(l.booking_id) ?? new Set()),
+      }))
+      .filter((x) => x.alertes.length);
+
     const contenu = synthese ? lireSynthese(synthese.contenu) : null;
     sortie.push({
       organizationId: org.id,
@@ -301,6 +327,7 @@ export async function getTableauAdmin(): Promise<TableauClient[]> {
       synthese: contenu && synthese ? { ...contenu, faiteLe: synthese.faite_le, nbAppels: synthese.nb_appels } : null,
       portrait: chiffresPortrait(entrees),
       coutDuMoisDollars: cout,
+      aVerifier,
     });
   }
   return sortie;
@@ -372,6 +399,8 @@ export type VueAppel = {
   fiche: Fiche | null;
   passages: PassageVu[];
   corrections: LeconVue[];
+  /** Les étiquettes des alertes « à vérifier » déjà tranchées par Louis. */
+  tranchees: string[];
   modele: string | null;
   coutDollars: number;
 };
@@ -428,6 +457,7 @@ export async function getVueAppel(bookingId: string): Promise<VueAppel | null> {
       note: l.note,
       creeeLe: l.creee_le,
     })),
+    tranchees: (corrections ?? []).map((l) => l.note ?? "").filter((n) => n.startsWith("alerte ")),
     modele: ligne.modele,
     coutDollars: coutDollars(ligne.usage),
   };

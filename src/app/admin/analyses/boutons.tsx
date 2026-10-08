@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { POINTS } from "@/tools/analyse/grille";
 
-import { corrigerAnalyse, deciderLecon, lancerSynthese, relancerAnalyse } from "./actions";
+import { corrigerAnalyse, deciderLecon, lancerSynthese, relancerAnalyse, trancherAlerte } from "./actions";
 
 /** Les boutons de la page Analyses : chacun appelle une action, puis rafraîchit la page. */
 
@@ -160,5 +160,49 @@ export function FormCorrection({ bookingId }: { bookingId: string }) {
         {enCours ? "Enregistrement…" : "Ajouter au carnet"}
       </Button>
     </form>
+  );
+}
+
+/** Trancher une alerte « à vérifier » : vrai ou permis, faux ou interdit, avec la bonne réponse si elle aide le kit. */
+export function TrancherAlerte({
+  bookingId,
+  alerte,
+}: {
+  bookingId: string;
+  alerte: { cle: string; minute: string; extrait: string };
+}) {
+  const router = useRouter();
+  const [enCours, demarrer] = useTransition();
+  const [reponse, setReponse] = useState("");
+  const decider = (verdict: "permis" | "interdit") =>
+    demarrer(async () => {
+      const r = await trancherAlerte({ bookingId, ...alerte, verdict, reponse });
+      if (!r.ok) toast.error(r.error);
+      else {
+        toast.success(
+          verdict === "permis" ? "Noté : ce n'est pas une alerte." : "Noté : c'est une alerte. L'appel sera relu.",
+        );
+        router.refresh();
+      }
+    });
+  return (
+    <div className="mt-2 space-y-2">
+      <Textarea
+        value={reponse}
+        onChange={(e) => setReponse(e.target.value)}
+        rows={2}
+        maxLength={600}
+        aria-label="La bonne réponse (facultatif)"
+        placeholder="La bonne réponse, si elle aide (facultatif) : par exemple « le kit arrive en 4 semaines »."
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" disabled={enCours} onClick={() => decider("permis")}>
+          C&apos;est vrai / permis
+        </Button>
+        <Button size="sm" variant="outline" disabled={enCours} onClick={() => decider("interdit")}>
+          C&apos;est faux / interdit
+        </Button>
+      </div>
+    </div>
   );
 }

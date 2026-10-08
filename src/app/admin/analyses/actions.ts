@@ -6,7 +6,8 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CLES_POINTS } from "@/tools/analyse/grille";
+import { CLES_ALERTES, CLES_POINTS, libelleAlerte } from "@/tools/analyse/grille";
+import { etiquetteAlerte } from "@/tools/analyse/schema";
 import { analyserUn, synthetiser } from "@/tools/analyse/moteur";
 
 /**
@@ -103,4 +104,62 @@ export async function lancerSynthese(organizationId: string): Promise<ActionResu
   const r = await synthetiser(createAdminClient(), lu.data);
   revalidatePath("/admin/analyses");
   return r.ok ? ok({ appels: r.appels ?? 0 }) : fail(`La synthèse n'a pas abouti : ${r.erreur}.`);
+}
+
+const tranche = z.object({
+  bookingId: id,
+  cle: z.enum(CLES_ALERTES as [string, ...string[]]),
+  minute: z.string().max(12),
+  extrait: z.string().max(600),
+  verdict: z.enum(["permis", "interdit"]),
+  reponse: z.string().trim().max(600, "600 caractères au plus."),
+});
+
+/**
+ * Trancher une alerte « à vérifier » (Louis, 08/10/2026). Le verdict entre au
+ * carnet comme une correction, active tout de suite, relue par toutes les
+ * analyses suivantes ; la `note` porte l'étiquette de l'alerte, qui la sort
+ * de la liste. « Faux ou interdit » fait relire l'appel : l'alerte y devient
+ * sûre, et la closeuse la voit.
+ */
+export async function trancherAlerte(entree: z.input<typeof tranche>): Promise<ActionResult> {
+  await requireAdmin();
+  const lu = tranche.safeParse(entree);
+  if (!lu.success) return failFromZod(lu.error);
+  const { bookingId, cle, minute, extrait, verdict, reponse } = lu.data;
+
+  const admin = createAdminClient();
+  const { data: analyse } = await admin
+    .from("radar_analyses")
+    .select("organization_id")
+    .eq("booking_id", bookingId)
+    .maybeSingle();
+  if (!analyse) return fail("Analyse introuvable.");
+
+  const sujet = extrait ? `« ${extrait.slice(0, 300)} »` : libelleAlerte(cle).toLowerCase();
+  const texte =
+    verdict === "permis"
+      ? `Vérifié par Louis : ${sujet} est vrai ou permis (${libelleAlerte(cle).toLowerCase()}). Ce n'est pas une alerte.`
+      : `Vérifié par Louis : ${sujet} est faux ou interdit (${libelleAlerte(cle).toLowerCase()}). C'est une alerte sûre.`;
+
+  const { error } = await admin.from("radar_analyse_lecons").insert({
+    organization_id: analyse.organization_id,
+    texte: reponse ? `${texte} La bonne réponse : ${reponse}` : texte,
+    point: "general",
+    sens: verdict === "permis" ? "conseil" : "perd",
+    appuis: [bookingId],
+    nb_appuis: 1,
+    statut: "active",
+    origine: "correction",
+    booking_id: bookingId,
+    note: etiquetteAlerte({ minute, cle }),
+    decidee_le: new Date().toISOString(),
+  });
+  if (error) return fail("Le verdict n'a pas pu être enregistré.");
+
+  if (verdict === "interdit") {
+    await admin.from("radar_analyses").update({ etat: "a_faire", tentatives: 0 }).eq("booking_id", bookingId);
+  }
+  revalidatePath("/admin/analyses", "layout");
+  return ok();
 }

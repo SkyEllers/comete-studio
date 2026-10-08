@@ -35,7 +35,10 @@ ${points}
 
 ${alertes}
 
-Une alerte est un fait précis de l'appel, avec la phrase exacte. Dans le doute, tu l'écris quand même et tu dis pourquoi c'est à vérifier.
+Une alerte est un fait précis de l'appel, avec la phrase exacte, et une certitude :
+- « sure » quand la règle est touchée d'après les informations fournies ici (un prix faux, une promesse de kilos, un avis sur un traitement). La vendeuse la verra.
+- « a_verifier » quand tout dépend d'un fait que ces informations ne disent pas (un délai, une procédure, le résultat d'une cliente, une chose peut-être vraie chez la titulaire). Louis tranchera ; la vendeuse ne la verra pas. Dans l'explication, dis ce qu'il faut vérifier.
+Les corrections de Louis du carnet (« Vérifié par Louis : … ») tranchent ces cas : ce qu'il a dit vrai ou permis n'est plus une alerte, ce qu'il a dit faux ou interdit est une alerte « sure ».
 
 ## Ce que tu rends
 

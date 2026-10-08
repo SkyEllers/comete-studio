@@ -53,6 +53,7 @@ export const SOUFFRANCES = [
 export const FREINS = ["argent", "conjoint", "confiance", "temps", "peur_echec", "deja_essaye", "autre"] as const;
 export const DECIDE = ["seule", "avec_conjoint", "inconnu"] as const;
 export const SOURCES = ["pub", "instagram", "youtube", "bouche_a_oreille", "autre", "inconnu"] as const;
+export const CERTITUDES = ["sure", "a_verifier"] as const;
 
 export const LIBELLES_FICHE: Record<string, string> = {
   moins_35: "moins de 35 ans",
@@ -211,9 +212,13 @@ export const SCHEMA_ANALYSE = {
       {
         type: "object",
         additionalProperties: false,
-        required: ["cle", "minute", "extrait", "explication"],
+        required: ["cle", "certitude", "minute", "extrait", "explication"],
         properties: {
           cle: choix(CLES_ALERTES, "La règle touchée."),
+          certitude: choix(
+            CERTITUDES,
+            "« sure » : la règle est touchée d'après les informations fournies. « a_verifier » : cela dépend d'un fait que les informations fournies ne disent pas (un délai, un résultat de cliente, une procédure).",
+          ),
           minute: MINUTE,
           extrait: chaine("La phrase exacte."),
           explication: chaine("Pourquoi c'est un problème, et ce qu'il fallait dire, en une ou deux phrases."),
@@ -291,6 +296,9 @@ export const analyseLue = z.object({
     .array(
       z.object({
         cle: z.enum(CLES_ALERTES as [string, ...string[]]),
+        // Une analyse rangée avant le 08/10/2026 n'a pas de certitude : elle
+        // reste chez Louis, à vérifier, plutôt que d'aller chez la closeuse.
+        certitude: z.enum(CERTITUDES).default("a_verifier"),
         minute,
         extrait: z.string().max(600),
         explication: z.string().max(800),
@@ -358,6 +366,29 @@ export function versRangee(a: AnalyseLue): AnalyseRangee {
 export function lireRangee(valeur: unknown): AnalyseRangee | null {
   const lu = analyseLue.omit({ fiche: true, passages: true }).safeParse(valeur);
   return lu.success ? { ...lu.data, points: pointsComplets(lu.data.points) } : null;
+}
+
+// ------------------------------------------------------------ Les alertes à vérifier
+
+export type Alerte = AnalyseRangee["alertes"][number];
+
+/**
+ * L'étiquette qui relie une alerte « à vérifier » à la décision de Louis
+ * (rangée dans la `note` de la leçon de correction) : une alerte tranchée
+ * sort de sa liste.
+ */
+export function etiquetteAlerte(a: Pick<Alerte, "minute" | "cle">): string {
+  return `alerte ${a.minute || "?"} ${a.cle}`;
+}
+
+/** Les alertes que voit la closeuse : les sûres seulement (Louis, 08/10/2026). */
+export function alertesSures(alertes: Alerte[]): Alerte[] {
+  return alertes.filter((a) => a.certitude === "sure");
+}
+
+/** Les alertes que Louis doit trancher : à vérifier, et pas encore tranchées. */
+export function alertesATrancher(alertes: Alerte[], tranchees: ReadonlySet<string>): Alerte[] {
+  return alertes.filter((a) => a.certitude === "a_verifier" && !tranchees.has(etiquetteAlerte(a)));
 }
 
 export function lireFiche(valeur: unknown): Fiche | null {
