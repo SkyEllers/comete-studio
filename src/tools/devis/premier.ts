@@ -13,6 +13,7 @@ import { baseEspace } from "../reservation/suites.ts";
 import { noter, notifierSite, profilDe, type LigneDevis } from "./moteur.ts";
 import {
   dureePremier,
+  lienDossier,
   mailPayePeggy,
   mailRdvPeggy,
   mailSansRdvPeggy,
@@ -197,8 +198,13 @@ export async function reserverPremier(admin: Admin, d: LigneDevis, debut: string
 /** Le mail à Peggy, après la réponse au site. Ne lève jamais. */
 export async function prevenirPeggy(admin: Admin, d: LigneDevis, rdv: PremierRdv, deplace: boolean): Promise<void> {
   try {
-    const [closeuse, a] = await Promise.all([closeuseDe(admin, d), adresseTitulaire(admin, d.organization_id)]);
-    await envoyer({ ...mailRdvPeggy(d, rdv, deplace ? "deplace" : "nouveau", closeuse), a });
+    const [closeuse, a, espace] = await Promise.all([
+      closeuseDe(admin, d),
+      adresseTitulaire(admin, d.organization_id),
+      baseEspace(admin, d.organization_id),
+    ]);
+    const dossier = lienDossier(espace, d.booking_id);
+    await envoyer({ ...mailRdvPeggy(d, rdv, deplace ? "deplace" : "nouveau", closeuse, "Europe/Paris", dossier), a });
   } catch (erreur) {
     console.error("Premier rendez-vous, mail à Peggy :", erreur instanceof Error ? erreur.message : "erreur");
   }

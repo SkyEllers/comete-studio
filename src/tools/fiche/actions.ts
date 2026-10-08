@@ -5,7 +5,10 @@ import { z } from "zod";
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { lireResume, type EtatTranscription, type Replique } from "@/tools/resultats/enregistrement-format";
+
 import { rendezVousAccessible } from "./acces";
+import { dossierACopier } from "./dossier";
 
 /**
  * La fiche de la cliente (P16, Louis, 28/09/2026) : la fiche du rendez-vous
@@ -115,4 +118,63 @@ export async function lireParcours(orgSlug: string, bookingId: string): Promise<
         }
       : null,
   });
+}
+
+/**
+ * Le dossier de la cliente en un seul texte, pour « Copier tout le dossier »
+ * (Louis, 08/10/2026) : ses réponses au questionnaire, l'enregistrement de son
+ * diagnostic (transcription ou résumé), ce qu'elle veut d'après son devis.
+ * Même porte que la fiche : qui peut saisir sur ce rendez-vous.
+ */
+export async function lireDossier(
+  orgSlug: string,
+  bookingId: string,
+): Promise<ActionResult<{ texte: string; manque: string[] }>> {
+  const parsed = idSchema.safeParse(bookingId);
+  if (!parsed.success) return failFromZod(parsed.error);
+  const parcours = await lireParcours(orgSlug, parsed.data);
+  if (!parcours.ok) return parcours;
+  const lu = await rendezVousAccessible(orgSlug, parsed.data);
+  if (!lu) return fail("Ce rendez-vous ne t'est pas accessible.");
+
+  const admin = createAdminClient();
+  const [{ data: rdv }, { data: enr }, { data: devis }, { data: closeuse }] = await Promise.all([
+    admin.from("radar_bookings").select("scheduled_start").eq("id", lu.rdv.id).maybeSingle(),
+    admin
+      .from("radar_diagnostic_enregistrements")
+      .select("sans_enregistrement, resume, transcription_etat, transcription")
+      .eq("booking_id", lu.rdv.id)
+      .maybeSingle(),
+    // Les tables du devis (0050) ne sont pas dans les types générés, comme dans `devis/moteur.ts`.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (admin as any)
+      .from("devis")
+      .select("objet")
+      .eq("booking_id", lu.rdv.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    lu.rdv.closeuse_id
+      ? admin.from("profiles").select("full_name").eq("id", lu.rdv.closeuse_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const nom = [lu.rdv.invitee_first_name, lu.rdv.invitee_last_name].map((x) => x?.trim()).filter(Boolean).join(" ") || "la cliente";
+  return ok(
+    dossierACopier({
+      nom,
+      diagnosticLe: rdv?.scheduled_start ?? null,
+      closeuse: (closeuse as { full_name: string | null } | null)?.full_name ?? null,
+      objet: (devis as { objet: string | null } | null)?.objet ?? null,
+      reponses: parcours.data.reservation?.reponses ?? [],
+      enregistrement: enr
+        ? {
+            sansEnregistrement: enr.sans_enregistrement,
+            resume: lireResume(enr.resume),
+            transcriptionEtat: enr.transcription_etat as EtatTranscription,
+            transcription: Array.isArray(enr.transcription) ? (enr.transcription as Replique[]) : null,
+          }
+        : null,
+    }),
+  );
 }

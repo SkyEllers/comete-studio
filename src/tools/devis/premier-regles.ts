@@ -112,11 +112,30 @@ function echapper(texte: string): string {
   return texte.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function mail(sujet: string, paragraphes: string[][]): Mail {
-  const texte = paragraphes.map((p) => p.join("\n")).join("\n\n") + "\n";
-  const html = paragraphes.map((p) => `<p>${p.map(echapper).join("<br>")}</p>`).join("\n");
+/** Un lien en dernier paragraphe : cliquable dans le HTML, en clair dans le texte. */
+type Lien = { avant: string; texte: string; url: string };
+
+function mail(sujet: string, paragraphes: string[][], lien: Lien | null = null): Mail {
+  const texte =
+    paragraphes.map((p) => p.join("\n")).join("\n\n") + (lien ? `\n\n${lien.avant}\n${lien.url}` : "") + "\n";
+  const html =
+    paragraphes.map((p) => `<p>${p.map(echapper).join("<br>")}</p>`).join("\n") +
+    (lien ? `\n<p>${echapper(lien.avant)}<br><a href="${echapper(lien.url)}">${echapper(lien.texte)}</a></p>` : "");
   return { sujet, texte, html };
 }
+
+/**
+ * Le dossier de la cliente, pour préparer son premier rendez-vous (Louis,
+ * 08/10/2026) : la fiche de son diagnostic dans Radar, avec ses réponses au
+ * questionnaire, la transcription de l'appel et « Copier tout le dossier ».
+ * Rien sans diagnostic d'origine (devis fait hors d'un rendez-vous).
+ */
+export function lienDossier(baseEspace: string, bookingId: string | null | undefined): string | null {
+  return bookingId ? `${baseEspace}/resultats/rendez-vous?rdv=${bookingId}` : null;
+}
+
+const AVANT_DOSSIER =
+  "Pour le préparer : ses réponses au questionnaire et la transcription de son diagnostic, à copier d'un clic dans ChatGPT.";
 
 /** Qui elle est, ce qu'elle a pris, où envoyer le kit. */
 function fiche(d: DevisPaye, closeuse: string | null): string[] {
@@ -162,6 +181,7 @@ export function mailRdvPeggy(
   type: "nouveau" | "deplace",
   closeuse: string | null,
   fuseau = "Europe/Paris",
+  dossier: string | null = null,
 ): Mail {
   const qui = nomCliente(d);
   const prenom = d.prenom?.trim() || qui;
@@ -172,13 +192,26 @@ export function mailRdvPeggy(
     type === "nouveau"
       ? `${qui} a réservé son premier rendez-vous avec toi, ${quand} (${minutes} min). Il est dans ton agenda.`
       : `${qui} a déplacé son premier rendez-vous au ${quand} (${minutes} min). Ton agenda est à jour.`;
-  return mail(sujet, [[phrase], fiche(d, closeuse), ...(rdv.lienVisio ? [[`Visio : ${rdv.lienVisio}`]] : [])]);
+  return mail(
+    sujet,
+    [[phrase], fiche(d, closeuse), ...(rdv.lienVisio ? [[`Visio : ${rdv.lienVisio}`]] : [])],
+    dossier ? { avant: AVANT_DOSSIER, texte: "Ouvrir son dossier", url: dossier } : null,
+  );
 }
 
 /** Le titre et la description de l'événement, dans l'agenda de Peggy. */
-export function evenementPremier(d: DevisPaye, closeuse: string | null): { titre: string; description: string } {
+export function evenementPremier(
+  d: DevisPaye,
+  closeuse: string | null,
+  dossier: string | null = null,
+): { titre: string; description: string } {
   return {
     titre: `Premier rendez-vous · ${d.prenom?.trim() || "une cliente"}`,
-    description: [`Premier rendez-vous de ${nomCliente(d)}, après son devis payé.`, "", ...fiche(d, closeuse)].join("\n"),
+    description: [
+      `Premier rendez-vous de ${nomCliente(d)}, après son devis payé.`,
+      "",
+      ...fiche(d, closeuse),
+      ...(dossier ? ["", `Son dossier (questionnaire et diagnostic) : ${dossier}`] : []),
+    ].join("\n"),
   };
 }

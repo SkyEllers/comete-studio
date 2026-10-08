@@ -101,21 +101,29 @@ function Filtres({
 async function ficheDeReservation(
   organizationId: string,
   resa: string | undefined,
+  radar: string | undefined,
 ): Promise<{ id: string; mois: string } | null> {
-  if (!resa || !/^[0-9a-f-]{36}$/i.test(resa)) return null;
+  const uuid = (x: string | undefined): x is string => Boolean(x && /^[0-9a-f-]{36}$/i.test(x));
   const supabase = await createClient();
-  const { data: rdv } = await supabase
-    .from("reservation_rendez_vous")
-    .select("radar_booking_id")
-    .eq("organization_id", organizationId)
-    .eq("id", resa)
-    .maybeSingle();
-  if (!rdv?.radar_booking_id) return null;
+  // `?rdv=<rendez-vous Radar>` : le lien du dossier, depuis le mail et l'agenda
+  // du premier rendez-vous de Peggy (08/10/2026). Il marche aussi pour un
+  // diagnostic pris par Calendly, qui n'a pas de ligne dans l'outil.
+  let bookingId: string | null = uuid(radar) ? radar : null;
+  if (!bookingId && uuid(resa)) {
+    const { data: rdv } = await supabase
+      .from("reservation_rendez_vous")
+      .select("radar_booking_id")
+      .eq("organization_id", organizationId)
+      .eq("id", resa)
+      .maybeSingle();
+    bookingId = rdv?.radar_booking_id ?? null;
+  }
+  if (!bookingId) return null;
   const { data: ligne } = await supabase
     .from("radar_bookings_effective")
     .select("id, mois")
     .eq("organization_id", organizationId)
-    .eq("id", rdv.radar_booking_id)
+    .eq("id", bookingId)
     .maybeSingle();
   return ligne?.id && ligne.mois ? { id: ligne.id, mois: ligne.mois } : null;
 }
@@ -284,10 +292,10 @@ export default async function RendezVousPage({
   searchParams,
 }: PageProps<"/app/[orgSlug]/resultats/rendez-vous">) {
   const { orgSlug } = await params;
-  const { mois, canal, statut, vente, q, resa } = await searchParams;
+  const { mois, canal, statut, vente, q, resa, rdv } = await searchParams;
   const { org } = await requireMembership(orgSlug);
   const recherche = nettoyerRecherche(seul(q));
-  const fiche = await ficheDeReservation(org.id, seul(resa));
+  const fiche = await ficheDeReservation(org.id, seul(resa), seul(rdv));
   const venteFiltre = seul(vente) === "avec" || seul(vente) === "sans" ? seul(vente) : undefined;
 
   return (

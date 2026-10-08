@@ -50,6 +50,7 @@ import {
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
 import { BlocDevis } from "@/tools/devis/bloc-client";
 import { BlocRelances } from "@/tools/closeuse/relances-client";
+import { CopierDossier } from "@/tools/fiche/copier-dossier-client";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
 
 import { BlocEnregistrement, useSuiviTranscriptions } from "./enregistrement-client";
@@ -688,6 +689,10 @@ function FicheRendezVous({
         {/* Son parcours (P16) : sa réservation et ses réponses, puis
             l'assistante WhatsApp. La fiche du rendez-vous est la fiche de la
             cliente. */}
+        {/* Tout en un texte, pour ChatGPT (Louis, 08/10/2026) : c'est là que
+            mène le lien du mail et de l'agenda du premier rendez-vous. */}
+        <CopierDossier orgSlug={orgSlug} bookingId={rdv.id} titre={`Dossier de ${nom ?? "la cliente"}`} />
+
         <BlocParcours orgSlug={orgSlug} bookingId={rdv.id} />
 
         {/* L'enregistrement du diagnostic : la vidéo, sa transcription, ou le

@@ -17,7 +17,7 @@ import {
   type Connexion,
   type Identifiants,
 } from "./google.ts";
-import { evenementPremier, type DevisPaye } from "../devis/premier-regles.ts";
+import { evenementPremier, lienDossier, type DevisPaye } from "../devis/premier-regles.ts";
 
 import type { Agendas, PersonneLue } from "./moteur.ts";
 import { descriptionEvenement, lienFiche } from "./reponses.ts";
@@ -180,7 +180,7 @@ export async function ecrireRendezVous(
 
   const acces = await porteJetons(db, ids)(rdv.personne.id);
   const prenom = rdv.prenom?.trim() || "une cliente";
-  const premier = rdv.genre === "premier" && rdv.devis_id ? await evenementDuDevis(db, rdv.devis_id) : null;
+  const premier = rdv.genre === "premier" && rdv.devis_id ? await evenementDuDevis(db, rdv.devis_id, baseEspace) : null;
   const ecrit = await creerEvenement(acces, rdv.personne.google_agenda, {
     id: idEvenement(rdv.id),
     debut: rdv.debut,
@@ -207,20 +207,24 @@ export async function ecrireRendezVous(
 }
 
 /** Le titre et la description d'un premier rendez-vous, depuis son devis (0055). */
-async function evenementDuDevis(db: Admin, devisId: string): Promise<{ titre: string; description: string } | null> {
+async function evenementDuDevis(
+  db: Admin,
+  devisId: string,
+  baseEspace: string,
+): Promise<{ titre: string; description: string } | null> {
   // Les tables du devis (0050) ne sont pas dans les types générés : client non typé, comme `devis/moteur.ts`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (db as any)
     .from("devis")
-    .select("prenom, nom, email, telephone, adresse, objet, duree_mois, paiement, investigation_cents, mensualite_cents, total_cents, paye_le, closeuse_id")
+    .select("prenom, nom, email, telephone, adresse, objet, duree_mois, paiement, investigation_cents, mensualite_cents, total_cents, paye_le, closeuse_id, booking_id")
     .eq("id", devisId)
     .maybeSingle();
   if (!data) return null;
-  const d = data as DevisPaye & { closeuse_id: string | null };
+  const d = data as DevisPaye & { closeuse_id: string | null; booking_id: string | null };
   const { data: profil } = d.closeuse_id
     ? await db.from("profiles").select("full_name").eq("id", d.closeuse_id).maybeSingle()
     : { data: null };
-  return evenementPremier(d, profil?.full_name ?? null);
+  return evenementPremier(d, profil?.full_name ?? null, lienDossier(baseEspace, d.booking_id));
 }
 
 /** Retirer un rendez-vous annulé ou reporté de l'agenda de sa personne. */

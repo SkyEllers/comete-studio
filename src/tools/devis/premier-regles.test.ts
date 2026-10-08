@@ -7,6 +7,7 @@ import {
   dureePremier,
   evenementPremier,
   formuleEnMots,
+  lienDossier,
   mailPayePeggy,
   mailRdvPeggy,
   mailSansRdvPeggy,
@@ -124,5 +125,28 @@ describe("le premier rendez-vous : les mails à Peggy", () => {
     const e = evenementPremier(geraldine, "Peggy Auger");
     assert.equal(e.titre, "Premier rendez-vous · Géraldine");
     assert.match(e.description, /Adresse pour le kit/);
+  });
+});
+
+describe("le dossier de la cliente, depuis le mail et l'agenda de Peggy (08/10/2026)", () => {
+  const rdv = { debut: "2026-10-12T08:00:00.000Z", fin: "2026-10-12T08:30:00.000Z", lienVisio: null };
+
+  it("lienDossier : la fiche du diagnostic, ou rien sans diagnostic", () => {
+    assert.equal(
+      lienDossier("https://app.cometestudio.fr/app/peggy", "b0b0b0b0-0000-4000-8000-000000000001"),
+      "https://app.cometestudio.fr/app/peggy/resultats/rendez-vous?rdv=b0b0b0b0-0000-4000-8000-000000000001",
+    );
+    assert.equal(lienDossier("https://app.cometestudio.fr/app/peggy", null), null);
+  });
+
+  it("le mail porte un lien cliquable vers le dossier, en clair dans le texte", () => {
+    const m = mailRdvPeggy(geraldine, rdv, "nouveau", "Peggy Auger", P, "https://exemple.fr/dossier?rdv=1&x=2");
+    assert.ok(m.html.includes('<a href="https://exemple.fr/dossier?rdv=1&amp;x=2">Ouvrir son dossier</a>'));
+    assert.ok(m.texte.includes("https://exemple.fr/dossier?rdv=1&x=2"));
+    assert.ok(!mailRdvPeggy(geraldine, rdv, "nouveau", "Peggy Auger").html.includes("<a "));
+  });
+
+  it("l'événement de l'agenda donne le lien", () => {
+    assert.ok(evenementPremier(geraldine, null, "https://exemple.fr/d").description.endsWith("Son dossier (questionnaire et diagnostic) : https://exemple.fr/d"));
   });
 });
