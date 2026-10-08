@@ -2,6 +2,7 @@ import { after, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { devisDemande } from "@/tools/devis/acces";
+import { ouvrirCompteEtv } from "@/tools/devis/etv";
 import { prevenirPeggy, rdvPourSite, reserverPremier } from "@/tools/devis/premier";
 import { json } from "@/tools/reservation/acces-page";
 
@@ -15,8 +16,12 @@ import { json } from "@/tools/reservation/acces-page";
  * Ni Radar, ni l'agent WhatsApp, ni les conversions des pubs : ce n'est pas
  * un diagnostic.
  *
+ * Puis son compte dans l'app de Peggy (Louis, 08/10/2026, `etv.ts`) : créé à
+ * la première réservation, sa date remise à jour quand elle déplace. La page
+ * propose d'entrer dans l'app quand le compte est prêt (`etv.pret`).
+ *
  *   404  lien inconnu.   409  { raison: "pas_paye" | "plus_libre" }.
- *   423  { raison: "ferme" }.   200  { rdv: { debut, fin, lienVisio, fuseau }, deplace, ancienDebut }.
+ *   423  { raison: "ferme" }.   200  { rdv: { debut, fin, lienVisio, fuseau }, deplace, ancienDebut, etv }.
  */
 
 export const runtime = "nodejs";
@@ -43,10 +48,12 @@ export async function POST(request: NextRequest) {
       return json({ raison: "erreur" }, 500);
     }
     after(() => prevenirPeggy(d.admin, d.devis, prise.rdv, prise.deplace));
+    const etv = await ouvrirCompteEtv(d.admin, d.profil.slug, d.devis, prise.rdv.debut);
     return json({
       rdv: rdvPourSite(prise.rdv),
       deplace: prise.deplace,
       ancienDebut: prise.ancienDebut,
+      etv: etv ? { pret: etv.pret, app: etv.app } : null,
     });
   } catch (erreur) {
     console.error("Premier rendez-vous, réserver :", erreur instanceof Error ? erreur.message : "erreur");
