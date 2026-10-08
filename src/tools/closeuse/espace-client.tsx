@@ -56,7 +56,9 @@ import { bilanPossible, heure, jour, montant } from "@/tools/resultats/format";
 import { OngletAnalyses } from "@/tools/analyse/onglet-client";
 import type { VueCloseuse } from "@/tools/analyse/queries";
 import { BlocDevis } from "@/tools/devis/bloc-client";
+import { BlocAPrendre } from "./a-prendre-client";
 import { BlocMesFactures } from "./factures-client";
+import type { APrendre } from "@/tools/reservation/a-prendre";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
 import { demanderR2 } from "@/tools/r2/actions";
 import {
@@ -139,6 +141,8 @@ export function EspaceCloseuseClient({
   vueDeLouis,
   voisines = null,
   analyses = null,
+  aPrendre = [],
+  titulaire = "",
 }: {
   orgSlug: string;
   organizationId: string;
@@ -150,6 +154,9 @@ export function EspaceCloseuseClient({
   voisines?: { precedente: string; suivante: string; rang: number; total: number } | null;
   /** L'analyse de ses appels (0056) ; null chez un client sans analyse : pas d'onglet. */
   analyses?: { vue: VueCloseuse; titulaire: string } | null;
+  /** Les diagnostics de la titulaire que personne ne couvre, qu'elle peut prendre (08/10/2026). */
+  aPrendre?: APrendre[];
+  titulaire?: string;
 }) {
   const [onglet, setOnglet] = useState<Onglet>("rdv");
   const [mois, setMois] = useState(moisDuJour);
@@ -275,6 +282,11 @@ export function EspaceCloseuseClient({
         ))}
       </div>
 
+      {onglet === "rdv" ? (
+        <div className="mb-8 empty:hidden">
+          <BlocAPrendre orgSlug={orgSlug} titulaire={titulaire} aPrendre={aPrendre} vueDeLouis={vueDeLouis} />
+        </div>
+      ) : null}
       {onglet === "rdv" ? (
         <OngletRdv
           orgSlug={orgSlug}

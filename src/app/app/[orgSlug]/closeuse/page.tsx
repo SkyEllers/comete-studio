@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 
 import { requireCloseuse } from "@/lib/access";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { profilDuClient } from "@/tools/analyse/profils";
 import { getVueCloseuse } from "@/tools/analyse/queries";
 import { EspaceCloseuseClient } from "@/tools/closeuse/espace-client";
 import { getEspaceCloseuse } from "@/tools/closeuse/queries";
+import { lecteurOccupe } from "@/tools/reservation/agenda";
+import { diagnosticsAPrendre, type APrendre } from "@/tools/reservation/a-prendre";
+import { identifiants } from "@/tools/reservation/google";
 import { aujourdhuiAParis } from "@/tools/resultats/format";
 import { moisCourant } from "@/tools/resultats/mois";
 
@@ -28,9 +32,10 @@ export default async function CloseusePage({
   const { org, role, closeuseId } = await requireCloseuse(orgSlug, c);
 
   const aujourdhui = aujourdhuiAParis();
-  const [espace, vueAnalyses] = await Promise.all([
+  const [espace, vueAnalyses, aPrendre] = await Promise.all([
     getEspaceCloseuse(org.id, closeuseId, aujourdhui),
     getVueCloseuse(org.id, closeuseId, role === "admin"),
+    lesAPrendre(org.id, closeuseId),
   ]);
   const titulaire = profilDuClient(org.slug)?.titulaire ?? "";
 
@@ -66,6 +71,25 @@ export default async function CloseusePage({
       vueDeLouis={role === "admin"}
       voisines={voisines}
       analyses={vueAnalyses ? { vue: vueAnalyses, titulaire } : null}
+      aPrendre={aPrendre}
+      titulaire={titulaire}
     />
   );
+}
+
+/**
+ * Les diagnostics de la titulaire que personne ne couvre et qu'elle peut
+ * prendre (08/10/2026). Une panne de Google ne casse pas l'espace : rien à
+ * prendre.
+ */
+async function lesAPrendre(org: string, closeuseId: string): Promise<APrendre[]> {
+  const ids = identifiants();
+  if (!ids) return [];
+  try {
+    const admin = createAdminClient();
+    return await diagnosticsAPrendre(admin, org, closeuseId, lecteurOccupe(admin, ids));
+  } catch (erreur) {
+    console.error("Espace closeuse, à prendre :", erreur instanceof Error ? erreur.message : "erreur");
+    return [];
+  }
 }
