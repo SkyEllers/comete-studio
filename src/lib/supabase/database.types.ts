@@ -4256,6 +4256,7 @@ export type Database = {
       can_access_sas: { Args: { org: string }; Returns: boolean }
       can_access_sonde: { Args: { org: string }; Returns: boolean }
       can_access_temps: { Args: { org: string }; Returns: boolean }
+      closeuse_orgs: { Args: never; Returns: string[] }
       devis_vers_radar: { Args: { devis_cible: string }; Returns: boolean }
       est_auteur_objet: {
         Args: { owner: string; owner_id: string }
@@ -4314,6 +4315,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      radar_orgs_visibles: { Args: never; Returns: string[] }
       radar_peut_saisir: {
         Args: { closeuse: string; org: string }
         Returns: boolean
