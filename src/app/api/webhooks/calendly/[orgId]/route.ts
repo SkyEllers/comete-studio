@@ -267,6 +267,14 @@ async function radar(
         return sansCorps(200);
       }
 
+      // Déjà annulé : par l'outil de réservation, qui vient de l'annuler
+      // aussi chez Calendly (08/10/2026), ou un message rejoué. Rien à
+      // recompter.
+      if (connu.status === "annule") {
+        await noter({ event_kind: message.event, invitee_key, outcome: "duplicate" });
+        return sansCorps(200);
+      }
+
       // L'agent annule l'ancien rendez-vous après avoir réservé le nouveau :
       // c'est une reprogrammation, pas une annulation du client (0041).
       const parAgent = !invite.rescheduled && (await annuleParLeReport(admin, orgId, invite.uri));

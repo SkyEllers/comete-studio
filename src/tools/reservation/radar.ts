@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 
 import type { createAdminClient } from "@/lib/supabase/admin";
+import { annulerAncien, jetonAgent } from "@/tools/agent/calendly";
 import { attribuer, precedent, reponseDeclaree, type Canal, type ReglesCanal } from "@/tools/resultats/attribution";
 import { cleInvite, nomInvite, reponsesGardees, utmRetenus } from "@/tools/resultats/calendly";
 
@@ -205,6 +206,13 @@ export async function versRadar(db: Admin, rdvId: string): Promise<string | null
  * Le rendez-vous est tombé : sa ligne Radar passe « annulé ». Un report
  * (`reprogramme`) le dit, pour que Radar ne le compte pas comme un
  * désistement. Ne lève jamais.
+ *
+ * Un rendez-vous pris sur Calendly puis confié à une closeuse a une ligne
+ * dans l'outil : la cliente peut l'annuler ou le déplacer avec son lien
+ * personnel. Il s'annule alors aussi chez Calendly (Louis, 08/10/2026 :
+ * Sandrine D. avait annulé par l'outil, Calendly la croyait encore réservée,
+ * l'événement restait chez Peggy et Calendly pouvait encore lui écrire). Le
+ * webhook Calendly qui suit ne recompte rien : la ligne est déjà annulée.
  */
 export async function annulerDansRadar(
   db: Admin,
@@ -221,7 +229,7 @@ export async function annulerDansRadar(
 
     const { data: ligne } = await db
       .from("radar_bookings")
-      .select("id, status")
+      .select("id, status, invitee_uri, event_uri")
       .eq("id", rdv.radar_booking_id)
       .eq("organization_id", rdv.organization_id)
       .maybeSingle();
@@ -261,7 +269,31 @@ export async function annulerDansRadar(
         ...(par === "agent" ? { agent: true } : {}),
       },
     });
+
+    if (evenementCalendly(ligne.invitee_uri, ligne.event_uri)) {
+      const jeton = await jetonAgent(db, rdv.organization_id);
+      if (jeton) {
+        await annulerAncien(
+          jeton,
+          ligne.event_uri as string,
+          reprogramme
+            ? "Rendez-vous déplacé : la nouvelle date vous a été envoyée par mail."
+            : "Rendez-vous annulé depuis votre lien personnel.",
+        );
+      } else {
+        console.error("Réservation : pas de jeton Calendly, rendez-vous Calendly non annulé");
+      }
+    }
   } catch (erreur) {
     console.error("Réservation, Radar (annulation) :", erreur instanceof Error ? erreur.message : "erreur");
   }
+}
+
+/** Ce rendez-vous Radar vient-il de Calendly, avec un événement qu'on peut annuler ? */
+export function evenementCalendly(inviteeUri: string | null, eventUri: string | null): boolean {
+  return (
+    Boolean(inviteeUri) &&
+    !String(inviteeUri).startsWith("reservation:") &&
+    /^https:\/\/api\.calendly\.com\/scheduled_events\/[^/]+$/.test(eventUri ?? "")
+  );
 }
