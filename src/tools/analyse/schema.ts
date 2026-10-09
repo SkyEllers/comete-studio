@@ -166,14 +166,22 @@ const SCHEMA_FICHE = {
 } as const;
 
 /**
+ * Les limites de longueur de la réponse, appliquées en coupant plutôt qu'en
+ * refusant : depuis que le schéma de l'analyse est donné dans les consignes
+ * (08/10/2026), l'API ne les impose plus, et une phrase un peu longue faisait
+ * échouer tout l'appel (« hors du schéma », 09/10/2026).
+ */
+const coupe = (n: number) => (s: string) => s.slice(0, n);
+const garde = (n: number) => <T>(a: T[]) => a.slice(0, n);
+
+/**
  * Une liste à choix fermés, demandée à l'IA comme du texte (un schéma plein
  * d'énumérations dépasse la taille que l'API accepte, 08/10/2026) : ce qui
  * n'est pas dans la liste est écarté ici.
  */
 function parmi<T extends string>(valeurs: readonly T[], max: number) {
   return z
-    .array(z.string().max(60))
-    .max(max * 2)
+    .array(z.string().transform(coupe(60)))
     .transform((xs) => [...new Set(xs.filter((x): x is T => (valeurs as readonly string[]).includes(x)))].slice(0, max));
 }
 
@@ -181,30 +189,30 @@ function parmi<T extends string>(valeurs: readonly T[], max: number) {
 function un<T extends string>(valeurs: readonly T[]) {
   return z
     .string()
-    .max(60)
+    .transform(coupe(60))
     .transform((x) => ((valeurs as readonly string[]).includes(x) ? (x as T) : ("inconnu" as T)));
 }
 
 const fiche = z.object({
   tranche_age: un(TRANCHES_AGE),
-  age: z.string().max(10),
+  age: z.string().transform(coupe(10)),
   menopause: un(MENOPAUSE),
   couple: un(COUPLE),
   enfants: un(ENFANTS),
-  metier: z.string().max(200),
+  metier: z.string().transform(coupe(200)),
   declencheur: un(DECLENCHEURS),
-  declencheur_mots: z.string().max(600),
+  declencheur_mots: z.string().transform(coupe(600)),
   essais: parmi(ESSAIS, 12),
-  depense: z.string().max(100),
+  depense: z.string().transform(coupe(100)),
   souffrances: parmi(SOUFFRANCES, 12),
-  veut_retrouver: z.string().max(600),
+  veut_retrouver: z.string().transform(coupe(600)),
   freins: parmi(FREINS, 8),
   decide: un(DECIDE),
   source: un(SOURCES),
-  phrases: z.array(z.string().max(400)).max(8),
+  phrases: z.array(z.string().transform(coupe(400))).transform(garde(8)),
   // Ajoutés le 08/10/2026 (l'analyse de Peggy) : absents des fiches d'avant.
   profil_disc: un(PROFILS_DISC).default("inconnu"),
-  profil_indices: z.string().max(400).default(""),
+  profil_indices: z.string().transform(coupe(400)).default(""),
 });
 
 export type Fiche = z.infer<typeof fiche>;
@@ -369,28 +377,28 @@ export const SCHEMA_ANALYSE = {
   },
 } as const;
 
-const minute = z.string().max(12);
+const minute = z.string().transform(coupe(12));
 
 const point = z.object({
   cle: z.enum(CLES_POINTS as [ClePoint, ...ClePoint[]]),
   repere: z.enum(REPERES),
-  constat: z.string().max(1200),
-  moments: z.array(z.object({ minute, extrait: z.string().max(600) })).max(4),
+  constat: z.string().transform(coupe(1200)),
+  moments: z.array(z.object({ minute, extrait: z.string().transform(coupe(600)) })).transform(garde(4)),
 });
 
 export const analyseLue = z.object({
-  voix_closeuse: z.string().max(10),
-  resume: z.string().max(1200),
-  points: z.array(point).max(20),
+  voix_closeuse: z.string().transform(coupe(10)),
+  resume: z.string().transform(coupe(1200)),
+  points: z.array(point).transform(garde(20)),
   moments_cles: z
     .array(
       z.object({
         minute,
-        signal: z.string().max(600),
-        lecture: z.string().max(1200),
+        signal: z.string().transform(coupe(600)),
+        lecture: z.string().transform(coupe(1200)),
       }),
     )
-    .max(8)
+    .transform(garde(8))
     .default([]),
   alertes: z
     .array(
@@ -400,44 +408,44 @@ export const analyseLue = z.object({
         // reste chez Louis, à vérifier, plutôt que d'aller chez la closeuse.
         certitude: z.enum(CERTITUDES).default("a_verifier"),
         minute,
-        extrait: z.string().max(600),
-        explication: z.string().max(800),
+        extrait: z.string().transform(coupe(600)),
+        explication: z.string().transform(coupe(800)),
       }),
     )
-    .max(20),
+    .transform(garde(20)),
   pas_su: z
     .array(
       z.object({
-        question: z.string().max(500),
+        question: z.string().transform(coupe(500)),
         minute,
-        reponse_donnee: z.string().max(600),
-        bonne_reponse: z.string().max(800),
+        reponse_donnee: z.string().transform(coupe(600)),
+        bonne_reponse: z.string().transform(coupe(800)),
       }),
     )
-    .max(20),
+    .transform(garde(20)),
   pourquoi: z.object({
-    bascule: z.string().max(1200),
+    bascule: z.string().transform(coupe(1200)),
     minute_bascule: minute,
-    raison_donnee: z.string().max(600),
-    vraie_raison: z.string().max(600),
+    raison_donnee: z.string().transform(coupe(600)),
+    vraie_raison: z.string().transform(coupe(600)),
     // Ajoutés le 08/10/2026 (l'analyse de Peggy) : absents des analyses d'avant.
-    freins_exprimes: z.array(z.string().max(600)).max(8).default([]),
-    freins_supposes: z.array(z.string().max(600)).max(8).default([]),
-    signaux_encourageants: z.array(z.string().max(400)).max(8).default([]),
-    aurait_pu_changer: z.string().max(1000),
+    freins_exprimes: z.array(z.string().transform(coupe(600))).transform(garde(8)).default([]),
+    freins_supposes: z.array(z.string().transform(coupe(600))).transform(garde(8)).default([]),
+    signaux_encourageants: z.array(z.string().transform(coupe(400))).transform(garde(8)).default([]),
+    aurait_pu_changer: z.string().transform(coupe(1000)),
     verdict: z.enum(VERDICTS).optional(),
-    verdict_explication: z.string().max(600).default(""),
+    verdict_explication: z.string().transform(coupe(600)).default(""),
   }),
-  a_retenir: z.array(z.string().max(500)).max(6),
+  a_retenir: z.array(z.string().transform(coupe(500))).transform(garde(6)),
   passages: z
     .array(
       z.object({
-        moment: z.string().max(40),
-        texte: z.string().min(1).max(1500),
-        pourquoi: z.string().max(600),
+        moment: z.string().transform(coupe(40)),
+        texte: z.string().min(1).transform(coupe(1500)),
+        pourquoi: z.string().transform(coupe(600)),
       }),
     )
-    .max(5)
+    .transform(garde(5))
     .transform((ps) => ps.filter((p) => (CLES_MOMENTS as string[]).includes(p.moment))),
   fiche,
 });

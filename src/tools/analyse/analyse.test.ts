@@ -299,6 +299,20 @@ describe("le schéma", () => {
     assert.equal(points.find((p) => p.cle === "ouverture")?.repere, "sans_objet");
   });
 
+  it("coupe un texte ou une liste trop longs au lieu de refuser l'analyse", () => {
+    const longue = {
+      ...analyse,
+      resume: "x".repeat(5000),
+      a_retenir: Array.from({ length: 12 }, (_, i) => `conseil ${i}`),
+      fiche: { ...ficheVide, metier: "y".repeat(900), phrases: Array.from({ length: 20 }, () => "z") },
+    };
+    const lue = analyseLue.parse(longue);
+    assert.equal(lue.resume.length, 1200);
+    assert.equal(lue.a_retenir.length, 6);
+    assert.equal(lue.fiche.metier.length, 200);
+    assert.equal(lue.fiche.phrases.length, 8);
+  });
+
   it("range l'analyse sans la fiche ni les passages, et la relit", () => {
     const rangee = versRangee(analyseLue.parse(analyse));
     assert.equal("fiche" in rangee, false);
