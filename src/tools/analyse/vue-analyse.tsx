@@ -16,7 +16,7 @@ import {
   type Issue,
   type Repere,
 } from "./grille";
-import { alertesSures, etiquetteAlerte, type Alerte, type AnalyseRangee } from "./schema";
+import { alertesSures, estTranchee, type Alerte, type AnalyseRangee, type Tranche } from "./schema";
 
 /**
  * L'affichage d'une analyse, des chiffres d'équipe et des passages : les
@@ -75,8 +75,8 @@ export function DetailAnalyse({
   analyse: AnalyseRangee;
   issue: Issue;
   pourLouis?: boolean;
-  /** Les étiquettes des alertes déjà tranchées par Louis. */
-  tranchees?: string[];
+  /** Les décisions de Louis sur les alertes de cet appel. */
+  tranchees?: Tranche[];
   trancher?: (alerte: Alerte) => ReactNode;
 }) {
   const p = analyse.pourquoi;
@@ -207,7 +207,7 @@ export function DetailAnalyse({
           <p className="text-muted-foreground mb-3 text-xs">La closeuse ne les voit pas. Ce que tu tranches entre dans le carnet.</p>
           <ul className="space-y-4 text-sm">
             {aVerifier.map((a, i) => {
-              const fait = tranchees.includes(etiquetteAlerte(a));
+              const fait = estTranchee(a, tranchees);
               return (
                 <li key={i} className="space-y-1">
                   <p className="font-medium">

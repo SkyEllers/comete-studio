@@ -494,9 +494,24 @@ export function alertesSures(alertes: Alerte[]): Alerte[] {
   return alertes.filter((a) => a.certitude === "sure");
 }
 
+/** Une décision de Louis sur une alerte : l'étiquette (`note`) et le texte de la leçon. */
+export type Tranche = { note: string; texte: string };
+
+/**
+ * L'alerte a-t-elle été tranchée ? Même minute et même règle, et le texte de
+ * la leçon cite la phrase de l'alerte : deux alertes peuvent tomber à la même
+ * minute (09/10/2026, « différents labos » et « l'hypnose de Laetitia », toutes
+ * deux à 25:45), l'étiquette seule les confondait.
+ */
+export function estTranchee(a: Pick<Alerte, "minute" | "cle" | "extrait">, tranches: readonly Tranche[]): boolean {
+  const etiquette = etiquetteAlerte(a);
+  const phrase = a.extrait.trim().slice(0, 40);
+  return tranches.some((t) => t.note === etiquette && (!phrase || t.texte.includes(phrase)));
+}
+
 /** Les alertes que Louis doit trancher : à vérifier, et pas encore tranchées. */
-export function alertesATrancher(alertes: Alerte[], tranchees: ReadonlySet<string>): Alerte[] {
-  return alertes.filter((a) => a.certitude === "a_verifier" && !tranchees.has(etiquetteAlerte(a)));
+export function alertesATrancher(alertes: Alerte[], tranches: readonly Tranche[]): Alerte[] {
+  return alertes.filter((a) => a.certitude === "a_verifier" && !estTranchee(a, tranches));
 }
 
 export function lireFiche(valeur: unknown): Fiche | null {

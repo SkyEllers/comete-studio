@@ -382,11 +382,24 @@ describe("les alertes à vérifier", () => {
       alertesSures(alertes).map((a) => a.minute),
       ["1:00"],
     );
-    const tranchees = new Set([etiquetteAlerte({ minute: "2:00", cle: "info_inventee" })]);
+    const tranchees = [{ note: etiquetteAlerte({ minute: "2:00", cle: "info_inventee" }), texte: "Vérifié par Louis : « »" }];
     assert.deepEqual(
       alertesATrancher(alertes, tranchees).map((a) => a.minute),
       ["3:00"],
     );
     assert.equal(etiquetteAlerte({ minute: "", cle: "peur" }), "alerte ? peur");
+  });
+
+  it("deux alertes à la même minute ne se confondent pas", () => {
+    const labos = { ...alerte("a_verifier", "25:45"), extrait: "Alors, elle a différents labos avec lesquels elle travaille." };
+    const hypnose = { ...alerte("a_verifier", "25:45"), extrait: "Elle travaille également avec Laetitia, elle peut même proposer de l'hypnose." };
+    const alertes = analyseLue.parse({ ...analyse, alertes: [labos, hypnose] }).alertes;
+    const tranchees = [
+      { note: etiquetteAlerte(labos), texte: `Vérifié par Louis : « ${labos.extrait} » est faux ou interdit.` },
+    ];
+    assert.deepEqual(
+      alertesATrancher(alertes, tranchees).map((a) => a.extrait),
+      [hypnose.extrait],
+    );
   });
 });

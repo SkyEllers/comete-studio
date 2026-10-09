@@ -16,9 +16,10 @@ import type { z } from "zod";
  * - `consigne` : le schéma est donné dans les consignes, en JSON, et la
  *   réponse est extraite puis vérifiée par zod. L'analyse d'un appel, depuis
  *   que sa grille a grandi avec l'analyse de Peggy (08/10/2026). Une réponse
- *   hors schéma échoue, et l'horloge la retente. `fallbacks: "default"` : un refus
- * d'un filtre de sécurité (l'appel parle de santé) est rejoué sur le modèle
- * de repli au lieu de faire échouer l'analyse.
+ *   hors schéma échoue, et l'horloge la retente.
+ *
+ * `fallbacks: "default"` : un refus d'un filtre de sécurité (l'appel parle de
+ * santé) est rejoué sur le modèle de repli au lieu de faire échouer l'analyse.
  *
  * Ne lève jamais : toute panne rend un message d'erreur court, rangé sur la
  * ligne, et l'analyse se relance plus tard ou à la main. Rien du contenu

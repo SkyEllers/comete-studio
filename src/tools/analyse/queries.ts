@@ -16,6 +16,7 @@ import {
   type AnalyseRangee,
   type Fiche,
   type SyntheseRangee,
+  type Tranche,
 } from "./schema";
 
 /**
@@ -218,7 +219,7 @@ export async function getTableauAdmin(): Promise<TableauClient[]> {
         admin.from("radar_analyses").select("booking_id, closeuse_id, etat, issue, lecture, faite_le, usage").eq("organization_id", org.id),
         admin.from("radar_analyse_fiches").select("booking_id, fiche").eq("organization_id", org.id),
         lireCarnet(admin, org.id),
-        admin.from("radar_analyse_lecons").select("id, note, creee_le, nb_appuis, booking_id").eq("organization_id", org.id),
+        admin.from("radar_analyse_lecons").select("id, note, texte, creee_le, nb_appuis, booking_id").eq("organization_id", org.id),
         admin
           .from("radar_analyse_syntheses")
           .select("contenu, faite_le, nb_appels")
@@ -289,17 +290,17 @@ export async function getTableauAdmin(): Promise<TableauClient[]> {
       lignes.filter((l) => l.faite_le && l.faite_le >= mois).reduce((s, l) => s + coutDollars(l.usage), 0) +
       (syntheses ?? []).reduce((s, l) => s + coutDollars(l.usage), 0);
 
-    const trancheesPar = new Map<string, Set<string>>();
+    const trancheesPar = new Map<string, Tranche[]>();
     for (const l of lecons ?? []) {
       if (!l.booking_id || !l.note?.startsWith("alerte ")) continue;
-      trancheesPar.set(l.booking_id, (trancheesPar.get(l.booking_id) ?? new Set()).add(l.note));
+      trancheesPar.set(l.booking_id, [...(trancheesPar.get(l.booking_id) ?? []), { note: l.note, texte: l.texte }]);
     }
     const nomDe = (cle: string | null) => personnes.find((p) => p.cle === (cle ?? "titulaire"))?.nom ?? "Closeuse";
     const aVerifier = faites
       .map((l) => ({
         bookingId: l.booking_id,
         menePar: nomDe(l.closeuse_id),
-        alertes: alertesATrancher(lireRangee(l.lecture)?.alertes ?? [], trancheesPar.get(l.booking_id) ?? new Set()),
+        alertes: alertesATrancher(lireRangee(l.lecture)?.alertes ?? [], trancheesPar.get(l.booking_id) ?? []),
       }))
       .filter((x) => x.alertes.length);
 
@@ -399,8 +400,8 @@ export type VueAppel = {
   fiche: Fiche | null;
   passages: PassageVu[];
   corrections: LeconVue[];
-  /** Les étiquettes des alertes « à vérifier » déjà tranchées par Louis. */
-  tranchees: string[];
+  /** Les décisions de Louis sur les alertes « à vérifier » de cet appel. */
+  tranchees: Tranche[];
   modele: string | null;
   coutDollars: number;
 };
@@ -457,7 +458,9 @@ export async function getVueAppel(bookingId: string): Promise<VueAppel | null> {
       note: l.note,
       creeeLe: l.creee_le,
     })),
-    tranchees: (corrections ?? []).map((l) => l.note ?? "").filter((n) => n.startsWith("alerte ")),
+    tranchees: (corrections ?? [])
+      .filter((l) => l.note?.startsWith("alerte "))
+      .map((l) => ({ note: l.note as string, texte: l.texte })),
     modele: ligne.modele,
     coutDollars: coutDollars(ligne.usage),
   };

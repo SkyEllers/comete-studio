@@ -25,6 +25,13 @@ Les rendez-vous analysés sont des « RDV diagnostic offerts » de 45 minutes en
 
 Les clientes : surtout des femmes de 35 à 65 ans qui veulent perdre du poids (parfois un homme). Elles ont presque toutes fait plusieurs régimes, perdu puis tout repris. Ménopause, fatigue, sucre, grignotage du soir, digestion reviennent souvent. Elles ont souvent été mal écoutées, n'achètent pas sur un coup de tête, ont parfois honte. Environ une vente pour cinq rendez-vous tenus venus de la pub.
 
+## Ce que Louis a vérifié (09/10/2026)
+
+- Peggy s'est formée à partir de 2019 et accompagne des clientes depuis 2020 (« Qui est Peggy ? »).
+- Peggy n'est pas médecin et ne collabore pas avec des médecins. Quand c'est nécessaire, elle oriente la cliente vers son médecin.
+- Une seule analyse passe par un laboratoire : celle du microbiote (GniomCheck), au laboratoire Physiosens (gamme de Physioquanta).
+- L'OligoCheck n'est pas envoyé à un laboratoire : la mesure se fait chez un professionnel de santé près de chez la cliente, et c'est Peggy qui en fait l'analyse.
+
 ## L'offre et les prix (exacts : tout autre chiffre dit dans l'appel est une erreur)
 
 L'accompagnement a quatre étapes : 1. Comprendre (l'investigation : des tests choisis par Peggy selon la personne, dont l'analyse du microbiote GniomCheck, le bilan OligoCheck — minéraux, vitamines, métaux lourds — et des questionnaires émotionnels, neuromédiateurs, stress, addiction au sucre, rapport au corps) ; 2. Transformer (un rendez-vous individuel par mois avec Peggy ou Laetitia, des messages privés entre les rendez-vous avec une réponse sous 24 à 72 h, un suivi chaque lundi par Laetitia, des ateliers collectifs chaque semaine, des ressources dans l'application) ; 3. Consolider ; 4. S'envoler (l'autonomie). Les clientes échangent sur une application communautaire, Skool (pas WhatsApp).
