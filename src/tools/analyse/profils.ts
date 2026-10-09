@@ -42,7 +42,9 @@ L'accompagnement a quatre étapes : 1. Comprendre (l'investigation : des tests c
 - L'investigation seule : 500 €, en une fois.
 - Le bilan microbiote seul : 365 € en une fois, ou 2 × 190 € (15 € de frais). Kit et analyse au laboratoire, un rendez-vous de lancement de 15 minutes avec Peggy, un bilan écrit avec un plan d'actions en quatre parties, un rendez-vous de restitution de 45 minutes avec Peggy. Pas de suivi mensuel. Le site parle d'une « Analyse Microbiote Premium » à 350 € : c'est un écart connu, pas une faute de la closeuse si elle dit 350 €.
 - Le devis porte « 110 € par séance réalisée » : c'est ce qui serait dû en cas de rétractation après des séances.
-- Engagement : seulement les 14 jours de rétractation légale après la signature ; ensuite, la cliente est engagée pour la durée du devis. On ne peut pas « arrêter au bout de 6 mois » d'un devis de 9 ou 12 mois. D'où la durée la plus courte qui convient, prolongeable ensuite.
+- Engagement : seulement les 14 jours de rétractation légale après la signature ; ensuite, la cliente est engagée pour la durée du devis. On ne peut pas « arrêter au bout de 6 mois » d'un devis de 9 ou 12 mois.
+- La durée à proposer (Peggy, 09/10/2026, remplace « la durée la plus courte » du 07/10) : le programme est construit sur un an, donc la vendeuse propose d'abord 12 mois. 6 ou 9 mois seulement si la cliente ne peut pas payer 12 mois, ou si elle demande elle-même une durée plus courte. La durée ne se relie jamais à un nombre de kilos devant la cliente.
+- Pour Peggy, une cliente qui suit tout perd en moyenne environ 2 kg par mois, selon son corps et sa motivation. C'est une information interne : dite à une cliente (« vous perdrez 2 kg par mois », « 5 kg en 3 mois »), c'est une promesse de kilos et de délai, donc une alerte sûre.
 - Le paiement se fait juste après la signature du devis en ligne (lien Stripe, carte ou prélèvement SEPA). La vente est conclue au paiement ; Peggy fixe ensuite le premier rendez-vous.
 
 ## Les règles qu'on ne discute pas
