@@ -57,6 +57,7 @@ import { OngletAnalyses } from "@/tools/analyse/onglet-client";
 import type { VueCloseuse } from "@/tools/analyse/queries";
 import { BlocDevis } from "@/tools/devis/bloc-client";
 import { BlocAPrendre } from "./a-prendre-client";
+import { BoutonAnnuler } from "./annuler-client";
 import { BoutonDeplacer } from "./deplacer-client";
 import { EnregistreurAppel } from "./enregistreur-client";
 import { ETAPES_RELANCE, resumeRelances, type EtapeRelance, type Relances } from "./relances";
@@ -672,6 +673,7 @@ function CarteRdv({
             {deplacable && orgSlug ? (
               <BoutonDeplacer orgSlug={orgSlug} bookingId={rdv.id} prenom={rdv.prenom} debut={rdv.debut} />
             ) : null}
+            {deplacable && orgSlug ? <BoutonAnnuler orgSlug={orgSlug} bookingId={rdv.id} prenom={rdv.prenom} /> : null}
             {absentePossible && orgSlug ? (
               <Button size="sm" variant="outline" disabled={enCours} onClick={() => setFenetreAbsente(true)}>
                 <UserX aria-hidden="true" />
