@@ -10,7 +10,7 @@ import {
   type BilanAppel,
   type ReponseAppel,
 } from "./appel-veille";
-import { aujourdhuiAParis, bilanPossible } from "./format";
+import { aujourdhuiAParis } from "./format";
 import { moisCourant, moisPrecedent } from "./mois";
 import {
   aRecontacter,
@@ -62,12 +62,16 @@ export type RendezVous = {
   payment_ref: string | null;
   rescheduled_from: string | null;
   attribution_source_id: string | null;
+  /** La closeuse qui tient ce rendez-vous (0036), ou null quand c'est le client lui-même. */
+  closeuse_id: string | null;
   mois: string;
   /** Nuls tant qu'aucune vente n'est déclarée ; jamais l'un sans l'autre. */
   sale_amount_cents: number | null;
   sale_date: string | null;
   sale_note: string | null;
   has_sale: boolean;
+  /** Nombre de paiements de la vente (0036) : 1 en une fois. */
+  sale_fois: number | null;
   commission_basis: "encaissement" | "ventes";
   /** Le mois qui facturera cette ligne. Nul en mode « ventes » sans vente. */
   commission_month: string | null;
@@ -76,7 +80,7 @@ export type RendezVous = {
 export type Canal = { id: string; label: string; is_comete: boolean };
 
 const COLONNES =
-  "id, scheduled_start, scheduled_end, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, utm, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, mois, sale_amount_cents, sale_date, sale_note, has_sale, commission_basis, commission_month";
+  "id, scheduled_start, scheduled_end, event_type_name, invitee_first_name, invitee_last_name, invitee_display, channel_id, attribution, attribution_note, utm, declared_source, status, status_origin, status_note, effective_status, counts_for_commission, amount_cents, currency, payment_ref, payment_ok, rescheduled_from, attribution_source_id, closeuse_id, mois, sale_amount_cents, sale_date, sale_note, sale_fois, has_sale, commission_basis, commission_month";
 
 export async function getCanaux(organizationId: string): Promise<Canal[]> {
   const supabase = await createClient();
@@ -308,67 +312,6 @@ export function parCanal(lignes: RendezVous[], canaux: Canal[]): PartCanal[] {
   );
 }
 
-/**
- * Les séances passées des sept derniers jours encore « confirmées ».
- *
- * C'est le bloc « À vérifier » : elles comptent comme honorées tant que
- * personne ne dit le contraire, et c'est justement pour ça qu'il faut les
- * montrer plutôt que de les laisser glisser dans la commission en silence.
- *
- * Dix minutes après le début, et non à la fin du créneau : quand personne ne
- * se présente, la réponse est connue tout de suite, et attendre la fin d'un
- * diagnostic de 45 minutes ne faisait que retarder le clic (voir
- * `bilanPossible`).
- */
-export function aVerifier(lignes: RendezVous[]): RendezVous[] {
-  const ilYAUneSemaine = Date.now() - 7 * 86_400_000;
-
-  return lignes
-    .filter(
-      (ligne) =>
-        ligne.status === "confirme" &&
-        bilanPossible(ligne.scheduled_start) &&
-        Date.parse(ligne.scheduled_start) > ilYAUneSemaine,
-    )
-    .sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start));
-}
-
-/**
- * Les séances honorées récentes dont on ne sait pas encore si elles ont vendu.
- *
- * Uniquement en mode `ventes`, où c'est la question qui décide de la
- * commission : une séance honorée sans réponse est un trou dans le relevé du
- * mois.
- *
- * Trente jours, et non quatorze. Chez Peggy, beaucoup de personnes ne disent
- * ni oui ni non en sortant du rendez-vous, et la décision tombe des semaines
- * plus tard (Louis, 22/09/2026). À quatorze jours, ces ventes-là se
- * concluaient après que la question avait disparu de l'écran : il fallait
- * retrouver la séance à la main, donc personne ne le faisait.
- *
- * « Sans décision » compte autant que « sans vente » : un « pas de vente » est
- * une réponse, et une réponse ne se redemande pas. Celle qui dit « je n'ai pas
- * encore de réponse » en est une aussi, et c'est le motif `pas_encore` qui la
- * porte, avec le mois où reposer la question.
- */
-export function aVendre(
-  lignes: RendezVous[],
-  refusees: Set<string>,
-): RendezVous[] {
-  const ilYATrenteJours = Date.now() - 30 * 86_400_000;
-
-  return lignes
-    .filter(
-      (ligne) =>
-        ligne.status === "confirme" &&
-        !ligne.has_sale &&
-        !refusees.has(ligne.id) &&
-        bilanPossible(ligne.scheduled_start) &&
-        Date.parse(ligne.scheduled_start) > ilYATrenteJours,
-    )
-    .sort((a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start));
-}
-
 export type Reglages = {
   commission_rate: number;
   window_days: number;
@@ -508,14 +451,20 @@ export type ARecontacter = {
  *
  * Tous mois confondus, comme l'appel de demain : la liste suit le calendrier,
  * pas le mois affiché. Une personne qui a acheté depuis sort de la liste.
+ *
+ * Seulement les rendez-vous du client lui-même : ceux d'une closeuse, c'est
+ * elle qui rappelle, depuis son espace et son agenda (Louis, 09/10/2026, A).
+ * Le filtre passe par la jointure, pour que « plus tard » ne les compte pas
+ * non plus.
  */
 export async function getARecontacter(organizationId: string): Promise<ARecontacter> {
   const supabase = await createClient();
   const { data: activites } = await supabase
     .from("radar_booking_activities")
-    .select("booking_id, type, payload, created_at")
+    .select("booking_id, type, payload, created_at, radar_bookings!inner(closeuse_id)")
     .eq("organization_id", organizationId)
     .in("type", TYPES_NON_VENTE)
+    .is("radar_bookings.closeuse_id", null)
     .order("created_at", { ascending: false })
     .limit(1000);
 
@@ -539,7 +488,7 @@ export async function getARecontacter(organizationId: string): Promise<ARecontac
   return {
     lignes: dues.flatMap((due) => {
       const rdv = parId.get(due.id);
-      return rdv && !rdv.has_sale ? [{ rdv, raison: due.raison }] : [];
+      return rdv && !rdv.has_sale && rdv.closeuse_id === null ? [{ rdv, raison: due.raison }] : [];
     }),
     plusTard,
   };

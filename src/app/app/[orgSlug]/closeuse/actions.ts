@@ -7,6 +7,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { getMembership } from "@/lib/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { annulerDevisEnAttente } from "@/tools/devis/moteur";
 import { rappelRecontact } from "@/tools/reservation/agenda";
 import { identifiants } from "@/tools/reservation/google";
 import { centimesSaisis } from "@/tools/resultats/format";
@@ -152,6 +153,9 @@ export async function noterVente(orgSlug: string, input: unknown): Promise<Actio
   if (etalement.error) {
     return fail(lisible(etalement.error.message, "La vente est notée, mais pas le nombre de paiements."));
   }
+  // Notée à la main : le devis encore en attente s'arrête, et ses rappels avec
+  // (Louis, 09/10/2026, A).
+  await annulerDevisEnAttente(createAdminClient(), bookingId);
   await majRappel(orgSlug, bookingId, null);
 
   revalidatePath(`/app/${orgSlug}/closeuse`);

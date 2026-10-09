@@ -28,8 +28,6 @@ import {
   moisPrecedent,
 } from "@/tools/resultats/mois";
 import {
-  aVendre,
-  aVerifier,
   bilan,
   getAppelsVeille,
   getARecontacter,
@@ -47,6 +45,8 @@ import {
   sansCommission,
 } from "@/tools/resultats/queries";
 import { BlocDuAuxCloseuses } from "@/tools/closeuse/factures-client";
+import { offreDeVente } from "@/tools/devis/offre-vente";
+import { aRegarder as listeAVerifier } from "@/tools/resultats/a-regarder";
 import { BlocR2 } from "@/tools/r2/bloc-client";
 import { ARecontacter } from "@/tools/resultats/non-vente-client";
 import {
@@ -130,25 +130,10 @@ async function TableauDeBord({
   const parts = parCanal(lignes, canaux);
 
   /*
-   * Les deux questions du bloc « À vérifier », réunies en une liste.
-   *
-   * « Cette séance a-t-elle eu lieu ? » vaut dans les deux modes. « A-t-elle
-   * vendu ? » ne vaut qu'en mode `ventes`, et sur une fenêtre plus large. Une
-   * même séance peut relever des deux : elle apparaît une fois, avec les deux
-   * boutons, plutôt que deux fois dans deux listes.
+   * Le bloc « À vérifier » : ses seuls rendez-vous, et seulement ceux qui
+   * attendent encore une réponse (`a-regarder.ts`, Louis, 08/10/2026).
    */
-  const aRegarder = surLesVentes
-    ? [
-        ...new Map(
-          [...aVerifier(lignes), ...aVendre(lignes, refusees)].map((rdv) => [
-            rdv.id,
-            rdv,
-          ]),
-        ).values(),
-      ].sort(
-        (a, b) => Date.parse(b.scheduled_start) - Date.parse(a.scheduled_start),
-      )
-    : aVerifier(lignes);
+  const aRegarder = listeAVerifier(lignes, refusees, surLesVentes);
 
   /*
    * L'appel de la veille, pour les espaces qui le suivent : la liste de demain,
@@ -388,6 +373,7 @@ async function TableauDeBord({
                 orgSlug={orgSlug}
                 lignes={aRegarder}
                 canaux={canaux}
+                offre={offreDeVente(orgSlug)}
                 demanderLaVente={surLesVentes}
                 suiviAppel={suiviAppel}
                 appels={appels}

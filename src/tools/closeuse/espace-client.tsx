@@ -1207,7 +1207,7 @@ function FormResultat({
 
       {/* Le devis signé en ligne (P16) : envoyé d'ici, signé par elle ; la
           vente s'inscrit seule au paiement (06/10/2026). */}
-      {tenu ? <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} /> : null}
+      {tenu ? <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} venteNotee={Boolean(rdv.vente)} /> : null}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {choix.map((c) => (

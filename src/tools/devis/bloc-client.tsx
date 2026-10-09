@@ -22,6 +22,11 @@ import { envoyerLeDevis, lireBlocDevis, renvoyerLeDevis, type BlocDevisDonnees, 
  * part chaque jour tant qu'elle n'a pas signé ; signé, le lien de paiement
  * Stripe lui part, et la vente s'inscrit seule dans Radar quand elle a payé
  * (06/10/2026).
+ *
+ * Une vente déjà notée à la main (Yousign, virement) cache le formulaire :
+ * on n'envoie pas un devis à une cliente signée ailleurs (Louis, 08/10/2026).
+ * Le devis qui attendait sa signature est alors annulé par le serveur, et ses
+ * rappels s'arrêtent (09/10/2026).
  */
 
 const euros = (cents: number) =>
@@ -42,7 +47,9 @@ const jourSeul = (jour: string) =>
 function Etat({ orgSlug, bookingId, devis, onRenvoye }: { orgSlug: string; bookingId: string; devis: EtatDevis; onRenvoye: () => void }) {
   const [enCours, demarrer] = useTransition();
   const libelle =
-    devis.statut === "signe"
+    devis.statut === "annule"
+      ? "Annulé : vente notée à la main"
+      : devis.statut === "signe"
       ? devis.payeLe
         ? "Signé et payé"
         : "Signé, paiement en attente"
@@ -79,7 +86,7 @@ function Etat({ orgSlug, bookingId, devis, onRenvoye }: { orgSlug: string; booki
         {devis.payeLe ? <li>Paiement mis en place le {quand(devis.payeLe)} : la vente est inscrite.</li> : null}
       </ul>
       <div className="flex flex-wrap gap-2">
-        {devis.statut !== "signe" ? (
+        {devis.statut !== "signe" && devis.statut !== "annule" ? (
           <Button asChild variant="outline" size="sm">
             <a href={`/app/${orgSlug}/devis/${devis.id}/apercu`} target="_blank" rel="noopener">
               <Eye aria-hidden="true" />
@@ -325,7 +332,16 @@ function Formulaire({
   );
 }
 
-export function BlocDevis({ orgSlug, bookingId }: { orgSlug: string; bookingId: string }) {
+export function BlocDevis({
+  orgSlug,
+  bookingId,
+  venteNotee = false,
+}: {
+  orgSlug: string;
+  bookingId: string;
+  /** Une vente est déjà inscrite sur ce rendez-vous (à la main, ou par un devis payé). */
+  venteNotee?: boolean;
+}) {
   const [donnees, setDonnees] = useState<BlocDevisDonnees | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [nouveau, setNouveau] = useState(false);
@@ -342,7 +358,8 @@ export function BlocDevis({ orgSlug, bookingId }: { orgSlug: string; bookingId: 
     return () => {
       actif = false;
     };
-  }, [orgSlug, bookingId, version]);
+    // `venteNotee` : noter ou retirer une vente change ce que le bloc montre.
+  }, [orgSlug, bookingId, version, venteNotee]);
 
   if (erreur) return null;
   if (!donnees) {
@@ -354,6 +371,8 @@ export function BlocDevis({ orgSlug, bookingId }: { orgSlug: string; bookingId: 
     );
   }
   if (!donnees.disponible) return null;
+  // Vendue sans devis du hub : rien à envoyer, rien à montrer.
+  if (venteNotee && !donnees.devis) return null;
 
   const apres = () => {
     setNouveau(false);
@@ -366,13 +385,13 @@ export function BlocDevis({ orgSlug, bookingId }: { orgSlug: string; bookingId: 
         <FileSignature aria-hidden="true" className="size-3.5" />
         Le devis
       </h3>
-      {donnees.devis && !nouveau ? (
+      {donnees.devis && (!nouveau || venteNotee) ? (
         <>
           <Etat orgSlug={orgSlug} bookingId={bookingId} devis={donnees.devis} onRenvoye={charger} />
-          {donnees.devis.statut !== "signe" ? (
+          {venteNotee && donnees.devis.statut !== "signe" ? null : donnees.devis.statut !== "signe" ? (
             <Button variant="ghost" size="sm" onClick={() => setNouveau(true)}>
               <Mail aria-hidden="true" />
-              {donnees.devis.statut === "expire" ? "Envoyer un nouveau devis" : "Corriger et renvoyer"}
+              {donnees.devis.statut === "envoye" ? "Corriger et renvoyer" : "Envoyer un nouveau devis"}
             </Button>
           ) : (
             <p className="text-muted-foreground flex items-center gap-1 text-xs">

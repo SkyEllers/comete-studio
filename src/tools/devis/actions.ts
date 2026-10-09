@@ -6,7 +6,7 @@ import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rendezVousAccessible } from "@/tools/fiche/acces";
 
-import { creerDevis, envoyerDevis, noter, prevenirCliente, profilDe } from "./moteur";
+import { creerDevis, envoyerDevis, noter, prevenirCliente, profilDe, RAISON_VENTE_MAIN } from "./moteur";
 import { DUREES_CLOSEUSE, dureeCloseuse, montants, type Paiement } from "./regles";
 
 /**
@@ -49,7 +49,10 @@ export type BlocDevisDonnees = {
   devis: EtatDevis | null;
   preRempli: { prenom: string; nom: string; email: string; telephone: string };
   dureeParDefaut: number;
-  /** Les durées d'accompagnement proposées : 6, 9, 12 sur le rendez-vous d'une closeuse, toutes sinon (null). */
+  /**
+   * Les durées d'accompagnement proposées : 6, 9, 12, sur tous les rendez-vous
+   * (Louis, 08/10/2026 : « la même offre partout ») ; null n'arrive plus.
+   */
   durees: number[] | null;
   tarifs: {
     investigationCents: number;
@@ -68,12 +71,11 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
 
   const admin = createAdminClient();
   const profil = await profilDe(admin, lu.rdv.organization_id);
-  const [{ data: dernier }, { data: resa }] = await Promise.all([
+  const [{ data: trouve }, { data: resa }] = await Promise.all([
     brut(admin)
       .from("devis")
       .select("id, statut, prenom, email, duree_mois, investigation_cents, mensualite_cents, paiement, total_cents, envoye_le, ouvert_le, relances, valide_jusqu_au, signe_le, paye_le, paiement_lien_le")
       .eq("booking_id", lu.rdv.id)
-      .neq("statut", "annule")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -85,6 +87,25 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
       .limit(1)
       .maybeSingle(),
   ]);
+
+  /*
+   * Le dernier devis du rendez-vous. Un devis corrigé passe « annule » sous un
+   * plus récent, donc le dernier n'est annulé que quand une vente notée à la
+   * main l'a arrêté (09/10/2026) : on le montre alors, pour qu'on sache
+   * pourquoi les rappels se sont tus. Toute autre annulation ne se montre pas.
+   */
+  let dernier = trouve;
+  if (dernier?.statut === "annule") {
+    const { data: annulation } = await brut(admin)
+      .from("devis_evenements")
+      .select("details")
+      .eq("devis_id", dernier.id)
+      .eq("genre", "annule")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (annulation?.details?.raison !== RAISON_VENTE_MAIN) dernier = null;
+  }
 
   let mailParti = false;
   if (dernier) {
@@ -126,7 +147,7 @@ export async function lireBlocDevis(orgSlug: string, bookingId: string): Promise
       telephone: resa?.telephone ?? "",
     },
     dureeParDefaut: profil?.dureeParDefaut ?? 6,
-    durees: lu.rdv.closeuse_id ? [...DUREES_CLOSEUSE] : null,
+    durees: [...DUREES_CLOSEUSE],
     tarifs: profil
       ? {
           investigationCents: profil.investigationCents,
@@ -174,7 +195,8 @@ export async function envoyerLeDevis(
   if (lu.rdv.status === "annule" || lu.rdv.status === "no_show") {
     return fail("Cette séance est annulée ou n'a pas eu lieu : pas de devis.");
   }
-  if (lu.rdv.closeuse_id && !dureeCloseuse(q.dureeMois)) {
+  // Les mêmes choix pour Peggy que pour les closeuses (Louis, 08/10/2026).
+  if (!dureeCloseuse(q.dureeMois)) {
     return fail("L'accompagnement se propose sur 6, 9 ou 12 mois.");
   }
 

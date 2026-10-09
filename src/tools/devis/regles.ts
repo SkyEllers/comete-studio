@@ -111,9 +111,10 @@ export const INVESTIGATION_SEULE = 0;
 export const MICROBIOTE_SEUL = -1;
 
 /**
- * Les durées d'accompagnement qu'une closeuse propose (Louis, 07/10/2026 :
- * « tu mets juste 6, 9 ou 12 mois »). Les rendez-vous de Peggy gardent toutes
- * les durées.
+ * Les durées d'accompagnement du devis (Louis, 07/10/2026 : « tu mets juste
+ * 6, 9 ou 12 mois »). D'abord pour les closeuses ; depuis le 08/10/2026, pour
+ * Peggy aussi, et pour ses ventes notées à la main dans Radar
+ * (`offre-vente.ts`) : la même offre partout.
  */
 export const DUREES_CLOSEUSE = [6, 9, 12] as const;
 

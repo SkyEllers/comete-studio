@@ -5,7 +5,11 @@ import { z } from "zod";
 
 import { fail, failFromZod, ok, type ActionResult } from "@/lib/actions";
 import { getMembership } from "@/lib/access";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { annulerDevisEnAttente } from "@/tools/devis/moteur";
+import { offreDeVente } from "@/tools/devis/offre-vente";
+import { AUTRE_MONTANT, choixParCle } from "@/tools/devis/offre-vente-choix";
 import { centimesSaisis } from "@/tools/resultats/format";
 
 /**
@@ -65,6 +69,13 @@ export async function marquerStatut(
  * le fond : l'accès, le verrou du relevé, la séance annulée, la date qui ne
  * précède pas le rendez-vous ni ne le devance. Les deux couches, comme
  * partout ailleurs dans le hub.
+ *
+ * Dans un espace qui a son modèle de devis (Peggy), la vente se note sur
+ * l'offre (Louis, 08/10/2026) : `choix` dit ce qu'elle prend et comment elle
+ * paie, et le montant, le nombre de paiements et la note se recalculent ici,
+ * jamais depuis ce que l'écran envoie. « Autre montant » garde la saisie
+ * libre. Une vente notée arrête le devis encore en attente sur ce rendez-vous
+ * (Louis, 09/10/2026, A).
  */
 const venteSchema = z.object({
   bookingId: z.uuid({ error: "Rendez-vous introuvable." }),
@@ -75,6 +86,8 @@ const venteSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Choisis une date de vente." })
     .optional(),
   note: z.string().trim().max(200, { error: "La note tient en 200 caractères." }).optional(),
+  /** La clé de l'offre (« 12:une_fois ») ou « autre ». */
+  choix: z.string().trim().max(20).optional(),
 });
 
 export async function declarerVente(
@@ -87,26 +100,39 @@ export async function declarerVente(
   const parsed = venteSchema.safeParse(input);
   if (!parsed.success) return failFromZod(parsed.error);
 
-  const { bookingId, montant, date, note } = parsed.data;
+  const { bookingId, montant, date, note, choix } = parsed.data;
 
-  // Retirer : ni montant, ni date. La base remet les cinq colonnes à nul.
-  const retrait = !montant || montant.length === 0;
+  // Sur l'offre : le choix décide de tout, la saisie du montant ne compte pas.
+  const offre = offreDeVente(membre.org.slug);
+  const surLOffre = offre && choix && choix !== AUTRE_MONTANT ? choixParCle(offre, choix) : null;
+  if (offre && choix && choix !== AUTRE_MONTANT && !surLOffre) {
+    return fail("Choisis ce qu'elle prend.");
+  }
+
+  // Retirer : ni choix, ni montant, ni date. La base remet les cinq colonnes à nul.
+  const retrait = !surLOffre && (!montant || montant.length === 0);
 
   let centimes: number | null = null;
-  if (!retrait) {
+  if (surLOffre) {
+    centimes = surLOffre.montantCents;
+  } else if (!retrait) {
     centimes = centimesSaisis(montant);
     if (centimes === null) {
       return fail("Écris le montant en euros, par exemple 1 200 ou 1200,50.", "montant");
     }
-    if (!date) return fail("Choisis une date de vente.", "date");
   }
+  if (!retrait && !date) return fail("Choisis une date de vente.", "date");
+
+  const noteEcrite = surLOffre
+    ? [surLOffre.note, note].filter(Boolean).join(" · ").slice(0, 200)
+    : note;
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("radar_set_sale", {
     booking_id: bookingId,
     amount_cents: centimes ?? undefined,
     sale_date: retrait ? undefined : date,
-    note: retrait ? undefined : (note ?? undefined),
+    note: retrait ? undefined : (noteEcrite || undefined),
   });
 
   if (error) {
@@ -117,6 +143,21 @@ export async function declarerVente(
         : "Cette vente n'a pas pu être enregistrée.",
     );
   }
+
+  if (surLOffre) {
+    // Comme une vente venue d'un devis payé (`devis_vers_radar`, 0052).
+    const etalement = await supabase.rpc("radar_set_sale_fois", {
+      booking_id: bookingId,
+      fois: surLOffre.fois,
+      premier_cents: surLOffre.premierCents ?? undefined,
+    });
+    if (etalement.error) {
+      return fail("La vente est notée, mais pas le nombre de paiements : réessaie.");
+    }
+  }
+
+  // Elle a signé autrement : le devis en attente s'arrête, et ses rappels avec.
+  if (!retrait) await annulerDevisEnAttente(createAdminClient(), bookingId);
 
   revalidatePath(`/app/${orgSlug}/resultats`);
   revalidatePath(`/app/${orgSlug}/resultats/rendez-vous`);

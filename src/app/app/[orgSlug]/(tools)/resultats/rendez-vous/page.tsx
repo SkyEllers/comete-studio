@@ -24,6 +24,7 @@ import {
 } from "@/tools/resultats/queries";
 import { getEnregistrements } from "@/tools/resultats/enregistrement";
 import { nettoyerRecherche } from "@/tools/resultats/recherche";
+import { offreDeVente } from "@/tools/devis/offre-vente";
 import { ListeRendezVous } from "@/tools/resultats/rendez-vous-client";
 import { SelecteurMois } from "@/tools/resultats/tuiles";
 
@@ -281,6 +282,7 @@ async function Liste({
           moisClotures={moisClotures}
           suiviAppel={reglages.suivi_appel_veille}
           ouvrirAuDepart={ouvrir}
+          offre={offreDeVente(orgSlug)}
         />
       )}
     </>

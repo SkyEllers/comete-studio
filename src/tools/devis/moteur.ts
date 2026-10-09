@@ -115,6 +115,30 @@ export async function noter(
     .insert({ devis_id: devisId, genre, ip: o.ip ?? null, agent: o.agent ?? null, details: o.details ?? {} });
 }
 
+/** La raison écrite quand une vente notée à la main arrête le devis (`annulerDevisEnAttente`). */
+export const RAISON_VENTE_MAIN = "vente notée à la main";
+
+/**
+ * Une vente notée à la main arrête le devis encore en attente de signature
+ * sur le même rendez-vous (Louis, 09/10/2026, A) : elle a signé autrement
+ * (Yousign, virement), et sans ça elle recevait un rappel chaque jour jusqu'à
+ * la fin de sa validité. Annulé, il ne se signe plus (`signer`). Un devis
+ * signé n'est pas touché : son paiement peut encore arriver. Rend le nombre
+ * de devis annulés.
+ */
+export async function annulerDevisEnAttente(admin: Admin, bookingId: string): Promise<number> {
+  const { data: gagnes } = await brut(admin)
+    .from("devis")
+    .update({ statut: "annule" })
+    .eq("booking_id", bookingId)
+    .eq("statut", "envoye")
+    .select("id");
+  for (const d of (gagnes ?? []) as { id: string }[]) {
+    await noter(admin, d.id, "annule", { details: { raison: RAISON_VENTE_MAIN } });
+  }
+  return gagnes?.length ?? 0;
+}
+
 // ------------------------------ Créer ---------------------------------------
 
 export type Demande = {

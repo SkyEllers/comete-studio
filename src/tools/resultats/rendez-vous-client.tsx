@@ -49,6 +49,7 @@ import {
 } from "./format";
 import { derniereReponse, LIBELLES_APPEL, type ReponseAppel } from "./appel-veille";
 import { BlocDevis } from "@/tools/devis/bloc-client";
+import type { ChoixVente } from "@/tools/devis/offre-vente-choix";
 import { BlocRelances } from "@/tools/closeuse/relances-client";
 import { CopierDossier } from "@/tools/fiche/copier-dossier-client";
 import { BlocParcours } from "@/tools/fiche/parcours-client";
@@ -200,6 +201,7 @@ export function ListeRendezVous({
   moisClotures,
   suiviAppel = false,
   ouvrirAuDepart,
+  offre = null,
 }: {
   orgSlug: string;
   organizationId: string;
@@ -219,6 +221,8 @@ export function ListeRendezVous({
   suiviAppel?: boolean;
   /** La fiche à ouvrir d'emblée : le lien de l'événement Google ou du mail de réservation. */
   ouvrirAuDepart?: string;
+  /** L'offre du devis de l'espace, pour noter une vente dessus (`offre-vente.ts`). */
+  offre?: ChoixVente[] | null;
 }) {
   const [ouvert, setOuvert] = useState<string | null>(ouvrirAuDepart ?? null);
   const [enCours, startTransition] = useTransition();
@@ -251,7 +255,7 @@ export function ListeRendezVous({
       const resultat = await declarerVente(
         orgSlug,
         vente
-          ? { bookingId, montant: vente.montant, date: vente.date, note: vente.note }
+          ? { bookingId, montant: vente.montant, date: vente.date, note: vente.note, choix: vente.choix }
           : { bookingId },
       );
       if (!resultat.ok) {
@@ -402,6 +406,7 @@ export function ListeRendezVous({
               onRaison={noterRaison}
               onAttente={mettreEnAttente}
               onRefuser={refuser}
+              offre={offre}
             />
           ) : null}
         </SheetContent>
@@ -437,6 +442,7 @@ function FicheRendezVous({
   onRaison,
   onAttente,
   onRefuser,
+  offre,
 }: {
   orgSlug: string;
   organizationId: string;
@@ -455,6 +461,7 @@ function FicheRendezVous({
   onRaison: (bookingId: string, motif: Motif, recontacter: string | null, apres?: () => void) => void;
   onAttente: (bookingId: string, recontacterLe: string | null, apres?: () => void) => void;
   onRefuser: (bookingId: string) => void;
+  offre: ChoixVente[] | null;
 }) {
   const [saisie, setSaisie] = useState(false);
   const [raisonOuverte, setRaisonOuverte] = useState(false);
@@ -539,6 +546,7 @@ function FicheRendezVous({
             ) : saisie ? (
               <FormulaireVente
                 rdv={rdv}
+                offre={offre}
                 enCours={enCours}
                 onEnregistrer={(vente) => {
                   onVente(rdv.id, vente);
@@ -569,6 +577,7 @@ function FicheRendezVous({
           saisie ? (
             <FormulaireVente
               rdv={rdv}
+              offre={offre}
               enCours={enCours}
               onEnregistrer={(vente) => {
                 onVente(rdv.id, vente);
@@ -712,8 +721,11 @@ function FicheRendezVous({
 
         {/* Le devis signé en ligne (P16) : après le diagnostic, jamais sur une
             séance annulée ou manquée. Le bloc ne s'affiche que pour un espace
-            qui a son modèle de devis. */}
-        {vendable && bilanPossible(rdv.scheduled_start) ? <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} /> : null}
+            qui a son modèle de devis, et se cache quand une vente est déjà
+            notée à la main (Louis, 08/10/2026). */}
+        {vendable && bilanPossible(rdv.scheduled_start) ? (
+          <BlocDevis orgSlug={orgSlug} bookingId={rdv.id} venteNotee={rdv.has_sale} />
+        ) : null}
 
         {/* Avant le détail : c'est la question du test, et elle se pose la
             veille, quand le reste de la fiche n'a encore rien à dire. */}
@@ -859,11 +871,14 @@ export function AVerifier({
   demanderLaVente = false,
   suiviAppel = false,
   appels = {},
+  offre = null,
 }: {
   orgSlug: string;
   lignes: RendezVous[];
   canaux: Canal[];
   demanderLaVente?: boolean;
+  /** L'offre du devis de l'espace, pour noter une vente dessus (`offre-vente.ts`). */
+  offre?: ChoixVente[] | null;
   /** L'espace note ce qu'a donné l'appel de la veille : la question se pose aussi ici. */
   suiviAppel?: boolean;
   appels?: Record<string, ReponseAppel>;
@@ -898,6 +913,7 @@ export function AVerifier({
         montant: vente.montant,
         date: vente.date,
         note: vente.note,
+        choix: vente.choix,
       });
       if (!resultat.ok) {
         toast.error(resultat.error);
@@ -948,8 +964,9 @@ export function AVerifier({
           </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {/* Une séance vendue n'a plus de question en attente : ni « a-t-elle
-                  eu lieu ? » — une vente le dit — ni « a-t-elle vendu ? ». La
-                  ligne montre alors sa réponse plutôt que des boutons éteints. */}
+                  eu lieu ? » — une vente le dit — ni « a-t-elle vendu ? ». En
+                  mode `ventes`, elle sort de la liste (`a-regarder.ts`) ; le
+                  résumé ne sert plus qu'au temps du rechargement. */}
               {rdv.has_sale ? (
                 <ResumeVente rdv={rdv} className="text-success text-xs" />
               ) : null}
@@ -1033,6 +1050,7 @@ export function AVerifier({
             <div className="mt-3">
               <FormulaireVente
                 rdv={rdv}
+                offre={offre}
                 enCours={enCours}
                 onEnregistrer={(vente) => vendre(rdv.id, vente)}
                 onAnnuler={() => setSaisie(null)}
