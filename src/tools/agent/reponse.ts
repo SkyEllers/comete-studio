@@ -4,9 +4,10 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 
 import { annulerAncien, creneauxLibres, jetonAgent, reserver } from "./calendly.ts";
+import { canalPour } from "./canal.ts";
 import { choisirCreneaux } from "./creneaux.ts";
 import { envoyerLibre, maintenantDe } from "./envoi.ts";
-import { mettreEnFile as mettreDansLaFile } from "./file.ts";
+import { mettreEnFile as mettreDansLaFile, questionOuverte, rejoindre } from "./file.ts";
 import { demanderDecision, lireTarifs } from "./ia.ts";
 import { annulerParAgentOutil, creneauxOutil, reporterParAgent } from "./outil.ts";
 import { estDeLOutil, idOutil, uriOutil } from "./outil-regles.ts";
@@ -16,12 +17,14 @@ import {
   contexteDuMoment,
   LIBELLES_ANNULATION,
   messageAvecBouton,
+  prometLeSilence,
   transcrire,
   type CreneauxDuMoment,
   type Decision,
 } from "./prompt.ts";
 import { raisonDansRadar } from "./radar.ts";
 import { effaceApres } from "./reservation.ts";
+import { heureEnMots, jourEnMots } from "./temps.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -32,8 +35,12 @@ type Admin = ReturnType<typeof createAdminClient>;
  *
  *   détresse      le texte fixe part (3114), jamais un texte de l'IA, et la
  *                 question entre dans la file pour que Louis le sache ;
+ *   arrêt         elle demande de ne plus rien recevoir, en des mots que la
+ *                 lecture sans IA n'a pas reconnus : même chemin qu'un STOP,
+ *                 avec la réponse fixe ;
  *   pas sûre      la question entre dans la file avec le brouillon de l'IA,
- *                 et elle reçoit seulement « je vérifie et je reviens » ;
+ *                 et elle reçoit seulement « je vérifie et je reviens » (une
+ *                 fois : une autre question qui attend déjà la rejoint) ;
  *   IA en panne   même chemin que « pas sûre » : aucune cliente sans réponse ;
  *   sinon         la réponse part telle quelle.
  *
@@ -43,7 +50,7 @@ type Admin = ReturnType<typeof createAdminClient>;
  * Chaque entrée dans la file prévient Louis par mail (`file.ts`).
  */
 
-export type Issue = "repondu" | "file" | "detresse" | "rien";
+export type Issue = "repondu" | "file" | "detresse" | "stop" | "rien";
 
 export async function repondre(admin: Admin, conversationId: string, reel = Date.now()): Promise<Issue> {
   const { data: c } = await admin
@@ -58,12 +65,12 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   const [{ data: reglages }, { data: fil }, { data: fixes }] = await Promise.all([
     admin
       .from("agent_reglages")
-      .select("profil, types_suivis")
+      .select("profil, types_suivis, canal")
       .eq("organization_id", c.organization_id)
       .maybeSingle(),
     admin
       .from("agent_messages")
-      .select("id, sens, genre, modele, texte, created_at, comprehension")
+      .select("id, sens, genre, modele, texte, created_at, comprehension, statut")
       .eq("conversation_id", c.id)
       .order("created_at"),
     admin
@@ -124,19 +131,36 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
       .eq("id", dernier.id);
 
   // ------------------------------ Panne de l'IA ------------------------------
+  const attendre = (q: { question: string; brouillon: string | null }) =>
+    attendreLouis(admin, { ...c, canal: reglages?.canal ?? "simule" }, dernier.id, cle, {
+      ...q,
+      texte: profil.textes.attente,
+      maintenant,
+      reel,
+    });
+
   if (!appel) {
-    if (!(await envoyerLibre(admin, c.id, profil.textes.attente, { reel, cle }))) return "rien";
-    await mettreEnFile(admin, c, dernier.id, "incertain", {
+    const issue = await attendre({
       question: "L'IA n'a pas pu répondre à ce message : à toi de lui écrire.",
       brouillon: null,
-      maintenant,
     });
-    await noter({ ia: "panne" });
-    return "file";
+    if (issue === "file") await noter({ ia: "panne" });
+    return issue;
   }
 
   const d = appel.decision;
-  await noter({ ia: resumeDecision(d), cache: appel.usage.cache_read_input_tokens ?? 0 });
+  await noter({
+    ia: resumeDecision(d),
+    cache: appel.usage.cache_read_input_tokens ?? 0,
+    // Ce que l'IA a compris d'une demande d'arrêt se lit comme un STOP ou un
+    // « Ne plus recevoir » : le moteur ne planifie plus d'article après.
+    // Une réponse qui lui promet le silence coupe aussi les articles (`prometLeSilence`).
+    ...(d.arret === "tout"
+      ? { stop: true }
+      : d.arret === "articles" || prometLeSilence(d.reponse)
+        ? { sens: "sans_contenus" }
+        : {}),
+  });
 
   // ------------------------------- Détresse ----------------------------------
   if (d.detresse) {
@@ -149,9 +173,21 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
     return "detresse";
   }
 
+  // ---------------------------- Demande d'arrêt ------------------------------
+  // 09/10/2026 : « Merci d'arrêter d'envoyer des msg » était monté dans la
+  // file. La lecture sans IA le prend désormais (`demandeArret`) ; l'IA
+  // rattrape le reste. Sa réponse à elle ne part pas : la réponse fixe du STOP.
+  if (d.arret === "tout") {
+    await admin
+      .from("agent_conversations")
+      .update({ etat: "stop", stop_le: new Date(maintenant).toISOString() })
+      .eq("id", c.id);
+    if (!(await envoyerLibre(admin, c.id, profil.textes.stop, { reel, cle }))) return "rien";
+    return "stop";
+  }
+
   // ------------------------------- Pas sûre ----------------------------------
   if (!d.sur || !d.reponse.trim()) {
-    if (!(await envoyerLibre(admin, c.id, profil.textes.attente, { reel, cle }))) return "rien";
     // « Oui ça me va, par contre… » : la question monte chez Louis, mais la
     // confirmation, elle, est acquise.
     if (d.confirme && !c.confirme_le) {
@@ -160,12 +196,7 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
         .update({ confirme_le: new Date(maintenant).toISOString() })
         .eq("id", c.id);
     }
-    await mettreEnFile(admin, c, dernier.id, "incertain", {
-      question: d.question_pour_louis || dernier.texte,
-      brouillon: d.reponse || null,
-      maintenant,
-    });
-    return "file";
+    return attendre({ question: d.question_pour_louis || dernier.texte, brouillon: d.reponse || null });
   }
 
   // ------------------------- Elle a choisi un créneau -----------------------
@@ -192,13 +223,10 @@ export async function repondre(admin: Admin, conversationId: string, reel = Date
   const annuler =
     d.annulation_confirmee && Boolean(c.annulation_demandee_le) && !c.annulee_par_agent_le && !choisi;
   if (annuler && !(await annulerRendezVous(admin, c, profil.textes.raisonAnnulationDemandee))) {
-    if (!(await envoyerLibre(admin, c.id, profil.textes.attente, { reel, cle }))) return "rien";
-    await mettreEnFile(admin, c, dernier.id, "incertain", {
+    return attendre({
       question: "Elle veut annuler, mais l'annulation n'a pas pu se faire : à toi d'annuler et de lui répondre.",
       brouillon: d.reponse || null,
-      maintenant,
     });
-    return "file";
   }
 
   // --------------------------------- Sûre -----------------------------------
@@ -434,7 +462,55 @@ function resumeDecision(d: Decision) {
     contenu_envoye: d.contenu_envoye || null,
     note_pour_peggy: d.note_pour_peggy || null,
     question_pour_louis: d.question_pour_louis || null,
+    arret: d.arret || null,
   };
+}
+
+/**
+ * Elle attend Louis : « je vérifie et je reviens », et sa question dans la
+ * file. Une seule fois par question ouverte : si une autre question de la
+ * conversation attend déjà, elle a déjà eu ce message, et la nouvelle
+ * rejoint la première sans rien lui envoyer (Christiane, 08/10/2026, deux
+ * messages d'attente à une minute d'écart).
+ *
+ * Rien ne part, mais une ligne se note quand même sous la clé de la réponse,
+ * en échec, avec la raison : elle dit à l'horloge que ce message a eu sa
+ * suite (sinon l'IA serait rappelée toutes les 5 minutes), et à Louis
+ * pourquoi rien n'est parti. Sa clé fait qu'un deuxième passage simultané
+ * ne joint pas deux fois.
+ */
+async function attendreLouis(
+  admin: Admin,
+  c: { id: string; organization_id: string; simulation: boolean; fuseau: string; canal: string },
+  messageId: string,
+  cle: string,
+  q: { question: string; brouillon: string | null; texte: string; maintenant: number; reel: number },
+): Promise<Issue> {
+  const ouverte = await questionOuverte(admin, c.id);
+  if (!ouverte) {
+    if (!(await envoyerLibre(admin, c.id, q.texte, { reel: q.reel, cle }))) return "rien";
+    await mettreEnFile(admin, c, messageId, "incertain", q);
+    return "file";
+  }
+
+  const { error } = await admin.from("agent_messages").insert({
+    conversation_id: c.id,
+    organization_id: c.organization_id,
+    sens: "sortant",
+    genre: "libre",
+    cle_envoi: cle,
+    texte: "(rien envoyé : sa question a rejoint celle qui attend déjà dans la file)",
+    canal: canalPour(c.simulation, c.canal).nom,
+    statut: "echec",
+    erreur: "Question déjà dans la file : pas de second « je vérifie ».",
+    created_at: new Date(q.maintenant).toISOString(),
+  });
+  // Déjà pris par un autre passage : il a joint, rien à refaire.
+  if (error) return "rien";
+
+  const quand = `${jourEnMots(q.maintenant, c.fuseau)} ${heureEnMots(q.maintenant, c.fuseau)}`;
+  await rejoindre(admin, ouverte, { question: q.question, brouillon: q.brouillon }, quand);
+  return "file";
 }
 
 function mettreEnFile(

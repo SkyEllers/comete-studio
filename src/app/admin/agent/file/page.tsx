@@ -139,7 +139,7 @@ export default async function FilePage() {
                   {!q.notifie_le ? <span className="text-muted-foreground text-xs">mail non parti</span> : null}
                 </p>
 
-                <p className="mb-3 text-sm">{q.question}</p>
+                <p className="mb-3 text-sm whitespace-pre-line">{q.question}</p>
 
                 {c ? (
                   <ol className="border-line mb-2 space-y-1 border-l pl-3 text-xs">

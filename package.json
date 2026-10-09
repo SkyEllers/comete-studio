@@ -32,6 +32,7 @@
     "qa:agent-resume": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-resume.mjs",
     "qa:agent-radar": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-radar.mjs",
     "qa:agent-file": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-file.mjs",
+    "qa:agent-arret": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/qa-alias.mjs scripts/qa-agent-arret.mjs",
     "qa:agent": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent.mjs",
     "qa:reservation": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-reservation.mjs",
     "qa:agent-outil": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/qa-agent-outil.mjs",

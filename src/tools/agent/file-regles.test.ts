@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { finDeFenetre, mailDeLaFile, sansPrenom } from "./file-regles.ts";
+import { finDeFenetre, mailDeLaFile, questionJointe, sansPrenom } from "./file-regles.ts";
 
 describe("le mail de la file", () => {
   const lien = "https://app.cometestudio.fr/admin/agent/file";
@@ -59,5 +59,29 @@ describe("une réponse fixe sans prénom", () => {
 
   it("laisse le texte tel quel pour un prénom d'une lettre", () => {
     assert.equal(sansPrenom("A bientôt", "A"), "A bientôt");
+  });
+});
+
+describe("une deuxième question pendant que la première attend", () => {
+  it("rejoint la première, avec son heure, et prend le brouillon le plus récent", () => {
+    const q = questionJointe(
+      { question: "Le prix a changé ?", brouillon: "ancien brouillon" },
+      { question: "Et le diagnostic est payant ?", brouillon: "nouveau brouillon" },
+      "jeudi 8 octobre 18h20",
+    );
+    assert.equal(q.question, "Le prix a changé ?\n\nPuis, jeudi 8 octobre 18h20 : Et le diagnostic est payant ?");
+    assert.equal(q.brouillon, "nouveau brouillon");
+  });
+
+  it("garde l'ancien brouillon quand l'IA n'en a pas écrit (panne)", () => {
+    const q = questionJointe({ question: "A", brouillon: "le sien" }, { question: "B", brouillon: null }, "ce soir");
+    assert.equal(q.brouillon, "le sien");
+  });
+
+  it("ne dépasse jamais 2 000 signes et garde le dernier ajout", () => {
+    const q = questionJointe({ question: "x".repeat(2000), brouillon: null }, { question: "la dernière", brouillon: null }, "ce soir");
+    assert.ok(q.question.length <= 2000);
+    assert.ok(q.question.endsWith("la dernière"));
+    assert.ok(q.question.startsWith("xxx"));
   });
 });

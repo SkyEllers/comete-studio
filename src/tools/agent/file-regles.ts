@@ -63,3 +63,29 @@ export function sansPrenom(texte: string, prenom: string): string {
   const echappe = p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return texte.replace(new RegExp(`(?<![\\p{L}])${echappe}(?![\\p{L}])`, "giu"), "[prénom]");
 }
+
+const LONGUEUR_QUESTION = 2000;
+
+/**
+ * Une nouvelle question alors qu'une autre de la même conversation attend
+ * déjà Louis : elle la rejoint, au lieu d'ouvrir une deuxième ligne et de
+ * renvoyer « je vérifie et je reviens » (Christiane, 08/10/2026 : deux
+ * messages d'attente à une minute d'écart, comme le 28/09).
+ *
+ * Le brouillon le plus récent l'emporte : l'IA l'a écrit en lisant toute la
+ * conversation, la première question comprise. Trop longue, la question
+ * garde son début (ce qui a ouvert la file) et sa fin (le dernier ajout).
+ */
+export function questionJointe(
+  ouverte: { question: string; brouillon: string | null },
+  nouvelle: { question: string; brouillon: string | null },
+  quand: string,
+): { question: string; brouillon: string | null } {
+  const ajout = `\n\nPuis, ${quand} : ${nouvelle.question.trim()}`;
+  const garde = Math.max(0, LONGUEUR_QUESTION - ajout.length - 1);
+  const debut = ouverte.question.length > garde ? `${ouverte.question.slice(0, garde)}…` : ouverte.question;
+  return {
+    question: `${debut}${ajout}`.slice(0, LONGUEUR_QUESTION),
+    brouillon: nouvelle.brouillon?.trim() ? nouvelle.brouillon : ouverte.brouillon,
+  };
+}

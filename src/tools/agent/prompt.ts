@@ -81,6 +81,22 @@ export function messageAvecBouton(
   return { texte: sans, lien: { texte: BOUTONS[bouton], url } };
 }
 
+/**
+ * Sa réponse lui promet le silence (« je te laisse tranquille », « je ne
+ * t'écris plus », « je te redonne signe juste avant ») : la consigne 20 le
+ * lui interdit, mais si ça passe quand même, le système tient au moins ce
+ * qu'il peut tenir et coupe les articles. 07/10/2026 : Coralie avait reçu
+ * cette promesse, et l'article planifié était parti le 09/10.
+ */
+export function prometLeSilence(texte: string): boolean {
+  const t = texte
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[’‘`]/g, "'");
+  return /\blaiss\w* (?:\w+ )?tranquille|\bne t'ecri\w* plus|\bne plus t'ecrire|\bredonne\w* signe|\bme fais discret/.test(t);
+}
+
 /** La forme imposée à la réponse de l'IA (structured outputs). */
 export const SCHEMA_DECISION = {
   type: "object",
@@ -102,6 +118,7 @@ export const SCHEMA_DECISION = {
     "raison_annulation",
     "raison_categorie",
     "bouton",
+    "arret",
   ],
   properties: {
     reponse: { type: "string", description: "Le message exact à lui envoyer, ou une chaîne vide." },
@@ -144,6 +161,12 @@ export const SCHEMA_DECISION = {
       enum: ["", "changer", "reprendre"],
       description: "Le bouton-lien à mettre sous ce message, ou vide.",
     },
+    arret: {
+      type: "string",
+      enum: ["", "articles", "tout"],
+      description:
+        "« tout » si elle demande clairement à ne plus recevoir aucun message ; « articles » si elle ne veut plus d'articles, ou se plaint de recevoir trop de messages ; vide sinon.",
+    },
   },
 } as const;
 
@@ -164,6 +187,7 @@ export const decision = z.object({
   raison_annulation: z.string().max(500),
   raison_categorie: z.enum(["", ...CATEGORIES_ANNULATION]),
   bouton: z.enum(["", "changer", "reprendre"]),
+  arret: z.enum(["", "articles", "tout"]),
 });
 export type Decision = z.infer<typeof decision>;
 
@@ -336,11 +360,22 @@ ${liste(creneaux.plusProches)}
 Si elle garde sa journée, propose ceux du même jour ; sinon, ou s'il n'y en a pas, les plus proches. Trois au plus, en mots (jour et heure), jamais un créneau qui n'est pas dans ces listes. Recopie leurs valeurs exactes (entre parenthèses) dans "creneaux_proposes". Si rien n'est libre, dis-le et mets "sur" à false.`;
 }
 
-export type LigneFil = { sens: string; genre: string; modele: string | null; texte: string; created_at: string };
+export type LigneFil = {
+  sens: string;
+  genre: string;
+  modele: string | null;
+  texte: string;
+  created_at: string;
+  statut?: string | null;
+};
 
-/** Le fil, du plus ancien au plus récent, tel que l'IA le lit. */
+/**
+ * Le fil, du plus ancien au plus récent, tel que l'IA le lit. Ce qui n'est
+ * pas parti (refusé par WhatsApp, ou rien envoyé exprès) n'y est pas : elle
+ * ne l'a jamais reçu.
+ */
 export function transcrire(fil: LigneFil[], fuseau: string): string {
-  const lignes = fil.map((m) => {
+  const lignes = fil.filter((m) => !(m.sens === "sortant" && m.statut === "echec")).map((m) => {
     const quand = `${jourEnMots(m.created_at, fuseau)} ${heureEnMots(m.created_at, fuseau)}`;
     const qui =
       m.sens === "sortant"

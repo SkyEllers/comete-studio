@@ -4,9 +4,9 @@ import type { createAdminClient } from "@/lib/supabase/admin";
 
 import { envoyer } from "../fichiers/courriel.ts";
 import { envoyerLibre, maintenantDe } from "./envoi.ts";
-import { finDeFenetre, mailDeLaFile, sansPrenom } from "./file-regles.ts";
+import { finDeFenetre, mailDeLaFile, questionJointe, sansPrenom } from "./file-regles.ts";
 
-export { finDeFenetre, mailDeLaFile, sansPrenom };
+export { finDeFenetre, mailDeLaFile, questionJointe, sansPrenom };
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -55,6 +55,45 @@ export async function mettreEnFile(admin: Admin, q: NouvelleQuestion): Promise<s
   }
   await prevenirLouis(admin, data.id);
   return data.id;
+}
+
+/**
+ * La question « incertain » de cette conversation qui attend encore Louis,
+ * s'il y en a une : elle a déjà reçu « je vérifie et je reviens ».
+ */
+export async function questionOuverte(
+  admin: Admin,
+  conversationId: string,
+): Promise<{ id: string; question: string; brouillon: string | null } | null> {
+  const { data } = await admin
+    .from("agent_questions")
+    .select("id, question, brouillon")
+    .eq("conversation_id", conversationId)
+    .eq("genre", "incertain")
+    .eq("etat", "ouverte")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ?? null;
+}
+
+/**
+ * Ajouter sa nouvelle question à celle qui attend déjà (`questionJointe`).
+ * Pas de second mail à Louis : le premier dit déjà qu'une question l'attend.
+ */
+export async function rejoindre(
+  admin: Admin,
+  ouverte: { id: string; question: string; brouillon: string | null },
+  nouvelle: { question: string; brouillon: string | null },
+  quand: string,
+): Promise<boolean> {
+  const { error } = await admin
+    .from("agent_questions")
+    .update(questionJointe(ouverte, nouvelle, quand))
+    .eq("id", ouverte.id)
+    .eq("etat", "ouverte");
+  if (error) console.error("Agent : question non jointe à celle de la file", error.code);
+  return !error;
 }
 
 async function prevenirLouis(admin: Admin, questionId: string): Promise<boolean> {
