@@ -296,7 +296,10 @@ export async function getTableauAdmin(): Promise<TableauClient[]> {
       trancheesPar.set(l.booking_id, [...(trancheesPar.get(l.booking_id) ?? []), { note: l.note, texte: l.texte }]);
     }
     const nomDe = (cle: string | null) => personnes.find((p) => p.cle === (cle ?? "titulaire"))?.nom ?? "Closeuse";
+    // Ce que dit la titulaire fait foi (Louis, 09/10/2026) : ses appels ne
+    // donnent rien à trancher.
     const aVerifier = faites
+      .filter((l) => l.closeuse_id !== null)
       .map((l) => ({
         bookingId: l.booking_id,
         menePar: nomDe(l.closeuse_id),

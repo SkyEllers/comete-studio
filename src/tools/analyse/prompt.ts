@@ -90,7 +90,7 @@ export function momentAnalyse(lecons: Lecon[]): string {
 
 export function contenuAnalyse(c: CadreAppel): string {
   const qui = c.parTitulaire
-    ? `${c.menePar} elle-même (la titulaire, pas une closeuse)`
+    ? `${c.menePar} elle-même (la titulaire, pas une closeuse). Ce qu'elle dit de son offre, de ses délais, de ses analyses et de sa méthode fait foi (Louis, 09/10/2026) : n'en fais aucune alerte « a_verifier », et sers-t'en comme référence. Une phrase qui touche une règle (diagnostic, peur, concurrente) reste une alerte « sure », pour mémoire ; elle n'entre jamais dans les passages montrés aux closeuses.`
     : `${c.menePar}, closeuse`;
   const reponses = c.reponses.length
     ? c.reponses.map((x) => `- ${x.q} : ${x.r}`).join("\n")
