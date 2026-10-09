@@ -382,6 +382,9 @@ export async function getAppelsVeille(
  *
  * Demain au sens de Paris, quel que soit le mois affiché : c'est la liste que
  * le client a sous les yeux au moment de décrocher son téléphone.
+ *
+ * Seulement ses rendez-vous : ceux d'une closeuse, c'est elle qui appelle
+ * (Louis, 09/10/2026), comme pour « À vérifier » et « À recontacter ».
  */
 export async function getRendezVousDeDemain(organizationId: string): Promise<RendezVous[]> {
   const demain = ajouterJours(jourParis(), 1);
@@ -395,6 +398,7 @@ export async function getRendezVousDeDemain(organizationId: string): Promise<Ren
     .gte("scheduled_start", debut)
     .lte("scheduled_start", fin)
     .neq("status", "annule")
+    .is("closeuse_id", null)
     .order("scheduled_start")
     .limit(PLAFOND);
 
@@ -406,6 +410,7 @@ export async function getRendezVousDeDemain(organizationId: string): Promise<Ren
  *
  * Les rendez-vous qui portent une réponse et dont la séance tombe dans les
  * `jours` derniers jours. Le calcul est dans `bilanAppel`, ici on ne fait que lire.
+ * Les mêmes que la liste : ceux du client, pas ceux des closeuses (09/10/2026).
  */
 export async function getBilanAppelVeille(
   organizationId: string,
@@ -430,6 +435,7 @@ export async function getBilanAppelVeille(
     .select("id, effective_status")
     .in("id", ids)
     .gte("scheduled_start", depuis)
+    .is("closeuse_id", null)
     .limit(PLAFOND);
 
   return bilanAppel(
