@@ -44,12 +44,15 @@ export function useDepotDiagnostic({
   organizationId,
   bookingId,
   onEnvoi,
+  onReussi,
 }: {
   orgSlug: string;
   organizationId: string;
   bookingId: string;
   /** Prévient le parent qu'un envoi tourne (pour ne pas fermer la fenêtre). */
   onEnvoi?: (enCours: boolean) => void;
+  /** Le fichier est arrivé et rangé sur la fiche (l'enregistreur efface alors sa copie de secours). */
+  onReussi?: () => void;
 }) {
   const router = useRouter();
   const [envoi, setEnvoi] = useState<EtatEnvoi>({ etat: "repos" });
@@ -119,6 +122,7 @@ export function useDepotDiagnostic({
             toast.error(r.error);
             return;
           }
+          onReussi?.();
           toast.success(
             r.data.transcription === "echec"
               ? "Vidéo déposée. La transcription n'est pas partie : relance-la depuis la fiche."

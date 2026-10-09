@@ -58,6 +58,7 @@ import type { VueCloseuse } from "@/tools/analyse/queries";
 import { BlocDevis } from "@/tools/devis/bloc-client";
 import { BlocAPrendre } from "./a-prendre-client";
 import { BoutonDeplacer } from "./deplacer-client";
+import { EnregistreurAppel } from "./enregistreur-client";
 import { ETAPES_RELANCE, resumeRelances, type EtapeRelance, type Relances } from "./relances";
 import { cocherRelance } from "./relances-actions";
 import { BlocMesFactures } from "./factures-client";
@@ -293,6 +294,7 @@ export function EspaceCloseuseClient({
       {onglet === "rdv" ? (
         <OngletRdv
           orgSlug={orgSlug}
+          organizationId={organizationId}
           rdvs={espace.rdvs}
           enregistrements={espace.enregistrements}
           maintenant={maintenant}
@@ -376,6 +378,7 @@ export function EspaceCloseuseClient({
 
 function OngletRdv({
   orgSlug,
+  organizationId,
   rdvs,
   enregistrements,
   maintenant,
@@ -386,6 +389,7 @@ function OngletRdv({
   vueDeLouis = false,
 }: {
   orgSlug: string;
+  organizationId: string;
   vueDeLouis?: boolean;
   rdvs: RdvCloseuse[];
   enregistrements: Record<string, Enregistrement>;
@@ -421,7 +425,10 @@ function OngletRdv({
               urgent
               onNoter={onNoter}
               orgSlug={orgSlug}
+              organizationId={organizationId}
+              maintenant={maintenant}
               deplacable={!vueDeLouis}
+              enregistre={Boolean(enregistrements[r.id])}
             />
           ))}
         </Section>
@@ -439,6 +446,8 @@ function OngletRdv({
               onDevis={onDevis}
               relancesModifiables={!vueDeLouis}
               deplacable={!vueDeLouis}
+              organizationId={organizationId}
+              enregistre={Boolean(enregistrements[r.id])}
             />
           ))
         ) : (
@@ -527,6 +536,8 @@ function CarteRdv({
   onDevis,
   relancesModifiables = false,
   deplacable = false,
+  organizationId,
+  enregistre = false,
 }: {
   rdv: RdvCloseuse;
   urgent?: boolean;
@@ -534,6 +545,10 @@ function CarteRdv({
   relancesModifiables?: boolean;
   /** Vu par la closeuse elle-même : « Déplacer » (08/10/2026). */
   deplacable?: boolean;
+  /** Pour « Enregistrer l'appel » (09/10/2026). */
+  organizationId?: string;
+  /** Un enregistrement est déjà déposé sur ce rendez-vous. */
+  enregistre?: boolean;
   /** Les rendez-vous à venir : pour « Elle n'est pas venue » pendant le créneau. */
   orgSlug?: string;
   maintenant?: number;
@@ -558,6 +573,19 @@ function CarteRdv({
     const minuterie = setTimeout(() => setAbsentePossible(true), attente);
     return () => clearTimeout(minuterie);
   }, [absentePossible, absenteDes, maintenant, orgSlug]);
+
+  // « Enregistrer l'appel » : 30 minutes avant le début (09/10/2026).
+  const enregistrableDes = Date.parse(rdv.debut) - 30 * 60_000;
+  const [enregistrable, setEnregistrable] = useState(maintenant !== undefined && maintenant >= enregistrableDes);
+  useEffect(() => {
+    if (enregistrable || maintenant === undefined) return;
+    const attente = Math.max(0, enregistrableDes - Date.now());
+    if (attente > 2_000_000_000) return;
+    const minuterie = setTimeout(() => setEnregistrable(true), attente);
+    return () => clearTimeout(minuterie);
+  }, [enregistrable, enregistrableDes, maintenant]);
+  const peutEnregistrer =
+    deplacable && Boolean(orgSlug) && Boolean(organizationId) && !enregistre && enregistrable && rdv.statut !== "no_show";
 
   const [fenetreAbsente, setFenetreAbsente] = useState(false);
   const [noteAbsente, setNoteAbsente] = useState("");
@@ -613,6 +641,15 @@ function CarteRdv({
         </div>
         {urgent ? (
           <div className="flex flex-wrap gap-2">
+            {peutEnregistrer ? (
+              <EnregistreurAppel
+                orgSlug={orgSlug!}
+                organizationId={organizationId!}
+                bookingId={rdv.id}
+                prenom={rdv.prenom}
+                debut={rdv.debut}
+              />
+            ) : null}
             {deplacable && orgSlug && rdv.statut !== "no_show" ? (
               <BoutonDeplacer orgSlug={orgSlug} bookingId={rdv.id} prenom={rdv.prenom} debut={rdv.debut} />
             ) : null}
@@ -623,6 +660,15 @@ function CarteRdv({
           </div>
         ) : onDevis || absentePossible || deplacable ? (
           <div className="flex flex-wrap gap-2">
+            {peutEnregistrer ? (
+              <EnregistreurAppel
+                orgSlug={orgSlug!}
+                organizationId={organizationId!}
+                bookingId={rdv.id}
+                prenom={rdv.prenom}
+                debut={rdv.debut}
+              />
+            ) : null}
             {deplacable && orgSlug ? (
               <BoutonDeplacer orgSlug={orgSlug} bookingId={rdv.id} prenom={rdv.prenom} debut={rdv.debut} />
             ) : null}
