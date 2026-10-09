@@ -342,18 +342,18 @@ try {
     .select("*")
     .eq("organization_id", orgs.a.id);
   const b = bilans?.[0];
-  // La purge compte les lignes, pas ce qui est parti. Sept modèles :
-  // réservation, J-7, contenu, J-3, contenu de J-2 sauté, veille, matin. Deux
-  // libres : « je vérifie », et la ligne de 8h qui n'a rien envoyé. Une seule
-  // question : la seconde a rejoint la première.
+  // La purge compte ce qui est parti, pas les lignes en échec (0061). Six
+  // modèles : réservation, J-7, contenu, J-3, veille, matin (le contenu de
+  // J-2 sauté ne compte pas). Un libre : « je vérifie » (la ligne de 8h n'a
+  // rien envoyé). Une seule question : la seconde a rejoint la première.
   verifie(
     "elle laisse un bilan sans nom ni numéro",
     (bilans?.length ?? 0) === (avant ?? 0) + 1 &&
       b.confirme === true &&
       b.sans_reponse_veille === true &&
-      b.modeles_envoyes === 7 &&
+      b.modeles_envoyes === 6 &&
       b.questions_montees === 1 &&
-      b.messages_libres === 2 &&
+      b.messages_libres === 1 &&
       !JSON.stringify(b).includes("Camille") &&
       !JSON.stringify(b).includes("+336"),
     JSON.stringify(b),
