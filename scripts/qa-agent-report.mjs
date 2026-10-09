@@ -13,7 +13,7 @@
  *   1. « je ne pourrai pas »      → il demande l'heure ou la journée
  *   2. « toute la journée »       → trois créneaux, tous lus dans l'agenda
  *   3. « le deuxième »            → réservé (simulé) au bon créneau, confirmé
- *   4. « je dois encore changer » → plus de créneau : le lien
+ *   4. « je dois encore changer » → plus de créneau : le lien, en bouton
  */
 import { createClient } from "@supabase/supabase-js";
 
@@ -23,6 +23,7 @@ import { ouvrir } from "../src/tools/agent/conversations.ts";
 import { recevoir } from "../src/tools/agent/entrees.ts";
 import { tournerConversation } from "../src/tools/agent/moteur.ts";
 import { peggy } from "../src/tools/agent/profils/peggy.ts";
+import { BOUTONS } from "../src/tools/agent/prompt.ts";
 import { invitationCalendly } from "../src/tools/agent/reservation.ts";
 import { tournuresInterdites } from "../src/tools/agent/style.ts";
 import { ajouterJours, heureEnMots, instantLocal, jourEnMots, jourLocal } from "../src/tools/agent/temps.ts";
@@ -133,7 +134,22 @@ try {
   const r4 = await elle("En fait je dois encore changer, désolée");
   const e4 = await etat();
   verifie("4. au deuxième report, aucun créneau proposé", e4.creneaux_proposes.length === 0 && e4.reports_agent === 1, r4);
-  verifie("4. … mais le lien pour reprendre rendez-vous", r4.includes("calendly.com/reschedulings/"), r4);
+  // Depuis le 28/09/2026, le lien part dans un bouton sous le message, jamais
+  // en adresse : on lit le bouton, son adresse reste dans la conversation.
+  const { data: m4 } = await admin
+    .from("agent_messages")
+    .select("boutons")
+    .eq("conversation_id", id)
+    .eq("sens", "sortant")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+  const bouton = m4?.boutons?.[0];
+  verifie(
+    "4. … mais un bouton pour reprendre rendez-vous elle-même",
+    (bouton === BOUTONS.changer && Boolean(e4.lien_report)) || bouton === BOUTONS.reprendre,
+    `${bouton ?? "aucun bouton"} — ${r4}`,
+  );
 } catch (erreur) {
   verifie("le banc a tourné jusqu'au bout", false, erreur instanceof Error ? erreur.message : String(erreur));
 } finally {

@@ -7,9 +7,10 @@
  *
  * 1. Personne d'autre que Louis ne lit une conversation, même un membre du
  *    client : elles portent le téléphone et les réponses de la cliente.
- * 2. Le rythme : premier message tout de suite, rappel à deux jours, plus de
- *    rappel une fois confirmé, la veille, « sans réponse » noté, le lien le
- *    matin, la conversation close après le rendez-vous. Jamais d'annulation.
+ * 2. Le rythme (P12, 27/09/2026) : premier message tout de suite, rappels à
+ *    J-7 et J-3, seulement J-3 une fois confirmé, un contenu au milieu, la
+ *    veille, « sans réponse » noté, le lien le matin, la conversation close
+ *    après le rendez-vous. Jamais d'annulation.
  * 3. Un même envoi ne part jamais deux fois, même si l'horloge repasse.
  * 4. STOP arrête tout, avec une seule réponse.
  * 5. Le webhook : rien tant que l'agent n'est pas lancé ; puis réservation,
@@ -90,13 +91,18 @@ function invitation(suffixe, surcharge = {}) {
 async function messages(id) {
   const { data } = await admin
     .from("agent_messages")
-    .select("sens, genre, modele, texte, cle_envoi")
+    .select("sens, genre, modele, texte, cle_envoi, statut")
     .eq("conversation_id", id)
     .order("created_at");
   return data ?? [];
 }
+// Les modèles vraiment partis. Un contenu n'a pas de `modele` en base : sa clé
+// le dit (comme `versEnvois`). Un créneau consommé sans rien envoyer reste
+// noté en échec : il n'est pas parti.
 const modelesDe = async (id) =>
-  (await messages(id)).filter((m) => m.genre === "modele").map((m) => m.modele);
+  (await messages(id))
+    .filter((m) => m.genre === "modele" && m.statut !== "echec")
+    .map((m) => m.modele ?? (m.cle_envoi?.startsWith("contenu:") ? "contenu" : null));
 
 async function conversation(uri) {
   const { data } = await admin
@@ -166,20 +172,35 @@ try {
   ]);
   verifie("deux passages de l'horloge n'envoient rien de plus", (await messages(c.id)).length === 1);
 
+  // Rendez-vous à J+8, pas encore confirmé : rappels à J-7 (ici le
+  // lendemain) et J-3, et un contenu au milieu de chaque intervalle d'au
+  // moins deux jours (P12, « Le rythme selon la durée », 27/09/2026).
   await tournerConversation(admin, c.id, a(1, 10, 5));
-  verifie("pas de rappel le lendemain", (await messages(c.id)).length === 1);
+  verifie(
+    "rappel à J-7, 10h (ici le lendemain)",
+    (await modelesDe(c.id)).join() === "reservation,rappel",
+    (await modelesDe(c.id)).join(),
+  );
   await tournerConversation(admin, c.id, a(2, 10, 5));
-  verifie("rappel à deux jours, 10h", (await modelesDe(c.id)).join() === "reservation,rappel");
+  verifie("rien le surlendemain : le contenu attend le milieu, J-5", (await messages(c.id)).length === 2);
 
   const lu = await recevoir(admin, c.id, "Oui, ça tient", a(2, 11));
   verifie("le bouton « Oui » confirme", lu?.sens === "confirme" && (await conversation(inv.uri)).confirme_le !== null);
 
+  // Confirmée : plus que J-3 et la veille. Le contenu passe au milieu de la
+  // réservation et de J-3, au jour 2 : il part dans le même passage que la
+  // réponse, à la même seconde. On ne compte donc pas sur leur ordre.
   await tournerConversation(admin, c.id, a(2, 11, 1));
-  const apresReponse = await messages(c.id);
+  const libres = (await messages(c.id)).filter((m) => m.genre === "libre");
   verifie(
     "IA en panne : elle reçoit « je vérifie et je reviens », une seule fois",
-    apresReponse.filter((m) => m.genre === "libre").length === 1 &&
-      apresReponse.at(-1)?.texte === peggy.textes.attente,
+    libres.length === 1 && libres[0].texte === peggy.textes.attente,
+    libres.map((m) => m.texte).join(" | "),
+  );
+  verifie(
+    "confirmée : le contenu part au milieu, entre la réservation et J-3",
+    (await modelesDe(c.id)).join() === "reservation,rappel,contenu",
+    (await modelesDe(c.id)).join(),
   );
   const { data: file } = await admin.from("agent_questions").select("genre, etat").eq("conversation_id", c.id);
   verifie("… et la question entre dans la file de Louis", file?.length === 1 && file[0].etat === "ouverte");
@@ -190,19 +211,41 @@ try {
     "un message de la nuit n'a pas de réponse avant 8h",
     nuit !== null && (await messages(c.id)).at(-1)?.sens === "entrant",
   );
+  // Sa première question attend encore Louis : la nouvelle la rejoint, sans
+  // second « je vérifie » (09/10/2026). La ligne notée à 8h n'envoie rien.
   await tournerConversation(admin, c.id, a(3, 8, 1));
-  verifie("… et en a une à 8h", (await messages(c.id)).at(-1)?.sens === "sortant");
-
-  // Confirmée au jour 2, veille au jour 7 : plus de 4 jours, donc la
-  // préparation part au milieu (jour 4), et plus aucun rappel.
-  await tournerConversation(admin, c.id, a(4, 10, 5));
+  const apresNuit = await messages(c.id);
+  const { data: fileNuit } = await admin.from("agent_questions").select("question").eq("conversation_id", c.id);
   verifie(
-    "confirmée : plus de rappel, la préparation au milieu",
-    (await modelesDe(c.id)).join() === "reservation,rappel,preparation",
+    "… à 8h, elle rejoint la question qui attend, sans second « je vérifie »",
+    apresNuit.at(-1)?.sens === "sortant" &&
+      apresNuit.at(-1)?.statut === "echec" &&
+      apresNuit.filter((m) => m.texte === peggy.textes.attente).length === 1 &&
+      fileNuit?.length === 1 &&
+      fileNuit[0].question.includes("Puis, "),
+    JSON.stringify(fileNuit),
+  );
+
+  await tournerConversation(admin, c.id, a(4, 10, 5));
+  verifie("confirmée : plus rien avant J-3", (await modelesDe(c.id)).length === 3);
+  await tournerConversation(admin, c.id, a(5, 10, 5));
+  verifie(
+    "… puis le rappel de J-3, 10h",
+    (await modelesDe(c.id)).join() === "reservation,rappel,contenu,rappel",
     (await modelesDe(c.id)).join(),
   );
+  // Entre J-3 et la veille, deux jours : un créneau de contenu à J-2. Un
+  // article lui est parti il y a moins de cinq jours : le créneau se
+  // consomme sans rien envoyer (05/10/2026).
   await tournerConversation(admin, c.id, a(6, 10, 5));
-  verifie("rien d'autre avant la veille", (await modelesDe(c.id)).length === 3);
+  const contenuSaute = (await messages(c.id)).at(-1);
+  verifie(
+    "rien d'autre avant la veille : le contenu de J-2 saute, un article est parti il y a moins de cinq jours",
+    (await modelesDe(c.id)).length === 4 &&
+      contenuSaute?.cle_envoi === `contenu:${ajouterJours(jourLocal(maintenant, P), 6)}` &&
+      contenuSaute.statut === "echec",
+    JSON.stringify(contenuSaute),
+  );
 
   await tournerConversation(admin, c.id, a(7, 10, 5));
   verifie("le message de la veille part à 10h", (await modelesDe(c.id)).at(-1) === "veille");
@@ -227,10 +270,11 @@ try {
   const apresStop = await conversation(invStop.uri);
   verifie("STOP arrête la conversation", apresStop.etat === "stop" && apresStop.stop_le !== null);
   await tournerConversation(admin, cs.id, a(7, 10, 5));
+  // Le STOP et sa réponse portent la même seconde : on ne compte pas sur leur ordre.
   const filStop = await messages(cs.id);
   verifie(
     "une seule réponse au STOP, puis plus rien",
-    filStop.length === 3 && filStop[2].genre === "libre",
+    filStop.length === 3 && filStop.filter((m) => m.sens === "sortant" && m.genre === "libre").length === 1,
     filStop.map((m) => m.genre).join(),
   );
 
@@ -298,13 +342,17 @@ try {
     .select("*")
     .eq("organization_id", orgs.a.id);
   const b = bilans?.[0];
+  // La purge compte les lignes, pas ce qui est parti. Sept modèles :
+  // réservation, J-7, contenu, J-3, contenu de J-2 sauté, veille, matin. Deux
+  // libres : « je vérifie », et la ligne de 8h qui n'a rien envoyé. Une seule
+  // question : la seconde a rejoint la première.
   verifie(
     "elle laisse un bilan sans nom ni numéro",
     (bilans?.length ?? 0) === (avant ?? 0) + 1 &&
       b.confirme === true &&
       b.sans_reponse_veille === true &&
-      b.modeles_envoyes === 5 &&
-      b.questions_montees === 2 &&
+      b.modeles_envoyes === 7 &&
+      b.questions_montees === 1 &&
       b.messages_libres === 2 &&
       !JSON.stringify(b).includes("Camille") &&
       !JSON.stringify(b).includes("+336"),
