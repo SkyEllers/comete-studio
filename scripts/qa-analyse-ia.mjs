@@ -27,6 +27,7 @@ import { demanderJson } from "../src/tools/analyse/ia.ts";
 import { profilDuClient } from "../src/tools/analyse/profils.ts";
 import { consignesAnalyse, contenuAnalyse, momentAnalyse } from "../src/tools/analyse/prompt.ts";
 import { analyseLue, SCHEMA_ANALYSE, versRangee } from "../src/tools/analyse/schema.ts";
+import { compterParole, resumeParole } from "../src/tools/analyse/parole.ts";
 import { texteACopier } from "../src/tools/resultats/enregistrement-format.ts";
 
 console.log("QA — analyse des diagnostics, contre la vraie API\n");
@@ -79,6 +80,7 @@ for (const [i, l] of lignes.entries()) {
         issue: rdv.sale_amount_cents != null ? "vente" : "inconnue",
         detailsIssue: [],
         reponses: reponsesPourAnalyse(Array.isArray(rep?.answers) ? rep.answers : []),
+        parole: resumeParole(compterParole(l.transcription)),
         transcription: texteACopier(l.transcription),
       }),
       schema: SCHEMA_ANALYSE,
@@ -94,10 +96,11 @@ for (const [i, l] of lignes.entries()) {
     console.log(`Appel ${i + 1} : ÉCHEC (${r.erreur}) en ${duree} s`);
     continue;
   }
-  const a = versRangee(r.valeur);
+  const a = versRangee(r.valeur, compterParole(l.transcription));
   console.log(`Appel ${i + 1} : ${a.points.length} repères, ${a.alertes.length} alertes, ${a.pas_su.length} questions sans réponse, ${r.valeur.passages.length} passages, ${r.valeur.fiche.phrases.length} phrases de la cliente`);
   console.log(`  repères : ${a.points.map((p) => `${p.cle}=${p.repere}`).join(", ")}`);
   console.log(`  alertes : ${a.alertes.map((x) => `${x.cle}${x.certitude === "sure" ? "" : " (à vérifier)"}`).join(", ") || "aucune"}`);
+  console.log(`  intention : ${r.valeur.fiche.intention} · capacité : ${r.valeur.fiche.capacite} · parole closeuse : ${a.parole ? Object.entries(a.parole.parts).map(([k, v]) => k + " " + v + " %").join(", ") : "?"} (voix ${a.voix_closeuse}) · suite : ${a.suite ? "oui" : "non"}`);
   console.log(`  profil : ${r.valeur.fiche.profil_disc} · verdict : ${a.pourquoi.verdict ?? "?"} · ${a.moments_cles.length} moments clés · ${a.pourquoi.freins_exprimes.length + a.pourquoi.freins_supposes.length} autres freins · ${a.pourquoi.signaux_encourageants.length} signaux`);
   if (montrer) console.log(JSON.stringify({ ...a, passages: r.valeur.passages }, null, 2));
   console.log(`  ${duree} s, ${r.usage.input_tokens ?? 0} jetons lus, ${r.usage.output_tokens ?? 0} écrits, ${cout(r.usage).toFixed(3)} $\n`);

@@ -89,6 +89,16 @@ Ce que Peggy a relevé en analysant elle-même un appel (08/10/2026), à appliqu
 - Les analyses (GniomCheck, OligoCheck) ne sont pas des dosages hormonaux et ne disent pas, à elles seules, la cause d'une prise de poids.
 - Le script V4 est une trame, pas un texte à réciter : de longs passages appris font décrocher la cliente.
 
+Ce que Peggy a relevé en analysant un autre appel (10/10/2026) :
+- Quand le questionnaire annonce un petit budget (moins de 100 € par mois) ou une décision lointaine (« plutôt l'an prochain »), la vendeuse pose la question du budget avant la présentation, pas après : « Est-ce que vous préparez ce projet pour plus tard, ou est-ce que vous voulez aussi voir une première étape possible dès maintenant ? »
+- Quand la cliente demande une porte d'entrée plus petite (« est-ce qu'on peut faire juste la phase 1 ? »), c'est une ouverture : demander pourquoi (avancer seule, ou limiter la dépense) avant de comparer les offres.
+- La présentation tient en 5 minutes, reliée à ce qu'elle a dit : pas un inventaire des analyses et des étapes. Trop d'informations la laissent repartir satisfaite de l'information, sans décider.
+- L'analyse du microbiote ne diagnostique ni intolérance ni allergie alimentaire : ça relève d'un avis médical. Des douleurs importantes ou un essoufflement appellent un avis médical, indépendamment des analyses.
+- Ne jamais expliquer une absence de résultat par ce que la cliente ferait ou ne ferait pas : parler de la variabilité de chaque corps.
+- Une préoccupation de la cliente (par exemple sur l'usage de l'intelligence artificielle) s'accueille et se questionne avant de s'expliquer, sans se défendre.
+- Toujours finir par une décision claire ou une suite datée, même petite (« je peux revenir vers vous en janvier ? »).
+- Rappel des prix : le bilan microbiote seul coûte 365 € en une fois, ou 2 × 190 € (15 € de frais). Dire les deux n'est pas une incohérence.
+
 Les closeuses peuvent mener le rendez-vous à leur manière : seules les règles qu'on ne discute pas sont les mêmes pour tout le monde. Juge le résultat (la cliente s'est-elle sentie comprise, a-t-elle pu décider), pas la récitation du script.`,
 };
 

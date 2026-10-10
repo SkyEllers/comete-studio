@@ -10,6 +10,7 @@
 import { z } from "zod";
 
 import { CLES_ALERTES, CLES_MOMENTS, CLES_POINTS, REPERES, type ClePoint, type Repere } from "./grille.ts";
+import type { Parole } from "./parole.ts";
 
 // ------------------------------------------------------------ La fiche
 
@@ -56,6 +57,8 @@ export const SOURCES = ["pub", "instagram", "youtube", "bouche_a_oreille", "autr
 export const CERTITUDES = ["sure", "a_verifier"] as const;
 export const PROFILS_DISC = ["D", "I", "S", "C", "inconnu"] as const;
 export const VERDICTS = ["vente", "part_closeuse", "contrainte_reelle", "mixte"] as const;
+export const INTENTIONS = ["acheter_maintenant", "se_renseigner", "plus_tard", "inconnu"] as const;
+export const CAPACITES = ["bonne", "limitee", "tres_faible", "inconnu"] as const;
 
 export const LIBELLES_FICHE: Record<string, string> = {
   moins_35: "moins de 35 ans",
@@ -108,6 +111,12 @@ export const LIBELLES_FICHE: Record<string, string> = {
   I: "I (expressive, relation)",
   S: "S (prudente, sécurité)",
   C: "C (analytique, précision)",
+  acheter_maintenant: "venue pour acheter maintenant",
+  se_renseigner: "venue se renseigner",
+  plus_tard: "venue pour plus tard",
+  bonne: "bonne",
+  limitee: "limitée",
+  tres_faible: "très faible",
 };
 
 const chaine = (description: string) => ({ type: "string", description });
@@ -136,6 +145,8 @@ const SCHEMA_FICHE = {
     "phrases",
     "profil_disc",
     "profil_indices",
+    "intention",
+    "capacite",
   ],
   properties: {
     tranche_age: chaine(`Sa tranche d'âge, si elle est dite ou dans le questionnaire. Parmi : ${TRANCHES_AGE.join(", ")}.`),
@@ -162,6 +173,12 @@ const SCHEMA_FICHE = {
     ),
     profil_disc: chaine(`Son profil DISC dominant, en hypothèse prudente (D directe, I expressive, S prudente, C analytique), ou « inconnu » si l'appel ne donne pas assez d'indices. Parmi : ${PROFILS_DISC.join(", ")}.`),
     profil_indices: chaine("Les indices de ce profil (métier, façon de parler, ce qu'elle demande), en une phrase, ou vide."),
+    intention: chaine(
+      `Pourquoi elle est venue, d'après le questionnaire et l'appel : acheter maintenant, se renseigner, ou préparer une décision plus tard. Parmi : ${INTENTIONS.join(", ")}.`,
+    ),
+    capacite: chaine(
+      `Sa capacité à payer maintenant, d'après le budget coché et ce qu'elle dit. Parmi : ${CAPACITES.join(", ")}.`,
+    ),
   },
 } as const;
 
@@ -213,6 +230,9 @@ const fiche = z.object({
   // Ajoutés le 08/10/2026 (l'analyse de Peggy) : absents des fiches d'avant.
   profil_disc: un(PROFILS_DISC).default("inconnu"),
   profil_indices: z.string().transform(coupe(400)).default(""),
+  // Ajoutés le 10/10/2026 (l'audit de Peggy) : absents des fiches d'avant.
+  intention: un(INTENTIONS).default("inconnu"),
+  capacite: un(CAPACITES).default("inconnu"),
 });
 
 export type Fiche = z.infer<typeof fiche>;
@@ -233,6 +253,7 @@ export const SCHEMA_ANALYSE = {
     "pas_su",
     "pourquoi",
     "a_retenir",
+    "suite",
     "passages",
     "fiche",
   ],
@@ -358,6 +379,9 @@ export const SCHEMA_ANALYSE = {
       { type: "string" },
       "De 2 à 4 phrases pour elle (« tu »), les plus utiles pour son prochain appel. Bienveillantes et précises.",
     ),
+    suite: chaine(
+      "Pour une non-vente ou une attente : quand et comment reprendre contact avec elle, en une phrase (« lui proposer le bilan seul par écrit cette semaine, puis la rappeler en janvier »). Vide pour une vente.",
+    ),
     passages: liste(
       {
         type: "object",
@@ -437,6 +461,7 @@ export const analyseLue = z.object({
     verdict_explication: z.string().transform(coupe(600)).default(""),
   }),
   a_retenir: z.array(z.string().transform(coupe(500))).transform(garde(6)),
+  suite: z.string().transform(coupe(600)).default(""),
   passages: z
     .array(
       z.object({
@@ -452,8 +477,18 @@ export const analyseLue = z.object({
 
 export type AnalyseLue = z.infer<typeof analyseLue>;
 
-/** Ce qui est rangé dans `radar_analyses.analyse` : tout sauf la fiche et les passages. */
-export type AnalyseRangee = Omit<AnalyseLue, "fiche" | "passages">;
+/**
+ * Ce qui est rangé dans `radar_analyses.lecture` : tout sauf la fiche et les
+ * passages, plus le temps de parole compté par le hub (10/10/2026).
+ */
+export type AnalyseRangee = Omit<AnalyseLue, "fiche" | "passages"> & { parole?: Parole };
+
+const paroleLue = z.object({
+  minutes: z.number(),
+  incomplet: z.boolean(),
+  parts: z.record(z.string(), z.number()),
+  tranches: z.array(z.object({ debut: z.number(), fin: z.number(), parts: z.record(z.string(), z.number()) })),
+});
 
 /**
  * Les repères, chacun une fois et dans l'ordre de la grille : un repère
@@ -465,8 +500,9 @@ export function pointsComplets(points: AnalyseLue["points"]): AnalyseLue["points
   );
 }
 
-export function versRangee(a: AnalyseLue): AnalyseRangee {
+export function versRangee(a: AnalyseLue, parole?: Parole): AnalyseRangee {
   return {
+    ...(parole ? { parole } : {}),
     voix_closeuse: a.voix_closeuse,
     resume: a.resume,
     points: pointsComplets(a.points),
@@ -475,12 +511,13 @@ export function versRangee(a: AnalyseLue): AnalyseRangee {
     pas_su: a.pas_su,
     pourquoi: a.pourquoi,
     a_retenir: a.a_retenir,
+    suite: a.suite,
   };
 }
 
 /** Relit une analyse rangée en base ; null si elle ne tient plus au schéma. */
 export function lireRangee(valeur: unknown): AnalyseRangee | null {
-  const lu = analyseLue.omit({ fiche: true, passages: true }).safeParse(valeur);
+  const lu = analyseLue.omit({ fiche: true, passages: true }).extend({ parole: paroleLue.optional() }).safeParse(valeur);
   return lu.success ? { ...lu.data, points: pointsComplets(lu.data.points) } : null;
 }
 

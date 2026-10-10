@@ -60,6 +60,8 @@ export type LignePortrait = { valeur: string; libelle: string; total: number; ve
 export type DimensionPortrait = { cle: string; libelle: string; lignes: LignePortrait[] };
 
 const DIMENSIONS: { cle: string; libelle: string; lire: (e: EntreePortrait) => string[] }[] = [
+  { cle: "intention", libelle: "Pourquoi elle est venue", lire: (e) => (e.fiche ? [e.fiche.intention] : []) },
+  { cle: "capacite", libelle: "Capacité à payer maintenant", lire: (e) => (e.fiche ? [e.fiche.capacite] : []) },
   { cle: "tranche_age", libelle: "Âge", lire: (e) => (e.fiche ? [e.fiche.tranche_age] : []) },
   { cle: "menopause", libelle: "Ménopause", lire: (e) => (e.fiche ? [e.fiche.menopause] : []) },
   { cle: "profil_disc", libelle: "Profil DISC supposé", lire: (e) => (e.fiche ? [e.fiche.profil_disc] : []) },

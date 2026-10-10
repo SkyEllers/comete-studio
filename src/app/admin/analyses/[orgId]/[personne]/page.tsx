@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { getVuePersonne } from "@/tools/analyse/queries";
 import { alertesSures } from "@/tools/analyse/schema";
-import { BadgeIssue, TableComparaison } from "@/tools/analyse/vue-analyse";
+import { BadgeIssue, MarqueCoupe, TableComparaison } from "@/tools/analyse/vue-analyse";
 
 /** Une closeuse, ou la titulaire, vue par Louis : son ensemble face à l'équipe, et chacun de ses appels. */
 
@@ -77,6 +77,7 @@ export default async function PersonnePage({ params }: PageProps<"/admin/analyse
                   })()}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
+                  <MarqueCoupe analyse={a.analyse} />
                   {a.analyse ? null : (
                     <span className="text-muted-foreground text-xs">
                       {a.etat === "echec" ? `Échec : ${a.erreur ?? "inconnu"}` : "Analyse en attente"}

@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleHelp, Lightbulb, Radio, SearchCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, CircleHelp, Lightbulb, MessagesSquare, Radio, SearchCheck, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import {
   type Issue,
   type Repere,
 } from "./grille";
+import { MINUTES_APPEL_COMPLET, partDe } from "./parole";
 import { alertesSures, estTranchee, type Alerte, type AnalyseRangee, type Tranche } from "./schema";
 
 /**
@@ -84,7 +85,16 @@ export function DetailAnalyse({
   const aVerifier = pourLouis ? analyse.alertes.filter((a) => a.certitude === "a_verifier") : [];
   return (
     <div className="space-y-6">
+      {analyse.parole?.incomplet ? (
+        <p className="border-warning/40 bg-warning/10 text-warning rounded-md border px-3 py-2 text-sm">
+          Enregistrement coupé : {analyse.parole.minutes} minutes enregistrées, pour un diagnostic de 45. L&apos;analyse ne
+          porte que sur ce qui a été enregistré. Dépose le fichier complet : elle se refera toute seule.
+        </p>
+      ) : null}
+
       {analyse.resume ? <p className="text-sm">{analyse.resume}</p> : null}
+
+      <TempsDeParole analyse={analyse} />
 
       <section className="border-trait bg-papier-clair rounded-lg border p-4">
         <h3 className="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -138,6 +148,12 @@ export function DetailAnalyse({
           <div className="mt-3 text-sm">
             <p className="text-muted-foreground text-xs">{issue === "vente" ? "Ce qui a fait la vente" : "Ce qui aurait pu changer"}</p>
             <p>{p.aurait_pu_changer}</p>
+          </div>
+        ) : null}
+        {analyse.suite ? (
+          <div className="mt-3 text-sm">
+            <p className="text-muted-foreground text-xs">La suite conseillée</p>
+            <p>{analyse.suite}</p>
           </div>
         ) : null}
         {p.verdict && p.verdict !== "vente" && p.verdict_explication ? (
@@ -264,6 +280,54 @@ export function DetailAnalyse({
         </section>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Le temps de parole de la vendeuse, compté par le hub : sur tout l'appel et
+ * par tranche de 15 minutes. Le script de Peggy vise 20 % de parole.
+ */
+function TempsDeParole({ analyse }: { analyse: AnalyseRangee }) {
+  if (!analyse.parole) return null;
+  const { total, tranches } = partDe(analyse.parole, analyse.voix_closeuse);
+  if (total === null) return null;
+  const teinte = (part: number) => (part <= 35 ? "bg-success" : part <= 55 ? "bg-warning" : "bg-braise-fonce");
+  return (
+    <section className="border-trait rounded-lg border p-4">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-medium">
+        <MessagesSquare aria-hidden="true" className="size-4" />
+        Temps de parole de la vendeuse : {total} %
+      </h3>
+      <p className="text-muted-foreground mb-3 text-xs">
+        Compté sur la transcription, {analyse.parole.minutes} minutes. Le script de Peggy vise 80 % d&apos;écoute, soit 20 % de
+        parole.
+      </p>
+      <ul className="space-y-1.5">
+        {tranches
+          .filter((t) => t.part !== null)
+          .map((t) => (
+            <li key={t.debut} className="flex items-center gap-3 text-xs">
+              <span className="text-muted-foreground w-20 shrink-0 font-mono tabular-nums">
+                {t.debut}-{t.fin} min
+              </span>
+              <span className="bg-papier-fonce h-2 flex-1 overflow-hidden rounded-full">
+                <span className={cn("block h-full", teinte(t.part as number))} style={{ width: `${t.part}%` }} />
+              </span>
+              <span className="w-10 shrink-0 text-right font-mono tabular-nums">{t.part} %</span>
+            </li>
+          ))}
+      </ul>
+    </section>
+  );
+}
+
+/** « coupé » dans une liste d'appels, quand l'enregistrement est trop court. */
+export function MarqueCoupe({ analyse }: { analyse: AnalyseRangee | null }) {
+  if (!analyse?.parole?.incomplet) return null;
+  return (
+    <span className="text-warning text-xs" title={`Moins de ${MINUTES_APPEL_COMPLET} minutes enregistrées`}>
+      coupé ({analyse.parole.minutes} min)
+    </span>
   );
 }
 

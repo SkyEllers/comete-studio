@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 import { SEUIL_OUVERTURE } from "./grille";
 import type { AppelAnalyse, VueCloseuse } from "./queries";
-import { BadgeIssue, DetailAnalyse, ListePassages, TableComparaison } from "./vue-analyse";
+import { BadgeIssue, DetailAnalyse, ListePassages, MarqueCoupe, TableComparaison } from "./vue-analyse";
 
 /**
  * L'onglet « Mes analyses » de l'espace d'une closeuse (0056). Visible dès le
@@ -141,6 +141,7 @@ function ListeAppels({ appels }: { appels: AppelAnalyse[] }) {
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
+                <MarqueCoupe analyse={a.analyse} />
                 {a.analyse ? null : (
                   <span className="text-muted-foreground text-xs">{a.etat === "echec" ? "Analyse à refaire" : "Analyse en cours"}</span>
                 )}

@@ -7,6 +7,7 @@ import { texteACopier, type Replique } from "@/tools/resultats/enregistrement-fo
 import { derniereRaison } from "@/tools/resultats/non-vente";
 
 import { budgetDuQuestionnaire, reponsesPourAnalyse } from "./agregats";
+import { compterParole, resumeParole } from "./parole";
 import type { Issue } from "./grille";
 import { demanderJson, MODELE } from "./ia";
 import { aAnalyser, lireIssue, syntheseDue, type EtatAnalyse, type FaitsIssue, type IssueLue } from "./issue";
@@ -38,7 +39,8 @@ import { analyseLue, lireFiche, lireRangee, SCHEMA_ANALYSE, SCHEMA_SYNTHESE, syn
 type Admin = SupabaseClient<Database>;
 
 /** Le temps qu'on laisse à Claude pour lire un appel, et pour la synthèse. */
-const DELAI_ANALYSE_MS = 240_000;
+// 280 s : un appel d'une heure a pris 206 s le 10/10/2026. La route a 300 s en tout.
+const DELAI_ANALYSE_MS = 280_000;
 const DELAI_SYNTHESE_MS = 280_000;
 
 const PARIS = "Europe/Paris";
@@ -285,6 +287,7 @@ export async function analyserUn(admin: Admin, bookingId: string): Promise<Resul
   if ((await reserver(admin, f)) === null) return { ok: false, erreur: "analyse déjà en cours" };
 
   const lecons = leconsPourAnalyse(carnet);
+  const parole = compterParole(repliques);
   const parTitulaire = f.closeuseId === null;
   const reponsesLues = Array.isArray(reponses?.answers) ? (reponses.answers as { q: string; r: string }[]) : [];
 
@@ -300,6 +303,7 @@ export async function analyserUn(admin: Admin, bookingId: string): Promise<Resul
         issue: f.issue.issue,
         detailsIssue: detailsIssue(f),
         reponses: reponsesPourAnalyse(reponsesLues),
+        parole: resumeParole(parole),
         transcription: texteACopier(repliques),
       }),
       schema: SCHEMA_ANALYSE,
@@ -327,7 +331,7 @@ export async function analyserUn(admin: Admin, bookingId: string): Promise<Resul
       closeuse_id: f.closeuseId,
       issue: f.issue.issue,
       issue_cle: f.issue.cle,
-      lecture: versRangee(a) as unknown as Json,
+      lecture: versRangee(a, parole) as unknown as Json,
       erreur: null,
       faite_le: new Date().toISOString(),
       modele: MODELE,

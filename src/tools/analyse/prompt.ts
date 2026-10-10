@@ -50,7 +50,10 @@ Les corrections de Louis du carnet (« Vérifié par Louis : … ») tranchent c
 - pourquoi : le plus important. Pour une vente, ce qui l'a faite (le moment précis où la cliente a basculé, et ce qui l'a permis). Sinon, ce qui a manqué. Sépare la raison donnée par la cliente de la vraie raison quand elles diffèrent (« je dois réfléchir » qui cache le prix ou la confiance), puis les autres freins : ceux qu'elle a exprimés, et tes hypothèses, en disant que ce sont des hypothèses. Note les signaux encourageants. L'issue réelle t'est donnée : pars d'elle.
 - verdict : sois juste avec la vendeuse. Une contrainte réelle de la cliente (l'argent réservé à un enfant, un moment de vie) n'est pas un échec de la vendeuse, même si elle aurait pu mieux faire ailleurs.
 - passages : seulement des passages vraiment réussis, réécrits pour être montrés à d'autres vendeuses sans rien qui identifie la cliente. Moments possibles : ${moments}.
-- fiche : la cliente, en cases à compter, d'après l'appel et le questionnaire. « inconnu » ou vide quand ce n'est pas dit : jamais de déduction hasardeuse.
+- fiche : la cliente, en cases à compter, d'après l'appel et le questionnaire. « inconnu » ou vide quand ce n'est pas dit : jamais de déduction hasardeuse. L'intention (acheter maintenant, se renseigner, plus tard) et la capacité à payer comptent beaucoup : elles disent si une non-vente tient à la vendeuse ou à la cliente.
+- suite : pour une non-vente ou une attente, quand et comment reprendre contact, en une phrase concrète.
+- Le temps de parole est compté par le hub sur la transcription : il est exact. Sers-t'en pour le repère « écoute » (l'objectif est 80 % d'écoute) et dis où la parole bascule. Si l'enregistrement est coupé, dis-le dès le résumé, ne juge pas ce qui n'est pas enregistré (« sans_objet ») et ne tire pas de verdict sur la fin de l'appel.
+- Le profil DISC : une cliente qui pose des questions précises sur ce que mesurent les analyses, les modalités ou le contrat, ou qui exerce un métier technique ou de soin, est probablement C (analytique), même si elle parle beaucoup de ses émotions. Donne le profil secondaire dans les indices quand il se voit.
 
 ${STYLE}
 
@@ -66,6 +69,8 @@ export type CadreAppel = {
   issue: Issue;
   detailsIssue: string[];
   reponses: { q: string; r: string }[];
+  /** Le temps de parole compté par le hub (`resumeParole`). */
+  parole: string;
   transcription: string;
 };
 
@@ -107,6 +112,10 @@ ${details}
 ## Le questionnaire de réservation
 
 ${reponses}
+
+## Le temps de parole, compté par le hub (exact)
+
+${c.parole}
 
 ## La transcription
 

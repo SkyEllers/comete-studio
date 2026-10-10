@@ -44,6 +44,8 @@ function LignesFiche({ fiche, titulaire }: { fiche: Fiche; titulaire: string }) 
     ["Ce qu'elle veut retrouver", fiche.veut_retrouver || "pas dit"],
     ["Ses freins", fiche.freins.map(lib).join(", ") || "aucun dit"],
     ["Qui décide", lib(fiche.decide)],
+    ["Pourquoi elle est venue", lib(fiche.intention)],
+    ["Capacité à payer maintenant", lib(fiche.capacite)],
     [`Comment elle a connu ${titulaire}`, lib(fiche.source)],
   ];
   return (

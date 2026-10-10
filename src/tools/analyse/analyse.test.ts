@@ -5,6 +5,7 @@ import { budgetDuQuestionnaire, chiffresPortrait, comparaison, dominant, reponse
 import { CLES_POINTS, resteAvantOuverture, SEUIL_LECON, SEUIL_OUVERTURE } from "./grille.ts";
 import { aAnalyser, ATTENTE_SANS_ISSUE_MS, ENTRE_ESSAIS_MS, lireIssue, syntheseDue, type FaitsIssue } from "./issue.ts";
 import { leconsPourAnalyse, mouvementsDuCarnet, resoudreAppuis, type Lecon } from "./lecons.ts";
+import { compterParole, lettreVoix, partDe, resumeParole } from "./parole.ts";
 import {
   alertesATrancher,
   alertesSures,
@@ -243,6 +244,8 @@ const ficheVide: Fiche = {
   phrases: [],
   profil_disc: "C",
   profil_indices: "",
+  intention: "se_renseigner",
+  capacite: "tres_faible",
 };
 
 const analyse = {
@@ -265,6 +268,7 @@ const analyse = {
     verdict_explication: "",
   },
   a_retenir: [],
+  suite: "",
   passages: [],
   fiche: ficheVide,
 };
@@ -415,5 +419,51 @@ describe("les alertes à vérifier", () => {
       alertesATrancher(alertes, tranchees).map((a) => a.extrait),
       [hypnose.extrait],
     );
+  });
+});
+
+describe("le temps de parole", () => {
+  const replique = (qui: string, debutMin: number, finMin: number, n: number) => ({
+    qui,
+    debut: debutMin * 60_000,
+    fin: finMin * 60_000,
+    texte: Array.from({ length: n }, () => "mot").join(" "),
+  });
+
+  it("compte la part des mots de chaque voix, en tout et par tranche", () => {
+    const p = compterParole([
+      replique("A", 0, 5, 20),
+      replique("B", 5, 14, 80),
+      replique("A", 16, 30, 90),
+      replique("B", 30, 46, 10),
+    ]);
+    assert.equal(p.minutes, 46);
+    assert.equal(p.incomplet, false);
+    assert.deepEqual(p.parts, { A: 55, B: 45 });
+    assert.deepEqual(
+      partDe(p, "Voix A").tranches.map((t) => [t.debut, t.fin, t.part]),
+      [
+        [0, 15, 20],
+        [15, 30, 100],
+        [30, 45, 0],
+      ],
+    );
+    assert.equal(partDe(p, "Voix A").total, 55);
+    assert.equal(lettreVoix("voix b"), "B");
+    assert.match(resumeParole(p), /Voix A 55 %, Voix B 45 %/);
+  });
+
+  it("repère un enregistrement coupé", () => {
+    const p = compterParole([replique("A", 0, 10, 50), replique("B", 10, 21, 50)]);
+    assert.equal(p.minutes, 21);
+    assert.equal(p.incomplet, true);
+    assert.match(resumeParole(p), /coupé/);
+  });
+
+  it("une analyse d'avant se relit sans temps de parole, une nouvelle avec", () => {
+    const a = analyseLue.parse(analyse);
+    assert.equal(lireRangee(versRangee(a))?.parole, undefined);
+    const p = compterParole([replique("A", 0, 40, 10)]);
+    assert.equal(lireRangee(versRangee(a, p))?.parole?.minutes, 40);
   });
 });
